@@ -130,9 +130,9 @@ def optim_eq1(X, delta, beta_correct,
   def loss_fn(output):
     return torch.sum(torch.abs(output), dim=0) / N
 
-  X = torch.from_numpy(X)
-  J = torch.from_numpy(np.where(delta)[0]).long()
-  beta_correct = torch.from_numpy(beta_correct)
+  X = torch.from_numpy(X).to(device)
+  J = torch.from_numpy(np.where(delta)[0]).long().to(device)
+  beta_correct = torch.from_numpy(beta_correct).to(device)
 
   del delta
 
@@ -230,9 +230,9 @@ def optim_eq2(X, delta, beta_correct,
 
   beta_hat = torch.stack(beta_hat)
 
-  group_labels = torch.from_numpy(group_labels).long()
-  X = torch.from_numpy(X)
-  J = torch.from_numpy(np.where(delta)[0]).long()
+  group_labels = torch.from_numpy(group_labels).long().to(device)
+  X = torch.from_numpy(X).to(device)
+  J = torch.from_numpy(np.where(delta)[0]).long().to(device)
   del delta
 
   def loss_fn(output):
@@ -258,9 +258,17 @@ def optim_eq2(X, delta, beta_correct,
 
   return beta
 
-X, delta, beta_correct = generate_data(N, X_DIM)
 
-beta = optim_eq2(X, delta, beta_correct)
+if __name__ == "__main__":
+  disable_cuda = False
+  if not disable_cuda and torch.cuda.is_available():
+    device = torch.device('cuda')
+  else:
+    device = torch.device('cpu')
+
+  X, delta, beta_correct = generate_data(N, X_DIM)
+
+  beta = optim_eq2(X, delta, beta_correct)
 
 # beta = optim_eq1(X, delta, beta_correct)
 
