@@ -73,4 +73,5 @@ def eq4_compute_I_row_wrapped(X, delta, X_groups, delta_groups, group_labels,
 get_eq4_cov_beta_k_correction_fn = functools.partial(
     _get_cov_beta_k_correction_fn, eq4_compute_I_row_wrapped)
 
-eq4_cov = get_eq4_cov_beta_k_correction_fn(eq1_compute_H_ad)
+# Default
+eq4_cov = get_eq4_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_ad)

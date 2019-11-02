@@ -294,3 +294,7 @@ def eq2_cov_robust_ad(X, delta, X_groups, delta_groups, group_labels,
   ret = eq2_cov_robust_ad_impl(X, delta, group_labels, beta_k_hat, beta)
 
   return ret[1]
+
+
+# Default
+eq2_cov = get_eq2_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_ad)
