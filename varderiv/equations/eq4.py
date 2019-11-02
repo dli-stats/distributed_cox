@@ -74,4 +74,6 @@ get_eq4_cov_beta_k_correction_fn = functools.partial(
     get_cov_beta_k_correction_fn, eq4_compute_I_row_wrapped)
 
 # Default
-eq4_cov = get_eq4_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_ad)
+eq4_cov_beta_k_correction = get_eq4_cov_beta_k_correction_fn(
+    eq1_compute_H_fn=eq1_compute_H_ad)
+eq4_cov = eq4_cov_beta_k_correction
