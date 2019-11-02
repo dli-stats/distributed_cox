@@ -83,8 +83,8 @@ def eq2_jac_manual(X, delta, group_labels, beta_k_hat, beta):
   return eq2_rest(X, delta, *precomputed, beta)
 
 
-def _eq2_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
-                    beta_k_hat, beta_guess):
+def eq2_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
+                   beta_k_hat, beta_guess):
   """Function used by `solve_grouped_eq_batch`, customized for Eq 2."""
 
   del K, X_groups, delta_groups
@@ -113,7 +113,7 @@ def solve_grouped_eq_batch(key,
                            delta_groups=None,
                            initial_guess=None,
                            solve_eq1_fn=solve_eq1_manual,
-                           solve_rest_fn=_eq2_solve_rest,
+                           solve_rest_fn=eq2_solve_rest,
                            log=False,
                            log_solve_rest_name="Eq2"):
   """Common function used by Equation 2 and 4.
@@ -190,7 +190,7 @@ def solve_grouped_eq_batch(key,
 
 
 solve_eq2 = functools.partial(solve_grouped_eq_batch,
-                              solve_rest_fn=_eq2_solve_rest)
+                              solve_rest_fn=eq2_solve_rest)
 
 #########################################################
 # BEGIN eq2 cov

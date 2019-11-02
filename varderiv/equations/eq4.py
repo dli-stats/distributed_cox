@@ -38,8 +38,8 @@ def eq4(X_groups, delta_groups, beta_k_hat, beta):
   return ret
 
 
-def _eq4_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
-                    beta_k_hat, beta_guess):
+def eq4_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
+                   beta_k_hat, beta_guess):
   """Function used by `solve_grouped_eq_batch`, customized for Eq 4."""
   del K, X, delta, group_labels
 
@@ -54,7 +54,7 @@ def _eq4_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
 
 
 solve_eq4 = functools.partial(solve_grouped_eq_batch,
-                              solve_rest_fn=_eq4_solve_rest)
+                              solve_rest_fn=eq4_solve_rest)
 
 #########################################################
 # BEGIN eq4 cov
