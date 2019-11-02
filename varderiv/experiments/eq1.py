@@ -61,11 +61,11 @@ def cov_experiment_eq1_core(args, gen=None, solve_eq1_fn=None, eq1_cov_fn=None):
   return ret
 
 
-ex = Experiment("eq1", ingredients=[base_ingredient])
-
 cov_experiment_eq1 = functools.partial(run_cov_experiment,
                                        cov_experiment_eq1_init,
                                        cov_experiment_eq1_core)
+
+ex = Experiment("eq1", ingredients=[base_ingredient])
 
 
 @ex.config

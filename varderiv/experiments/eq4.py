@@ -27,8 +27,6 @@ from varderiv.experiments.utils import CovExperimentResultItem
 from varderiv.experiments.common import ingredient as base_ingredient
 from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
-ex = Experiment("eq4", ingredients=[base_ingredient, grouped_ingredient])
-
 Experiment4SolResult = collections.namedtuple("Experiment4SolResult",
                                               "beta_k_hat beta_hat")
 
@@ -122,6 +120,8 @@ def cov_experiment_eq4_core(rnd_keys,
 cov_experiment_eq4 = functools.partial(run_cov_experiment,
                                        cov_experiment_eq4_init,
                                        cov_experiment_eq4_core)
+
+ex = Experiment("eq4", ingredients=[base_ingredient, grouped_ingredient])
 
 
 @ex.config

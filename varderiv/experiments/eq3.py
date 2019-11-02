@@ -24,8 +24,6 @@ from varderiv.experiments.utils import CovExperimentResultItem
 from varderiv.experiments.common import ingredient as base_ingredient
 from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
-ex = Experiment("eq3", ingredients=[base_ingredient, grouped_ingredient])
-
 # pylint: disable=missing-function-docstring
 
 
@@ -90,15 +88,17 @@ def cov_experiment_eq3_core(rnd_keys,
   return ret
 
 
+cov_experiment_eq3 = functools.partial(run_cov_experiment,
+                                       cov_experiment_eq3_init,
+                                       cov_experiment_eq3_core)
+
+ex = Experiment("eq3", ingredients=[base_ingredient, grouped_ingredient])
+
+
 @ex.config
 def config():
   # pylint: disable=unused-variable
   eq1_ll_grad_use_ad = True
-
-
-cov_experiment_eq3 = functools.partial(run_cov_experiment,
-                                       cov_experiment_eq3_init,
-                                       cov_experiment_eq3_core)
 
 
 @ex.main
