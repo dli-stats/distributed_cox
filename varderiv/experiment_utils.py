@@ -5,7 +5,10 @@ import time
 import collections
 import itertools
 import functools
+
 from multiprocessing.dummy import Pool as ThreadPool
+
+import tqdm
 
 import numpy as onp
 
