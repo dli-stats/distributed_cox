@@ -85,7 +85,7 @@ def eq2_jac_manual(X, delta, group_labels, beta_k_hat, beta):
 
 def _eq2_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
                     beta_k_hat, beta_guess):
-  """Function used by `_solve_grouped_eq_batch`, customized for Eq 2."""
+  """Function used by `solve_grouped_eq_batch`, customized for Eq 2."""
 
   del K, X_groups, delta_groups
 
@@ -104,18 +104,18 @@ def _eq2_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
   return _solve(key, X, delta, *precomputed, beta_guess)
 
 
-def _solve_grouped_eq_batch(key,
-                            X,
-                            delta,
-                            K,
-                            group_labels,
-                            X_groups=None,
-                            delta_groups=None,
-                            initial_guess=None,
-                            solve_eq1_fn=solve_eq1_manual,
-                            solve_rest_fn=_eq2_solve_rest,
-                            log=False,
-                            log_solve_rest_name="Eq2"):
+def solve_grouped_eq_batch(key,
+                           X,
+                           delta,
+                           K,
+                           group_labels,
+                           X_groups=None,
+                           delta_groups=None,
+                           initial_guess=None,
+                           solve_eq1_fn=solve_eq1_manual,
+                           solve_rest_fn=_eq2_solve_rest,
+                           log=False,
+                           log_solve_rest_name="Eq2"):
   """Common function used by Equation 2 and 4.
 
   This function is done in few stages:
@@ -189,7 +189,7 @@ def _solve_grouped_eq_batch(key,
   return beta_k_hat, beta
 
 
-solve_eq2 = functools.partial(_solve_grouped_eq_batch,
+solve_eq2 = functools.partial(solve_grouped_eq_batch,
                               solve_rest_fn=_eq2_solve_rest)
 
 #########################################################
@@ -207,8 +207,8 @@ def eq2_compute_I_row_wrapped(X, delta, X_groups, delta_groups, group_labels,
 
 
 @functools.lru_cache(maxsize=None)
-def _get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
-                                  eq1_compute_H_fn=eq1_compute_H_ad):
+def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
+                                 eq1_compute_H_fn=eq1_compute_H_ad):
   """HOF for covariance computation with beta_k correction."""
 
   @vectorize("(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(p,p)")
@@ -230,14 +230,14 @@ def _get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
                                                   beta_k_hat, beta)
     I_row, I_diag_last = -I_row, -I_diag_last
 
-    cov = _eq2_cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row)
+    cov = _cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row)
     return cov
 
   return wrapped
 
 
 @vectorize("(k,p,p),(p,p),(p,k,p)->(p,p)")
-def _eq2_cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row):
+def _cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row):
   """
   Args:
     - I_diag_wo_last: array of shape (K, P, P)
@@ -256,7 +256,7 @@ def _eq2_cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row):
 
 
 get_eq2_cov_beta_k_correction_fn = functools.partial(
-    _get_cov_beta_k_correction_fn, eq2_compute_I_row_wrapped)
+    get_cov_beta_k_correction_fn, eq2_compute_I_row_wrapped)
 
 eq2_compute_H = jacfwd(eq2_jac_manual, -1)
 

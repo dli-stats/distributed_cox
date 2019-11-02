@@ -13,8 +13,8 @@ from jax import jacfwd
 from varderiv.solver import solve_newton
 
 from varderiv.equations.eq1 import eq1_compute_H_ad
-from varderiv.equations.eq2 import _get_cov_beta_k_correction_fn
-from varderiv.equations.eq2 import _solve_grouped_eq_batch
+from varderiv.equations.eq2 import get_cov_beta_k_correction_fn
+from varderiv.equations.eq2 import solve_grouped_eq_batch
 from varderiv.equations.eq2 import eq2_jac_manual
 
 
@@ -40,7 +40,7 @@ def eq4(X_groups, delta_groups, beta_k_hat, beta):
 
 def _eq4_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
                     beta_k_hat, beta_guess):
-  """Function used by `_solve_grouped_eq_batch`, customized for Eq 4."""
+  """Function used by `solve_grouped_eq_batch`, customized for Eq 4."""
   del K, X, delta, group_labels
 
   @vectorize(f"(k),(K,N,p),(K,N),(K,p),(p)->(p)")
@@ -53,7 +53,7 @@ def _eq4_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
   return _solve(key, X_groups, delta_groups, beta_k_hat, beta_guess)
 
 
-solve_eq4 = functools.partial(_solve_grouped_eq_batch,
+solve_eq4 = functools.partial(solve_grouped_eq_batch,
                               solve_rest_fn=_eq4_solve_rest)
 
 #########################################################
@@ -71,7 +71,7 @@ def eq4_compute_I_row_wrapped(X, delta, X_groups, delta_groups, group_labels,
 
 
 get_eq4_cov_beta_k_correction_fn = functools.partial(
-    _get_cov_beta_k_correction_fn, eq4_compute_I_row_wrapped)
+    get_cov_beta_k_correction_fn, eq4_compute_I_row_wrapped)
 
 # Default
 eq4_cov = get_eq4_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_ad)
