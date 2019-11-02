@@ -1,10 +1,11 @@
-"""Equation single experiment."""
+"""Eq1 single experiment."""
+
+import functools
 
 import numpy as onp
 
 import jax.numpy as np
 from jax import jit
-import jax.random as jrandom
 
 from sacred import Experiment
 
@@ -15,6 +16,8 @@ from varderiv.equations.eq1 import eq1_cov_ad, eq1_cov_manual
 from varderiv.experiments.utils import expand_namedtuples
 from varderiv.experiments.utils import run_cov_experiment
 from varderiv.experiments.utils import CovExperimentResultItem
+
+from varderiv.experiments.common import ingredient as base_ingredient
 
 # pylint: disable=missing-function-docstring
 
@@ -58,47 +61,25 @@ def cov_experiment_eq1_core(args, gen=None, solve_eq1_fn=None, eq1_cov_fn=None):
   return ret
 
 
-ex = Experiment("eq1")
+ex = Experiment("eq1", ingredients=[base_ingredient])
+
+cov_experiment_eq1 = functools.partial(run_cov_experiment,
+                                       cov_experiment_eq1_init,
+                                       cov_experiment_eq1_core)
 
 
 @ex.config
 def config():
   # pylint: disable=unused-variable
-  num_experiments = 100000
-  num_threads = 1
-  batch_size = 128
-  N = 500
-  X_DIM = 3
   solve_eq1_use_ad = True
   eq1_cov_use_ad = True
 
-  seed = 0
-  key = jrandom.PRNGKey(seed)
-  experiment_rand_key, data_generation_key = jrandom.split(key, 2)
-  del key
-
 
 @ex.main
-def cov_experiment_eq1(experiment_rand_key,
-                       data_generation_key,
-                       N=500,
-                       X_DIM=3,
-                       num_experiments=100000,
-                       num_threads=1,
-                       batch_size=128,
-                       solve_eq1_use_ad=True,
-                       eq1_cov_use_ad=False):
-  return run_cov_experiment(cov_experiment_eq1_init,
-                            cov_experiment_eq1_core,
-                            data_generation_key=data_generation_key,
-                            num_experiments=num_experiments,
-                            num_threads=num_threads,
-                            batch_size=batch_size,
-                            experiment_rand_key=experiment_rand_key,
-                            N=N,
-                            X_DIM=X_DIM,
-                            solve_eq1_use_ad=solve_eq1_use_ad,
-                            eq1_cov_use_ad=eq1_cov_use_ad)
+def cov_experiment_eq1_main(base, solve_eq1_use_ad, eq1_cov_use_ad):
+  return cov_experiment_eq1(solve_eq1_use_ad=solve_eq1_use_ad,
+                            eq1_cov_use_ad=eq1_cov_use_ad,
+                            **base)
 
 
 if __name__ == '__main__':

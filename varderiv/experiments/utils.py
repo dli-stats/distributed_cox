@@ -45,7 +45,7 @@ def expand_namedtuples(tup):
 def run_cov_experiment(
     init_fn,
     experiment_fn,
-    data_generation_key=data_generation_key,  #pylint: disable=redefined-outer-name
+    data_generation_key=data_generation_key,  # pylint: disable=redefined-outer-name
     num_experiments=1000,
     num_threads=8,
     batch_size=32,

@@ -1,0 +1,143 @@
+"""Eq4 single experiment."""
+
+import collections
+import functools
+
+import numpy as onp
+
+import jax.numpy as np
+from jax import jit
+
+from sacred import Experiment
+
+from varderiv.data import data_generator, group_labels_generator
+from varderiv.data import group_data_by_labels, group_labels_to_indices
+
+from varderiv.equations.eq1 import solve_eq1_ad, solve_eq1_manual
+from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_compute_H_manual
+
+from varderiv.equations.eq2 import solve_grouped_eq_batch
+from varderiv.equations.eq4 import get_eq4_cov_beta_k_correction_fn
+from varderiv.equations.eq4 import eq4_solve_rest
+
+from varderiv.experiments.utils import expand_namedtuples
+from varderiv.experiments.utils import run_cov_experiment
+from varderiv.experiments.utils import CovExperimentResultItem
+
+from varderiv.experiments.common import ingredient as base_ingredient
+from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
+
+ex = Experiment("eq4", ingredients=[base_ingredient, grouped_ingredient])
+
+Experiment4SolResult = collections.namedtuple("Experiment4SolResult",
+                                              "beta_k_hat beta_hat")
+
+
+def cov_experiment_eq4_init(params):
+  # pylint: disable=missing-function-docstring
+  params["group_labels_gen"] = jit(
+      group_labels_generator(
+          params["N"],
+          params["K"],
+          group_labels_generator_kind=params["group_labels_generator_kind"],
+          **params["group_labels_generator_kind_kwargs"]))
+  del params["group_labels_generator_kind"]
+  del params["group_labels_generator_kind_kwargs"]
+
+  gen = jit(data_generator(params["N"], params["X_DIM"]))
+  params["gen"] = gen
+
+  if params["solve_eq1_use_ad"]:
+    solve_eq1_fn = solve_eq1_ad
+  else:
+    solve_eq1_fn = solve_eq1_manual
+  solve_eq4_fn = functools.partial(solve_grouped_eq_batch,
+                                   solve_eq1_fn=jit(solve_eq1_fn),
+                                   solve_rest_fn=jit(eq4_solve_rest))
+  params["solve_eq4_fn"] = solve_eq4_fn
+  del params["solve_eq1_use_ad"]
+
+  if params["eq1_cov_use_ad"]:
+    eq1_compute_H_fn = eq1_compute_H_ad
+  else:
+    eq1_compute_H_fn = eq1_compute_H_manual
+  del params["eq1_cov_use_ad"]
+
+  params["cov_beta_k_correction_fn"] = jit(
+      get_eq4_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_fn))
+
+
+def cov_experiment_eq4_core(rnd_keys,
+                            N=1000,
+                            X_DIM=4,
+                            K=3,
+                            gen=None,
+                            group_labels_gen=None,
+                            solve_eq4_fn=None,
+                            cov_beta_k_correction_fn=None):
+  """Equation 4 experiment core."""
+  del N
+  assert gen is not None
+  assert group_labels_gen is not None
+  assert solve_eq4_fn is not None
+  assert cov_beta_k_correction_fn is not None
+
+  key, data_generation_key = map(np.array, zip(*rnd_keys))
+
+  X, delta, beta = gen(data_generation_key)
+  group_labels = group_labels_gen(data_generation_key)
+
+  batch_size = len(X)
+  assert beta.shape == (batch_size, X_DIM)
+
+  group_indices = group_labels_to_indices(K, group_labels)
+  X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
+                                                group_indices)
+
+  beta_k_hat, beta_hat = solve_eq4_fn(key,
+                                      X,
+                                      delta,
+                                      K,
+                                      group_labels,
+                                      X_groups=X_groups,
+                                      delta_groups=delta_groups,
+                                      initial_guess=beta,
+                                      log=False)
+
+  cov_beta_k_correction = cov_beta_k_correction_fn(X, delta, X_groups,
+                                                   delta_groups, group_labels,
+                                                   beta_k_hat, beta_hat)
+  cov_beta_k_correction = onp.array(cov_beta_k_correction)
+
+  beta_k_hat = onp.array(beta_k_hat)
+  beta_hat = onp.array(beta_hat)
+
+  ret = expand_namedtuples(
+      CovExperimentResultItem(sol=expand_namedtuples(
+          Experiment4SolResult(beta_k_hat=beta_k_hat, beta_hat=beta_hat)),
+                              cov=cov_beta_k_correction))
+  return ret
+
+
+cov_experiment_eq4 = functools.partial(run_cov_experiment,
+                                       cov_experiment_eq4_init,
+                                       cov_experiment_eq4_core)
+
+
+@ex.config
+def config():
+  # pylint: disable=unused-variable
+  solve_eq1_use_ad = True
+  eq1_cov_use_ad = True
+
+
+@ex.main
+def cov_experiment_eq4_main(base, grouped, solve_eq1_use_ad, eq1_cov_use_ad):
+  return cov_experiment_eq4(solve_eq1_use_ad=solve_eq1_use_ad,
+                            eq1_cov_use_ad=eq1_cov_use_ad,
+                            **base,
+                            **grouped)
+
+
+if __name__ == '__main__':
+  ex.run_commandline()
