@@ -1,0 +1,138 @@
+"""Equation 1."""
+
+import functools
+
+import jax.numpy as np
+from jax.experimental.vectorize import vectorize
+from jax import jacfwd, hessian
+from jax import random as jrandom
+
+from varderiv.solver import solve_newton
+
+#########################################################
+# BEGIN eq1
+#########################################################
+
+
+@vectorize('(N,p),(N),(p)->(p)')
+def eq1_log_likelihood(X, delta, beta):
+  bx = np.einsum("i,bi->b", beta, X)
+  ebx_cs = np.cumsum(np.exp(bx), 0)
+  log_term = np.log(ebx_cs)
+  log_likelhihood = np.sum((bx - log_term) * delta, axis=0)
+  return log_likelhihood
+
+
+@vectorize('(N,p),(N),(p)->(p)')
+def eq1_log_likelihood_grad_manual(X, delta, beta):
+  """Computes eq1.
+
+  Args:
+    - X: N by DIM_X matrix representing features for each sample.
+        sorted by T.
+    - delta: N vector representing a mask (corresponding to each sample in X)
+        for highlighted samples.
+    - beta: DIM_X vector
+
+  Returns:
+    Evaluation of LHS of Eq 1.
+  """
+  e_beta_X = np.exp(np.einsum("x,bx->b", beta, X)).reshape((-1, 1))
+  X_e_beta_X = X * e_beta_X
+
+  e_beta_X_cs = np.cumsum(e_beta_X, axis=0)
+  X_e_beta_X_cs = np.cumsum(X_e_beta_X, axis=0)
+
+  sum_inner = (X - X_e_beta_X_cs / e_beta_X_cs) * delta.reshape(-1, 1)
+
+  ret = np.sum(sum_inner, axis=0)
+
+  return ret
+
+
+eq1_log_likelihood_grad_ad = vectorize('(N,p),(N),(p)->(p)')(jacfwd(
+    eq1_log_likelihood, 2))
+
+
+def _solve_eq1(key, X, delta, initial_guess, eq1_ll_grad_fn):
+  sol = solve_newton(functools.partial(eq1_ll_grad_fn, X, delta), key,
+                     initial_guess)
+  return sol
+
+
+@vectorize("(k),(N,p),(N),(p)->(p)")
+def solve_eq1_ad(key, X, delta, initial_guess):
+  return _solve_eq1(key, X, delta, initial_guess, eq1_log_likelihood_grad_ad)
+
+
+@vectorize("(k),(N,p),(N),(p)->(p)")
+def solve_eq1_manual(key, X, delta, initial_guess):
+  return _solve_eq1(key, X, delta, initial_guess,
+                    eq1_log_likelihood_grad_manual)
+
+
+def solve_eq1(key, X, delta, initial_guess=None, use_ad=False):
+  if initial_guess is None:
+    initial_guess = np.abs(jrandom.normal(key, X.shape[1]))
+  if use_ad:
+    return solve_eq1_ad(key, X, delta, initial_guess)
+  else:
+    return solve_eq1_manual(key, X, delta, initial_guess)
+
+
+#########################################################
+# BEGIN COV
+#########################################################
+
+eq1_compute_H_ad = vectorize("(N,p),(N),(p)->(p,p)")(hessian(
+    eq1_log_likelihood, 2))
+
+
+@vectorize("(N,p),(N),(p)->(p,p)")
+def eq1_compute_H_manual(X, delta, beta):
+  """Eq1 Hessian manual."""
+  e_beta_X = np.exp(np.einsum("x,bx->b", beta, X)).reshape((-1, 1))
+  X_e_beta_X = X * e_beta_X
+  e_beta_X_cs = np.cumsum(e_beta_X, axis=0)
+  X_e_beta_X_cs = np.cumsum(X_e_beta_X, axis=0)
+  frac_term_inner = X_e_beta_X_cs / e_beta_X_cs
+
+  X_sub_frac_term = X - frac_term_inner
+  X_sub_frac_sq = np.einsum("bi,bj->bij", X_sub_frac_term, X_sub_frac_term)
+
+  e_beta_X_mul_X_sub_frac_sq = e_beta_X.reshape((-1, 1, 1)) * X_sub_frac_sq
+
+  num_outer = np.cumsum(e_beta_X_mul_X_sub_frac_sq, axis=0)
+  denom_outer = e_beta_X_cs.reshape((-1, 1, 1))
+
+  frac_term_outer = (num_outer / denom_outer) * delta.reshape(-1, 1, 1)
+
+  return -np.sum(frac_term_outer, axis=0)
+
+
+def eq1_compute_H(X, delta, beta, use_ad=False):
+  if use_ad:
+    return eq1_compute_H_ad(X, delta, beta)
+  else:
+    return eq1_compute_H_manual(X, delta, beta)
+
+
+def _eq1_cov(X, delta, beta, eq1_H_fn):
+  return np.linalg.inv(-eq1_H_fn(X, delta, beta))
+
+
+@vectorize("(N,p),(N),(p)->(p,p)")
+def eq1_cov_manual(X, delta, beta):
+  return _eq1_cov(X, delta, beta, eq1_compute_H_manual)
+
+
+@vectorize("(N,p),(N),(p)->(p,p)")
+def eq1_cov_ad(X, delta, beta):
+  return _eq1_cov(X, delta, beta, eq1_compute_H_ad)
+
+
+def eq1_cov(X, delta, beta, use_ad=False):
+  if use_ad:  # pylint: disable=no-else-return
+    return eq1_cov_ad(X, delta, beta)
+  else:
+    return eq1_cov_manual(X, delta, beta)
