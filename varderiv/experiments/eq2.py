@@ -75,6 +75,7 @@ def cov_experiment_eq2_init(params):
 
 
 def cov_experiment_eq2_core(rnd_keys,
+                            N=1000,
                             X_DIM=4,
                             K=3,
                             gen=None,
@@ -82,6 +83,7 @@ def cov_experiment_eq2_core(rnd_keys,
                             solve_eq2_fn=None,
                             cov_beta_k_correction_fn=None,
                             cov_robust_fn=None):
+  del N
   assert gen is not None
   assert group_labels_gen is not None
   assert solve_eq2_fn is not None
