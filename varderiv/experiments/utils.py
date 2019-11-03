@@ -1,6 +1,6 @@
 """Variance Experiment Utilities."""
 
-import math
+import sys
 import time
 import collections
 import itertools
@@ -10,12 +10,26 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 import tqdm
 
-import numpy as onp
-
-import jax.numpy as np
 from jax import random as jrandom
 
 from varderiv.data import key, data_generation_key
+
+
+def in_notebook():
+  """Detects if we are on IPython or regular script.
+
+  Ref. https://stackoverflow.com/questions/15411967/
+  """
+  if 'google.colab' in sys.modules:
+    return True
+  try:
+    cfg = get_ipython().config
+    if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
+      return True
+    else:
+      return False
+  except NameError:
+    return False
 
 
 def grouper(iterable, n, fillvalue=None):
@@ -67,15 +81,29 @@ def run_cov_experiment(
   init_fn(experiment_params)
 
   results = []
-  with ThreadPool(num_threads) as pool:
-    with tqdm.tqdm_notebook(desc="Experiment {}".format(experiment_fn.__name__),
-                            total=num_experiments) as pbar:
-      pbar.update(0)
-      time.sleep(1)
-      for sol in pool.imap_unordered(
-          functools.partial(experiment_fn, **experiment_params), data_iterator):
-        results += sol
-        pbar.update(len(sol))
+
+  if num_threads > 1:
+    pool = ThreadPool(num_threads)
+    parallel_map = pool.imap_unordered
+  else:
+    parallel_map = map
+
+  desc = "Experiment {}".format(experiment_fn.__name__)
+  if in_notebook():
+    pbar = tqdm.tqdm_notebook(desc=desc, total=num_experiments)
+  else:
+    pbar = tqdm.tqdm(desc=desc, total=num_experiments)
+  pbar.update(0)
+  time.sleep(1)
+  for sol in parallel_map(functools.partial(experiment_fn, **experiment_params),
+                          data_iterator):
+    results += sol
+    pbar.update(len(sol))
+  pbar.close()
+
+  if num_threads > 1:
+    pool.close()
+    pool.join()
 
   # Trim results that are padded
   results = results[:num_experiments]

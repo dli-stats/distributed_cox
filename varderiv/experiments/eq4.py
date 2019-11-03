@@ -2,6 +2,7 @@
 
 import collections
 import functools
+import pickle
 
 import numpy as onp
 
@@ -9,6 +10,7 @@ import jax.numpy as np
 from jax import jit
 
 from sacred import Experiment
+from sacred.utils import apply_backspaces_and_linefeeds
 
 from varderiv.data import data_generator, group_labels_generator
 from varderiv.data import group_data_by_labels, group_labels_to_indices
@@ -133,11 +135,19 @@ def config():
 
 @ex.main
 def cov_experiment_eq4_main(base, grouped, solve_eq1_use_ad, eq1_cov_use_ad):
-  return cov_experiment_eq4(solve_eq1_use_ad=solve_eq1_use_ad,
-                            eq1_cov_use_ad=eq1_cov_use_ad,
-                            **base,
-                            **grouped)
+  # pylint: disable=missing-function-docstring
+  base = dict(base)
+  base.pop("seed")
+  with open("result.pkl", "wb+") as f:
+    pickle.dump(
+        cov_experiment_eq4(solve_eq1_use_ad=solve_eq1_use_ad,
+                           eq1_cov_use_ad=eq1_cov_use_ad,
+                           **base,
+                           **grouped), f)
+    ex.add_artifact("result.pkl")
 
+
+ex.captured_out_filter = apply_backspaces_and_linefeeds
 
 if __name__ == '__main__':
   ex.run_commandline()
