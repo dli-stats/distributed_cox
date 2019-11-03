@@ -1,4 +1,4 @@
-"""Equation 1."""
+"""Equation 2."""
 
 import functools
 
@@ -13,6 +13,8 @@ from varderiv.equations.eq1 import solve_eq1_manual
 
 from varderiv.data import group_labels_to_indices, group_data_by_labels
 from varderiv.equations.eq1 import eq1_compute_H_ad
+
+# pylint: disable=redefined-outer-name
 
 #########################################################
 # BEGIN eq2
@@ -104,18 +106,19 @@ def eq2_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
   return _solve(key, X, delta, *precomputed, beta_guess)
 
 
-def solve_grouped_eq_batch(key,
-                           X,
-                           delta,
-                           K,
-                           group_labels,
-                           X_groups=None,
-                           delta_groups=None,
-                           initial_guess=None,
-                           solve_eq1_fn=solve_eq1_manual,
-                           solve_rest_fn=eq2_solve_rest,
-                           log=False,
-                           log_solve_rest_name="Eq2"):
+def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
+    key,
+    X,
+    delta,
+    K,
+    group_labels,
+    X_groups=None,
+    delta_groups=None,
+    initial_guess=None,
+    solve_eq1_fn=solve_eq1_manual,
+    solve_rest_fn=eq2_solve_rest,
+    log=False,
+    log_solve_rest_name="Eq2"):
   """Common function used by Equation 2 and 4.
 
   This function is done in few stages:
@@ -166,27 +169,27 @@ def solve_grouped_eq_batch(key,
   assert X_groups.shape == (batch_size, K, group_size, X_dim)
   assert delta_groups.shape == (batch_size, K, group_size)
 
-  sols = solve_eq1_fn(
+  eq1_sols = solve_eq1_fn(
       np.broadcast_to(key, (K,) + key.shape).reshape(
           (batch_size, K, key.shape[-1])), X_groups, delta_groups,
       step_1_initial_guess)
   if log:
-    for i, sol_single_batch in enumerate(zip(sols.guess, sols.value,
-                                             sols.step)):
+    for i, sol_single_batch in enumerate(
+        zip(eq1_sols.guess, eq1_sols.value, eq1_sols.step)):
       for k, (beta, value, step) in enumerate(zip(*sol_single_batch)):
         print("batch {} solved Eq1 for group {} "
               "beta={} value={} in {} steps".format(i, k, beta, value, step))
 
-  beta_k_hat = sols.guess
+  beta_k_hat = eq1_sols.guess
 
-  beta, value, steps = solve_rest_fn(key, X, delta, K, group_labels, X_groups,
-                                     delta_groups, beta_k_hat, initial_guess)
+  rest_sol = solve_rest_fn(key, X, delta, K, group_labels, X_groups,
+                           delta_groups, beta_k_hat, initial_guess)
 
   if log:
     print("Solved {} beta={} value={} in {} steps".format(
-        log_solve_rest_name, beta, value, steps))
+        log_solve_rest_name, *rest_sol))
 
-  return beta_k_hat, beta
+  return eq1_sols, rest_sol
 
 
 solve_eq2 = functools.partial(solve_grouped_eq_batch,

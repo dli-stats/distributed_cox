@@ -95,15 +95,18 @@ def cov_experiment_eq4_core(rnd_keys,
   X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
                                                 group_indices)
 
-  beta_k_hat, beta_hat = solve_eq4_fn(key,
-                                      X,
-                                      delta,
-                                      K,
-                                      group_labels,
-                                      X_groups=X_groups,
-                                      delta_groups=delta_groups,
-                                      initial_guess=beta,
-                                      log=False)
+  pt1_sols, pt2_sols = solve_eq4_fn(key,
+                                    X,
+                                    delta,
+                                    K,
+                                    group_labels,
+                                    X_groups=X_groups,
+                                    delta_groups=delta_groups,
+                                    initial_guess=beta,
+                                    log=False)
+
+  beta_k_hat = pt1_sols.guess
+  beta_hat = pt2_sols.guess
 
   cov_beta_k_correction = cov_beta_k_correction_fn(X, delta, X_groups,
                                                    delta_groups, group_labels,
@@ -112,6 +115,9 @@ def cov_experiment_eq4_core(rnd_keys,
 
   beta_k_hat = onp.array(beta_k_hat)
   beta_hat = onp.array(beta_hat)
+
+  pt1_sols = expand_namedtuples(type(pt1_sols)(*map(onp.array, pt1_sols)))
+  pt2_sols = expand_namedtuples(type(pt2_sols)(*map(onp.array, pt2_sols)))
 
   ret = expand_namedtuples(
       CovExperimentResultItem(sol=expand_namedtuples(

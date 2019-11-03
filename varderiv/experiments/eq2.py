@@ -33,8 +33,7 @@ from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
 # pylint: disable=missing-function-docstring
 
-Experiment2SolResult = collections.namedtuple("Experiment2SolResult",
-                                              "beta_k_hat beta_hat")
+Experiment2SolResult = collections.namedtuple("Experiment2SolResult", "pt1 pt2")
 
 Experiment2CovResult = collections.namedtuple(
     "Experiment2CovResult", "cov_beta_k_correction cov_robust_ad cov_H")
@@ -102,15 +101,18 @@ def cov_experiment_eq2_core(rnd_keys,
   X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
                                                 group_indices)
 
-  beta_k_hat, beta_hat = solve_eq2_fn(key,
-                                      X,
-                                      delta,
-                                      K,
-                                      group_labels,
-                                      X_groups=X_groups,
-                                      delta_groups=delta_groups,
-                                      initial_guess=beta,
-                                      log=False)
+  pt1_sols, pt2_sols = solve_eq2_fn(key,
+                                    X,
+                                    delta,
+                                    K,
+                                    group_labels,
+                                    X_groups=X_groups,
+                                    delta_groups=delta_groups,
+                                    initial_guess=beta,
+                                    log=False)
+
+  beta_k_hat = pt1_sols.guess
+  beta_hat = pt2_sols.guess
 
   cov_beta_k_correction = cov_beta_k_correction_fn(X, delta, X_groups,
                                                    delta_groups, group_labels,
@@ -121,13 +123,13 @@ def cov_experiment_eq2_core(rnd_keys,
   cov_H = onp.array(cov_H)
   cov_robust_ad = onp.array(cov_robust_ad)
 
-  beta_k_hat = onp.array(beta_k_hat)
-  beta_hat = onp.array(beta_hat)
+  pt1_sols = expand_namedtuples(type(pt1_sols)(*map(onp.array, pt1_sols)))
+  pt2_sols = expand_namedtuples(type(pt2_sols)(*map(onp.array, pt2_sols)))
 
   ret = expand_namedtuples(
       CovExperimentResultItem(
           sol=expand_namedtuples(
-              Experiment2SolResult(beta_k_hat=beta_k_hat, beta_hat=beta_hat)),
+              Experiment2SolResult(pt1=pt1_sols, pt2=pt2_sols)),
           cov=expand_namedtuples(
               Experiment2CovResult(cov_beta_k_correction=cov_beta_k_correction,
                                    cov_robust_ad=cov_robust_ad,
