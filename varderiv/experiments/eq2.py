@@ -1,5 +1,6 @@
 """Eq2 single experiment."""
 
+import tempfile
 import collections
 import functools
 import pickle
@@ -151,16 +152,16 @@ def cov_experiment_eq2_main(base, grouped, solve_eq1_use_ad, eq1_cov_use_ad):
   # pylint: disable=missing-function-docstring
   base = dict(base)
   base.pop("seed")
-  with open("result.pkl", "wb+") as f:
-    pickle.dump(
-        cov_experiment_eq2(solve_eq1_use_ad=solve_eq1_use_ad,
-                           eq1_cov_use_ad=eq1_cov_use_ad,
-                           **base,
-                           **grouped), f)
-    ex.add_artifact("result.pkl")
+  pickle.dump(
+      cov_experiment_eq2(solve_eq1_use_ad=solve_eq1_use_ad,
+                         eq1_cov_use_ad=eq1_cov_use_ad,
+                         **base,
+                         **grouped), result_file)
+  ex.add_artifact(result_file.name, name="result")
 
 
 ex.captured_out_filter = apply_backspaces_and_linefeeds
 
 if __name__ == '__main__':
+  result_file = tempfile.NamedTemporaryFile(mode="wb+")
   ex.run_commandline()
