@@ -228,6 +228,7 @@ def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
     I_row, I_diag_last = compute_I_row_wrapped_fn(X, delta, X_groups,
                                                   delta_groups, group_labels,
                                                   beta_k_hat, beta)
+
     I_row, I_diag_last = -I_row, -I_diag_last
 
     cov = _cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row)
@@ -300,3 +301,31 @@ def eq2_cov_robust_ad(X, delta, X_groups, delta_groups, group_labels,
 eq2_cov_beta_k_correction = get_eq2_cov_beta_k_correction_fn(
     eq1_compute_H_fn=eq1_compute_H_ad)
 eq2_cov = eq2_cov_beta_k_correction
+
+if __name__ == '__main__':
+  N = 500
+  K = 3
+  X_DIM = 2
+  from varderiv.data import data_generator, key, data_generation_key, group_labels_generator
+  key, subkey = jrandom.split(key)
+  X, delta, beta = data_generator(N, X_DIM)(data_generation_key)
+
+  group_labels = group_labels_generator(N,
+                                        K,
+                                        "arithmetic_sequence",
+                                        start_val=20)(data_generation_key)
+
+  group_indices = group_labels_to_indices(K, group_labels)
+  X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_indices)
+
+  beta_k_hat, beta_hat = solve_eq2(key,
+                                   X,
+                                   delta,
+                                   K,
+                                   group_labels,
+                                   initial_guess=beta,
+                                   log=True)
+
+  cov_beta_k_correction = eq2_cov_beta_k_correction(X, delta, X_groups,
+                                                    delta_groups, group_labels,
+                                                    beta_k_hat, beta_hat)
