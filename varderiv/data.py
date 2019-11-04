@@ -209,11 +209,13 @@ def group_data_by_labels(batch_size, K, X, delta, group_labels):
     for k in range(K):
       mask = group_mask[i][k]
       X_group = X[i, mask]
-      X_group = np.broadcast_to(X_group,
-                                (padded_group_size,) + X_group.shape[1:])
+      X_group = onp.pad(X_group, [(0, padded_group_size - X_group.shape[0]),
+                                  (0, 0)])
       delta_group = delta[i, mask]
-      delta_group = np.broadcast_to(delta_group, (padded_group_size,) +
-                                    delta_group.shape[1:])
+      delta_group = onp.pad(delta_group, (
+          0,
+          padded_group_size - delta_group.shape[0],
+      ))
       X_groups[k] = X_group
       delta_groups[k] = delta_group
     all_X_groups[i] = X_groups
