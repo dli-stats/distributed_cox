@@ -189,7 +189,7 @@ def group_data_by_labels(batch_size, K, X, delta, group_labels):
     batch_mode = False
     X = X.reshape((1,) + X.shape)
     delta = delta.reshape((1,) + delta.shape)
-    group_labels = group_labels.reshape((1,) + group_labels)
+    group_labels = group_labels.reshape((1,) + group_labels.shape)
 
   batch_size = X.shape[0]
   X_dim = X.shape[-1]
