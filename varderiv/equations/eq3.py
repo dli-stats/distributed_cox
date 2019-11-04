@@ -1,9 +1,5 @@
 """Equation 3."""
 
-#########################################################
-# BEGIN eq3
-#########################################################
-
 import functools
 
 import jax.numpy as np
@@ -16,6 +12,10 @@ from varderiv.solver import solve_newton
 from varderiv.data import group_data_by_labels
 
 import varderiv.equations.eq1 as eq1
+
+#########################################################
+# BEGIN eq3
+#########################################################
 
 
 def eq3_log_likelihood_grad(eq1_ll_grad_fn, X_groups, delta_groups, beta):

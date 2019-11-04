@@ -1,9 +1,5 @@
 """Equation 4."""
 
-#########################################################
-# BEGIN eq4
-#########################################################
-
 import functools
 
 import jax.numpy as np
@@ -16,6 +12,10 @@ from varderiv.equations.eq1 import eq1_compute_H_ad
 from varderiv.equations.eq2 import get_cov_beta_k_correction_fn
 from varderiv.equations.eq2 import solve_grouped_eq_batch
 from varderiv.equations.eq2 import eq2_jac_manual
+
+#########################################################
+# BEGIN eq4
+#########################################################
 
 
 @vectorize("(K,S,p),(K,S),(K,p),(p)->(p)")
