@@ -151,7 +151,7 @@ def group_labels_to_indices(K, group_labels):
   return ret
 
 
-@functools.partial(jit, static_numargs=(-1,))
+@functools.partial(jit, static_argnums=(-1,))
 def _pad_X_delta(X, delta, indices, padded_group_size):
 
   X_group = np.take(X, indices, axis=0)
