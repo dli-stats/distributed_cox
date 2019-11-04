@@ -105,3 +105,8 @@ venv.bak/
 
 
 .DS_Store
+
+# slurm outputs
+*.err
+*.out
+
