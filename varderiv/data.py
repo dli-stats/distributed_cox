@@ -151,6 +151,7 @@ def group_labels_to_indices(K, group_labels):
   return ret
 
 
+@functools.partial(jit, static_numargs=(-1,))
 def _pad_X_delta(X, delta, indices, padded_group_size):
 
   X_group = np.take(X, indices, axis=0)
@@ -190,6 +191,7 @@ def group_data_by_labels(batch_size, K, X, delta, group_indices):
   batch_size = X.shape[0]
   padded_group_size = max(
       *[len(group_indices[i][k]) for k in range(K) for i in range(batch_size)])
+  padded_group_size = int(math.ceil(padded_group_size / 10)) * 10
 
   all_X_groups, all_delta_groups = [], []
   for i in range(batch_size):
