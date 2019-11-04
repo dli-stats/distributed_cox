@@ -165,7 +165,7 @@ def _pad_X_delta(X, delta, indices, padded_group_size):
   return X_group, delta_group
 
 
-def group_data_by_labels(batch_size, K, X, delta, group_indices):
+def group_data_by_labels(batch_size, K, X, delta, group_labels):
   """Given data group indices, compute groupped data by padding.
 
   Args:
@@ -173,8 +173,7 @@ def group_data_by_labels(batch_size, K, X, delta, group_indices):
     - K: number of groups
     - X: array of shape (batch_size, N, P).
     - delta: array of shape (batch_size, N)
-    - group_indices: nested list of shape (batch_size, K); each list element is
-      a flattened array representing indices in a group
+    - group_labels: array of shape (batch_size, N)
 
   Returns:
     tuple of X_groups, delta_groups
@@ -183,29 +182,42 @@ def group_data_by_labels(batch_size, K, X, delta, group_indices):
   """
   X = onp.array(X)
   delta = onp.array(delta)
+  group_labels = onp.array(group_labels)
 
   batch_mode = True
   if batch_size <= 1 and len(X.shape) == 2:
     batch_mode = False
     X = X.reshape((1,) + X.shape)
     delta = delta.reshape((1,) + delta.shape)
-    group_indices = [group_indices]
+    group_labels = group_labels.reshape((1,) + group_labels)
 
   batch_size = X.shape[0]
-  padded_group_size = max(
-      *[len(group_indices[i][k]) for k in range(K) for i in range(batch_size)])
-  padded_group_size = int(math.ceil(padded_group_size / 10)) * 10
+  X_dim = X.shape[-1]
 
-  all_X_groups, all_delta_groups = [], []
+  group_mask = onp.array(
+      [[group_labels[i] == k for k in range(K)] for i in range(batch_size)])
+
+  padded_group_size = onp.max(onp.sum(group_mask, axis=(-1,)))
+
+  # padded_group_size = int(math.ceil(padded_group_size / 10)) * 10
+
+  all_X_groups = [None] * batch_size
+  all_delta_groups = [None] * batch_size
   for i in range(batch_size):
-    X_groups, delta_groups = [], []
+    X_groups = [None] * K
+    delta_groups = [None] * K
     for k in range(K):
-      X_group, delta_group = _pad_X_delta(X[i], delta[i], group_indices[i][k],
-                                          padded_group_size)
-      X_groups.append(X_group)
-      delta_groups.append(delta_group)
-    all_X_groups.append(X_groups)
-    all_delta_groups.append(delta_groups)
+      mask = group_mask[i][k]
+      X_group = X[i, mask]
+      X_group = np.broadcast_to(X_group,
+                                (padded_group_size,) + X_group.shape[1:])
+      delta_group = delta[i, mask]
+      delta_group = np.broadcast_to(delta_group, (padded_group_size,) +
+                                    delta_group.shape[1:])
+      X_groups[k] = X_group
+      delta_groups[k] = delta_group
+    all_X_groups[i] = X_groups
+    all_delta_groups[i] = delta_groups
 
   all_X_groups = np.array(all_X_groups)
   all_delta_groups = np.array(all_delta_groups)

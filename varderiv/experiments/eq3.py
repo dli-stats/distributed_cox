@@ -13,7 +13,7 @@ from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
 from varderiv.data import data_generator, group_labels_generator
-from varderiv.data import group_data_by_labels, group_labels_to_indices
+from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import eq1_log_likelihood_grad_ad
 from varderiv.equations.eq1 import eq1_log_likelihood_grad_manual
@@ -76,9 +76,8 @@ def cov_experiment_eq3_core(rnd_keys,
 
   batch_size = len(X)
 
-  group_indices = group_labels_to_indices(K, group_labels)
   X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
-                                                group_indices)
+                                                group_labels)
 
   sol = solve_eq3_fn(key, X_groups, delta_groups, beta)
   beta_hat = sol.guess

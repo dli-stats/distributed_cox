@@ -14,7 +14,7 @@ from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
 from varderiv.data import data_generator, group_labels_generator
-from varderiv.data import group_data_by_labels, group_labels_to_indices
+from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import solve_eq1_ad, solve_eq1_manual
 from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_compute_H_manual
@@ -97,9 +97,8 @@ def cov_experiment_eq2_core(rnd_keys,
   batch_size = len(X)
   assert beta.shape == (batch_size, X_DIM)
 
-  group_indices = group_labels_to_indices(K, group_labels)
   X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
-                                                group_indices)
+                                                group_labels)
 
   pt1_sols, pt2_sols = solve_eq2_fn(key,
                                     X,
