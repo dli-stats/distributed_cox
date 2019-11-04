@@ -151,14 +151,14 @@ def group_labels_to_indices(K, group_labels):
   return ret
 
 
-@functools.partial(jit, static_argnums=(-1,))
 def _pad_X_delta(X, delta, indices, padded_group_size):
 
-  X_group = np.take(X, indices, axis=0)
-  X_group = np.pad(X_group, [(0, padded_group_size - X_group.shape[0]), (0, 0)])
+  X_group = onp.take(X, indices, axis=0)
+  X_group = onp.pad(X_group, [(0, padded_group_size - X_group.shape[0]),
+                              (0, 0)])
 
-  delta_group = np.take(delta, indices, axis=0)
-  delta_group = np.pad(delta_group, (
+  delta_group = onp.take(delta, indices, axis=0)
+  delta_group = onp.pad(delta_group, (
       0,
       padded_group_size - delta_group.shape[0],
   ))
@@ -181,6 +181,9 @@ def group_data_by_labels(batch_size, K, X, delta, group_indices):
     - X_groups: array of shape (batch_size, K, group_size, P)
     - delta_groups: array of shape (batch_size, K, group_size)
   """
+  X = onp.array(X)
+  delta = onp.array(delta)
+
   batch_mode = True
   if batch_size <= 1 and len(X.shape) == 2:
     batch_mode = False
