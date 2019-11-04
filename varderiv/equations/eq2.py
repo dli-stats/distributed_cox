@@ -188,7 +188,7 @@ def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
     print("Solved {} beta={} value={} in {} steps".format(
         log_solve_rest_name, *rest_sol))
 
-  return beta_k_hat, rest_sol
+  return eq1_sols, rest_sol
 
 
 solve_eq2 = functools.partial(solve_grouped_eq_batch,
