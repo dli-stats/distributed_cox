@@ -151,7 +151,19 @@ def group_labels_to_indices(K, group_labels):
   return ret
 
 
-@functools.partial(jit, static_argnums=(0, 1))
+def _pad_X_delta(X, delta, indices, padded_group_size):
+
+  X_group = np.take(X, indices, axis=0)
+  X_group = np.pad(X_group, [(0, padded_group_size - X_group.shape[0]), (0, 0)])
+
+  delta_group = np.take(delta, indices, axis=0)
+  delta_group = np.pad(delta_group, (
+      0,
+      padded_group_size - delta_group.shape[0],
+  ))
+  return X_group, delta_group
+
+
 def group_data_by_labels(batch_size, K, X, delta, group_indices):
   """Given data group indices, compute groupped data by padding.
 
@@ -183,18 +195,8 @@ def group_data_by_labels(batch_size, K, X, delta, group_indices):
   for i in range(batch_size):
     X_groups, delta_groups = [], []
     for k in range(K):
-      group_idxs = group_indices[i][k]
-
-      X_group = np.take(X[i], group_idxs, axis=0)
-      X_group = np.pad(X_group, [(0, padded_group_size - X_group.shape[0]),
-                                 (0, 0)])
-
-      delta_group = np.take(delta[i], group_idxs, axis=0)
-      delta_group = np.pad(delta_group, (
-          0,
-          padded_group_size - delta_group.shape[0],
-      ))
-
+      X_group, delta_group = _pad_X_delta(X[i], delta[i], group_indices[i][k],
+                                          padded_group_size)
       X_groups.append(X_group)
       delta_groups.append(delta_group)
     all_X_groups.append(X_groups)
