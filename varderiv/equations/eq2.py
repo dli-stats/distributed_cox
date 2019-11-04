@@ -11,7 +11,7 @@ from varderiv.solver import solve_newton
 
 from varderiv.equations.eq1 import solve_eq1_manual
 
-from varderiv.data import group_labels_to_indices, group_data_by_labels
+from varderiv.data import group_data_by_labels
 from varderiv.equations.eq1 import eq1_compute_H_ad
 
 # pylint: disable=redefined-outer-name
@@ -161,9 +161,8 @@ def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
   assert step_1_initial_guess.shape == (batch_size, K, X_dim)
 
   if X_groups is None or delta_groups is None:
-    group_indices = group_labels_to_indices(K, group_labels)
     X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
-                                                  group_indices)
+                                                  group_labels)
 
   group_size = delta_groups.shape[-1]
   assert X_groups.shape == (batch_size, K, group_size, X_dim)
@@ -189,7 +188,7 @@ def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
     print("Solved {} beta={} value={} in {} steps".format(
         log_solve_rest_name, *rest_sol))
 
-  return eq1_sols, rest_sol
+  return beta_k_hat, rest_sol
 
 
 solve_eq2 = functools.partial(solve_grouped_eq_batch,
@@ -318,8 +317,7 @@ if __name__ == '__main__':
                                         "arithmetic_sequence",
                                         start_val=20)(data_generation_key)
 
-  group_indices = group_labels_to_indices(K, group_labels)
-  X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_indices)
+  X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_labels)
 
   beta_k_hat, beta_hat = solve_eq2(key,
                                    X,

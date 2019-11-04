@@ -13,7 +13,7 @@ from jax import random as jrandom
 
 from varderiv.solver import solve_newton
 
-from varderiv.data import group_labels_to_indices, group_data_by_labels
+from varderiv.data import group_data_by_labels
 
 import varderiv.equations.eq1 as eq1
 
@@ -53,8 +53,7 @@ def solve_eq3(key,
     initial_guess = np.abs(jrandom.normal(key, shape=(X.shape[-1],)))
 
   if X_groups is None or delta_groups is None:
-    group_indices = group_labels_to_indices(K, group_labels)
-    X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_indices)
+    X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_labels)
 
   if eq1_use_ad:
     eq1_ll_grad_fn = eq1.eq1_log_likelihood_grad_manual
