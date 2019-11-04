@@ -6,8 +6,9 @@ import functools
 import numpy as onp
 
 import jax.numpy as np
-from jax import jit
+from jax import jit, vmap
 from jax.experimental.vectorize import vectorize
+import jax.lax
 
 from jax import random as jrandom
 
@@ -16,11 +17,13 @@ floatt = np.float32
 # pylint: disable=redefined-outer-name
 
 
-def default_X_generator(key, dim, N):
-  if dim % 2 == 0:  # pylint: disable=no-else-return
-    return jrandom.bernoulli(key, p=0.5, shape=(N,)).astype(floatt)
-  elif dim % 2 == 1:
-    return jrandom.normal(key, shape=(N,))
+def default_X_generator(N, dim, key):
+  return jax.lax.cond(
+      dim % 2 == 0,
+      key, \
+      lambda key: jrandom.bernoulli(key, p=0.5, shape=(N,)).astype(floatt),
+      key, \
+      lambda key: jrandom.normal(key, shape=(N,)))
 
 
 @functools.lru_cache(maxsize=None)
@@ -43,12 +46,15 @@ def data_generator(N, X_dim, X_generator=default_X_generator, exp_scale=3.5):
       5. Reorder X by `T = \min(T^*, C)`
     """
     beta = np.arange(1, X_dim + 1, dtype=floatt) / X_dim
-    X = []
-    for dim in range(X_dim):
-      key, subkey = jrandom.split(key)
-      X.append(X_generator(subkey, dim, N))
-    X = np.dstack(X)
-    X = X.reshape((X.shape[1:]))
+
+    key, *subkeys = jrandom.split(key, X_dim + 1)
+
+    subkeys = np.stack(subkeys)
+
+    dims = np.arange(X_dim, dtype=np.int32)
+    gen_X_dim_fn = functools.partial(X_generator, N)
+
+    X = vmap(gen_X_dim_fn, (0, 0), 1)(dims, subkeys)
 
     key, subkey = jrandom.split(key)
     u = jrandom.uniform(subkey, shape=(N,), minval=0, maxval=1)
