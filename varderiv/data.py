@@ -198,8 +198,7 @@ def group_data_by_labels(batch_size, K, X, delta, group_labels):
       [[group_labels[i] == k for k in range(K)] for i in range(batch_size)])
 
   padded_group_size = onp.max(onp.sum(group_mask, axis=(-1,)))
-
-  # padded_group_size = int(math.ceil(padded_group_size / 10)) * 10
+  padded_group_size = int(math.ceil(padded_group_size / 10)) * 10
 
   all_X_groups = [None] * batch_size
   all_delta_groups = [None] * batch_size
