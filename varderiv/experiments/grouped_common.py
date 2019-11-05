@@ -29,7 +29,7 @@ def group_labels_random():
 
 @ingredient.named_config
 def group_labels_arithmetic_sequence():
-  group_labels_generator_kind = "arithemetic_sequence"
+  group_labels_generator_kind = "arithmetic_sequence"
   group_labels_generator_kind_kwargs = dict(start_val=50)
 
 

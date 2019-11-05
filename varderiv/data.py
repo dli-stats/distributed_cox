@@ -106,8 +106,8 @@ def group_labels_generator(N, K, group_labels_generator_kind="random",
       group_sizes = onp.arange(start_val, end_val + 1, step)
       current_total = (start_val + end_val) * K // 2
       residual = N - current_total
-      group_sizes[-residual:] += 1
-      group_labels = onp.repeat(onp.arange(K), group_sizes)
+      group_sizes[K - residual:] += 1
+      group_labels = np.repeat(np.arange(K), group_sizes)
       group_labels = jrandom.shuffle(key, group_labels)
       return group_labels
     elif group_labels_generator_kind == "single_ladder":
@@ -120,8 +120,8 @@ def group_labels_generator(N, K, group_labels_generator_kind="random",
                               (K - repeat_start))
       current_total = onp.sum(group_sizes)
       residual = N - current_total
-      group_sizes[-residual:] += 1
-      group_labels = onp.repeat(onp.arange(K), group_sizes)
+      group_sizes[K - residual:] += 1
+      group_labels = np.repeat(np.arange(K), group_sizes)
       group_labels = jrandom.shuffle(key, group_labels)
       return group_labels
     else:
@@ -196,7 +196,8 @@ def group_data_by_labels(batch_size, K, X, delta, group_labels):
 
   group_mask = onp.array(
       [[group_labels[i] == k for k in range(K)] for i in range(batch_size)])
-
+  import pdb
+  pdb.set_trace()
   padded_group_size = onp.max(onp.sum(group_mask, axis=(-1,)))
   padded_group_size = int(math.ceil(padded_group_size / 10)) * 10
 
