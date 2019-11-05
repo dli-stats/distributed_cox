@@ -59,7 +59,7 @@ def _solve_eq1(key, X, delta, initial_guess, eq1_ll_grad_fn):
       functools.partial(eq1_ll_grad_fn, X, delta),
       key,
       initial_guess,
-      sym_pos=True  # since eq1 is optimizing loglikelihood,
+      sym_pos=False  # since eq1 is optimizing loglikelihood,
       # its hessian is always symmetric positive definite
   )
   return sol

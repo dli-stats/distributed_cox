@@ -247,12 +247,10 @@ def _cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row):
     - I_diag_last: array of shape (P, P)
     - I_row: array of shape (P, K, P)
   """
-  I_row = np.moveaxis(I_row, 1, 0)
-
   I_diag_inv_last = np.linalg.inv(I_diag_last)
   I_diag_inv_wo_last = np.linalg.inv(I_diag_wo_last)
 
-  cov = np.einsum("ab,Bbc,Bcd,Bed,fe->af",
+  cov = np.einsum("ab,bBc,Bcd,eBd,fe->af",
                   I_diag_inv_last,
                   I_row,
                   I_diag_inv_wo_last,
