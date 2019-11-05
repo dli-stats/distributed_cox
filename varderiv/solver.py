@@ -6,6 +6,7 @@ import jax.lax
 import jax.numpy as np
 from jax import jacrev, jacfwd, jit
 from jax import random as jrandom
+import jax.scipy as scipy
 
 NewtonSolverState = collections.namedtuple("NewtonSolverState",
                                            "guess value step")
@@ -14,8 +15,9 @@ NewtonSolverState = collections.namedtuple("NewtonSolverState",
 def solve_newton(fn,
                  key,
                  initial_guess,
+                 sym_pos=False,
                  norm_stop_thres=1e-3,
-                 jac_mode='reverse',
+                 jac_mode='forward',
                  max_reset_steps=20,
                  max_num_steps=1000):
   """HOF for newton's method solver."""
@@ -41,7 +43,7 @@ def solve_newton(fn,
     def update(state: InternalState):
       guess, value, step, key = state
       jacobian = jac_fn(guess)
-      guess = guess - np.linalg.solve(jacobian, value)
+      guess = guess - scipy.linalg.solve(jacobian, value, sym_pos=sym_pos)
       value = fn(guess)
       return InternalState(guess, value, step + 1, key)
 

@@ -22,30 +22,24 @@ from varderiv.equations.eq1 import eq1_compute_H_ad
 
 precomputed_signature = "(N,c),(N,p),(N,p,p),(N,c),(N,p),(N,p)"
 
-XX_e_beta_X_path_info_cache = None
-
 
 @vectorize(f"(N,p),(N),(k,p)->{precomputed_signature}")
 def _precompute_eq2_terms(X, group_labels, beta_k_hat):
   """Precomputes some tensors for equation 2."""
   beta_k_hat_grouped = np.take(beta_k_hat, group_labels, axis=0)
 
-  beta_k_hat_X = np.einsum("bi,bi->b", X, beta_k_hat_grouped)
+  beta_k_hat_X = np.einsum("bi,bi->b",
+                           X,
+                           beta_k_hat_grouped,
+                           optimize='optimal')
   e_beta_k_hat_X = np.exp(beta_k_hat_X).reshape((-1, 1))
   X_e_beta_k_hat_X = X * e_beta_k_hat_X
 
-  global XX_e_beta_X_path_info_cache  # pylint: disable=global-statement
-  if XX_e_beta_X_path_info_cache is None:
-    XX_e_beta_X_path_info_cache = np.einsum_path('bi,bj,bk->bij',
-                                                 X,
-                                                 X,
-                                                 e_beta_k_hat_X,
-                                                 optimize='optimal')
   XX_e_beta_k_hat_X = np.einsum('bi,bj,bk->bij',
                                 X,
                                 X,
                                 e_beta_k_hat_X,
-                                optimize=XX_e_beta_X_path_info_cache[0])
+                                optimize='optimal')
 
   e_beta_k_hat_X_cs = np.cumsum(e_beta_k_hat_X, 0)
   X_e_beta_k_hat_X_cs = np.cumsum(X_e_beta_k_hat_X, 0)
@@ -60,9 +54,15 @@ def compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
   # TODO(camyang) better docstring, explain W
   del delta, e_beta_k_hat_X
   beta_sub_beta_k_hat = beta - beta_k_hat_grouped
-  xxebxbmb = np.einsum("bij,bj->bi", XX_e_beta_k_hat_X, beta_sub_beta_k_hat)
+  xxebxbmb = np.einsum("bij,bj->bi",
+                       XX_e_beta_k_hat_X,
+                       beta_sub_beta_k_hat,
+                       optimize='optimal')
 
-  xebxbmb = np.einsum("bi,bi->b", X_e_beta_k_hat_X, beta_sub_beta_k_hat)
+  xebxbmb = np.einsum("bi,bi->b",
+                      X_e_beta_k_hat_X,
+                      beta_sub_beta_k_hat,
+                      optimize='optimal')
   xxebxbmb_cs = np.cumsum(xxebxbmb, 0)
   xebxbmb_cs = np.cumsum(xebxbmb, 0).reshape((-1, 1))
 
@@ -252,8 +252,13 @@ def _cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row):
   I_diag_inv_last = np.linalg.inv(I_diag_last)
   I_diag_inv_wo_last = np.linalg.inv(I_diag_wo_last)
 
-  cov = np.einsum("ab,Bbc,Bcd,Bed,fe->af", I_diag_inv_last, I_row,
-                  I_diag_inv_wo_last, I_row, I_diag_inv_last) + I_diag_inv_last
+  cov = np.einsum("ab,Bbc,Bcd,Bed,fe->af",
+                  I_diag_inv_last,
+                  I_row,
+                  I_diag_inv_wo_last,
+                  I_row,
+                  I_diag_inv_last,
+                  optimize='optimal') + I_diag_inv_last
 
   return cov
 
@@ -280,7 +285,7 @@ def eq2_cov_robust_ad_impl(X, delta, group_labels, beta_k_hat, beta):
 
   # compute J
   W = compute_W(X, delta, *precomputed, beta)
-  W2 = np.einsum("bi,bj->bij", W, W)
+  W2 = np.einsum("bi,bj->bij", W, W, optimize='optimal')
   J = np.sum(W2 * delta.reshape((-1, 1, 1)), axis=0)
 
   H_inv = np.linalg.inv(H)

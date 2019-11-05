@@ -4,7 +4,7 @@ import functools
 
 import jax.numpy as np
 from jax.experimental.vectorize import vectorize
-from jax import jacfwd, hessian
+from jax import jacfwd, jacrev, hessian
 from jax import random as jrandom
 
 from varderiv.solver import solve_newton
@@ -16,7 +16,7 @@ from varderiv.solver import solve_newton
 
 @vectorize('(N,p),(N),(p)->(p)')
 def eq1_log_likelihood(X, delta, beta):
-  bx = np.einsum("i,bi->b", beta, X)
+  bx = np.dot(X, beta)
   ebx_cs = np.cumsum(np.exp(bx), 0)
   log_term = np.log(ebx_cs)
   log_likelhihood = np.sum((bx - log_term) * delta, axis=0)
@@ -37,7 +37,7 @@ def eq1_log_likelihood_grad_manual(X, delta, beta):
   Returns:
     Evaluation of LHS of Eq 1.
   """
-  e_beta_X = np.exp(np.einsum("x,bx->b", beta, X)).reshape((-1, 1))
+  e_beta_X = np.exp(np.dot(X, beta)).reshape((-1, 1))
   X_e_beta_X = X * e_beta_X
 
   e_beta_X_cs = np.cumsum(e_beta_X, axis=0)
@@ -50,13 +50,15 @@ def eq1_log_likelihood_grad_manual(X, delta, beta):
   return ret
 
 
-eq1_log_likelihood_grad_ad = vectorize('(N,p),(N),(p)->(p)')(jacfwd(
+eq1_log_likelihood_grad_ad = vectorize('(N,p),(N),(p)->(p)')(jacrev(
     eq1_log_likelihood, 2))
 
 
 def _solve_eq1(key, X, delta, initial_guess, eq1_ll_grad_fn):
-  sol = solve_newton(functools.partial(eq1_ll_grad_fn, X, delta), key,
-                     initial_guess)
+  sol = solve_newton(functools.partial(eq1_ll_grad_fn, X, delta),
+                     key,
+                     initial_guess,
+                     sym_pos=True)
   return sol
 
 
@@ -91,7 +93,7 @@ eq1_compute_H_ad = vectorize("(N,p),(N),(p)->(p,p)")(hessian(
 @vectorize("(N,p),(N),(p)->(p,p)")
 def eq1_compute_H_manual(X, delta, beta):
   """Eq1 Hessian manual."""
-  e_beta_X = np.exp(np.einsum("x,bx->b", beta, X)).reshape((-1, 1))
+  e_beta_X = np.exp(np.dot(X, beta)).reshape((-1, 1))
   X_e_beta_X = X * e_beta_X
   e_beta_X_cs = np.cumsum(e_beta_X, axis=0)
   X_e_beta_X_cs = np.cumsum(X_e_beta_X, axis=0)
