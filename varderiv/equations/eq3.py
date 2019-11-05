@@ -31,9 +31,12 @@ def eq3_solver(eq1_log_likelihood_grad_fn):
 
   @vectorize("(k),(K,N,p),(K,N),(p)->(p)")
   def wrapped(key, X_groups, delta_groups, initial_guess):
-    return solve_newton(
-        functools.partial(eq3_log_likelihood_grad, eq1_log_likelihood_grad_fn,
-                          X_groups, delta_groups), key, initial_guess)
+    return solve_newton(functools.partial(eq3_log_likelihood_grad,
+                                          eq1_log_likelihood_grad_fn, X_groups,
+                                          delta_groups),
+                        key,
+                        initial_guess,
+                        sym_pos=True)
 
   return wrapped
 

@@ -55,10 +55,13 @@ eq1_log_likelihood_grad_ad = vectorize('(N,p),(N),(p)->(p)')(jacrev(
 
 
 def _solve_eq1(key, X, delta, initial_guess, eq1_ll_grad_fn):
-  sol = solve_newton(functools.partial(eq1_ll_grad_fn, X, delta),
-                     key,
-                     initial_guess,
-                     sym_pos=True)
+  sol = solve_newton(
+      functools.partial(eq1_ll_grad_fn, X, delta),
+      key,
+      initial_guess,
+      sym_pos=True  # since eq1 is optimizing loglikelihood,
+      # its hessian is always symmetric positive definite
+  )
   return sol
 
 
