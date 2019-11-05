@@ -15,7 +15,7 @@ def solve_newton(fn,
                  key,
                  initial_guess,
                  norm_stop_thres=1e-3,
-                 jac_mode='forward',
+                 jac_mode='reverse',
                  max_reset_steps=20,
                  max_num_steps=1000):
   """HOF for newton's method solver."""
