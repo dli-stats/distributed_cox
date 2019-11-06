@@ -93,14 +93,14 @@ def eq2_solve_rest(X,
                    delta_groups,
                    beta_k_hat,
                    beta_guess,
-                   solver_num_steps=10):
+                   solver_max_steps=10):
   """Function used by `solve_grouped_eq_batch`, customized for Eq 2."""
 
   del K, X_groups, delta_groups
 
   precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
 
-  @vectorize(f"(k),(N,p),(N),{precomputed_signature},(p)->(p)")
+  @vectorize(f"(N,p),(N),{precomputed_signature},(p)->(p)")
   def _solve(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
              e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped,
              beta_guess):
@@ -110,7 +110,7 @@ def eq2_solve_rest(X,
                                           X_e_beta_k_hat_X_cs,
                                           beta_k_hat_grouped),
                         beta_guess,
-                        max_num_steps=solver_num_steps)
+                        max_num_steps=solver_max_steps)
 
   return _solve(X, delta, *precomputed, beta_guess)
 

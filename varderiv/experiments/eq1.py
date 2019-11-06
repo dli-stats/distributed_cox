@@ -13,7 +13,7 @@ from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
 from varderiv.data import data_generator
-from varderiv.equations.eq1 import solve_eq1_ad, solve_eq1_manual
+from varderiv.equations.eq1 import get_eq1_solver
 from varderiv.equations.eq1 import eq1_cov_ad, eq1_cov_manual
 
 from varderiv.experiments.utils import expand_namedtuples
@@ -31,11 +31,8 @@ def cov_experiment_eq1_init(params):
   params["gen"] = gen
   del params["N"], params["X_DIM"]
 
-  if params["solve_eq1_use_ad"]:
-    solve_eq1_fn = jit(solve_eq1_ad)
-  else:
-    solve_eq1_fn = jit(solve_eq1_manual)
-  params["solve_eq1_fn"] = solve_eq1_fn
+  params["solve_eq1_fn"] = jit(
+      get_eq1_solver(use_ad=params["solve_eq1_use_ad"]))
   del params["solve_eq1_use_ad"]
 
   if params["eq1_cov_use_ad"]:

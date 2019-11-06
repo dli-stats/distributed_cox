@@ -38,31 +38,30 @@ def eq4(X_groups, delta_groups, beta_k_hat, beta):
   return ret
 
 
-def eq4_solve_rest(X,
-                   delta,
-                   K,
-                   group_labels,
-                   X_groups,
-                   delta_groups,
-                   beta_k_hat,
-                   beta_guess,
-                   solver_num_steps=10):
-  """Function used by `solve_grouped_eq_batch`, customized for Eq 4."""
-  del K, X, delta, group_labels
+@functools.lru_cache(maxsize=None)
+def get_eq4_rest_solver(solver_max_steps=10):
+  """HOF for getting eq4's solve rest function."""
 
-  @vectorize(f"(k),(K,N,p),(K,N),(K,p),(p)->(p)")
-  def _solve(X_groups, delta_groups, beta_k_hat, beta_guess):
-    sol = solve_newton(functools.partial(eq4, X_groups, delta_groups,
-                                         beta_k_hat),
-                       beta_guess,
-                       max_num_steps=solver_num_steps)
-    return sol
+  def eq4_solve_rest(X, delta, K, group_labels, X_groups, delta_groups,
+                     beta_k_hat, beta_guess):
+    """Function used by `solve_grouped_eq_batch`, customized for Eq 4."""
+    del K, X, delta, group_labels
 
-  return _solve(X_groups, delta_groups, beta_k_hat, beta_guess)
+    @vectorize(f"(K,N,p),(K,N),(K,p),(p)->(p)")
+    def _solve(X_groups, delta_groups, beta_k_hat, beta_guess):
+      sol = solve_newton(functools.partial(eq4, X_groups, delta_groups,
+                                           beta_k_hat),
+                         beta_guess,
+                         max_num_steps=solver_max_steps)
+      return sol
+
+    return _solve(X_groups, delta_groups, beta_k_hat, beta_guess)
+
+  return eq4_solve_rest
 
 
 solve_eq4 = functools.partial(solve_grouped_eq_batch,
-                              solve_rest_fn=eq4_solve_rest)
+                              solve_rest_fn=get_eq4_rest_solver())
 
 #########################################################
 # BEGIN eq4 cov

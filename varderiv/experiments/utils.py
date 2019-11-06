@@ -79,7 +79,7 @@ def run_cov_experiment(
   # We fill in some arbitrary key value for the residuals
   data_iterator = grouper(all_data,
                           batch_size,
-                          fillvalue=(subkeys[0], subkeys[0]))
+                          fillvalue=(-1, subkeys[0], subkeys[0]))
 
   init_fn(experiment_params)
 
@@ -90,7 +90,8 @@ def run_cov_experiment(
     parallel_map = map
 
   def experiment_fn_wrapper(args):
-    i, *keys = args
+    i = [i for i, *_ in args]
+    keys = [keys for _, *keys in args]
     return i, experiment_fn(keys, **experiment_params)
 
   desc = "Experiment {}".format(experiment_fn.__name__)
@@ -117,7 +118,8 @@ def run_cov_experiment(
   pbar.close()
 
   print("Failed {}".format(len(failed)))
-  # more_data = [(fi, *all_data[fi]) for fi in failed]
+
+  # failed_data = [(fi, all_data[fi]) for fi in failed]
 
   if num_threads > 1:
     pool.close()

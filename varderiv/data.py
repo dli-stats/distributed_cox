@@ -71,6 +71,9 @@ def data_generator(N, X_dim, X_generator=default_X_generator, exp_scale=3.5):
     T = np.take(T, sorted_idx, axis=0)
     X = np.take(X, sorted_idx, axis=0)
     delta = np.take(delta, sorted_idx, axis=0)
+
+    X = X - np.mean(X, axis=0)
+
     return X, delta, beta
 
   return wrapped

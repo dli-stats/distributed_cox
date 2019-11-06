@@ -62,7 +62,7 @@ def get_eq1_solver(use_ad=True, solver_max_steps=10):
   else:
     eq1_ll_grad_fn = eq1_log_likelihood_grad_manual
 
-  @vectorize("(k),(N,p),(N),(p)->(p)")
+  @vectorize("(N,p),(N),(p)->(p)")
   def wrapped(X, delta, initial_guess):
     sol = solve_newton(
         functools.partial(eq1_ll_grad_fn, X, delta),

@@ -16,12 +16,12 @@ from sacred.utils import apply_backspaces_and_linefeeds
 from varderiv.data import data_generator, group_labels_generator
 from varderiv.data import group_data_by_labels
 
-from varderiv.equations.eq1 import solve_eq1_ad, solve_eq1_manual
+from varderiv.equations.eq1 import get_eq1_solver
 from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_compute_H_manual
 
 from varderiv.equations.eq2 import solve_grouped_eq_batch
 from varderiv.equations.eq4 import get_eq4_cov_beta_k_correction_fn
-from varderiv.equations.eq4 import eq4_solve_rest
+from varderiv.equations.eq4 import get_eq4_rest_solver
 
 from varderiv.experiments.utils import expand_namedtuples
 from varderiv.experiments.utils import run_cov_experiment
@@ -31,58 +31,65 @@ from varderiv.experiments.utils import check_value_converged
 from varderiv.experiments.common import ingredient as base_ingredient
 from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
-Experiment4SolResult = collections.namedtuple("Experiment4SolResult",
-                                              "beta_k_hat beta_hat")
+Experiment4SolResult = collections.namedtuple("Experiment4SolResult", "pt1 pt2")
 
 
 def cov_experiment_eq4_init(params):
+  return params
+
+
+def get_fns(rerunning_failed, N, K, X_DIM, group_labels_generator_kind,
+            group_labels_generator_kind_kwargs, solve_eq1_use_ad,
+            eq1_cov_use_ad):
   # pylint: disable=missing-function-docstring
-  params["group_labels_gen"] = jit(
-      group_labels_generator(
-          params["N"],
-          params["K"],
-          group_labels_generator_kind=params["group_labels_generator_kind"],
-          **params["group_labels_generator_kind_kwargs"]))
-  del params["group_labels_generator_kind"]
-  del params["group_labels_generator_kind_kwargs"]
 
-  gen = jit(data_generator(params["N"], params["X_DIM"]))
-  params["gen"] = gen
-
-  if params["solve_eq1_use_ad"]:
-    solve_eq1_fn = solve_eq1_ad
+  if rerunning_failed:
+    solver_max_steps = 20
   else:
-    solve_eq1_fn = solve_eq1_manual
-  solve_eq4_fn = functools.partial(solve_grouped_eq_batch,
-                                   solve_eq1_fn=jit(solve_eq1_fn),
-                                   solve_rest_fn=jit(eq4_solve_rest))
-  params["solve_eq4_fn"] = solve_eq4_fn
-  del params["solve_eq1_use_ad"]
+    solver_max_steps = 10
 
-  if params["eq1_cov_use_ad"]:
+  group_labels_gen = jit(
+      group_labels_generator(
+          N,
+          K,
+          group_labels_generator_kind=group_labels_generator_kind,
+          **group_labels_generator_kind_kwargs))
+
+  gen = jit(data_generator(N, X_DIM))
+
+  solve_eq4_fn = functools.partial(
+      solve_grouped_eq_batch,
+      solve_eq1_fn=jit(
+          get_eq1_solver(use_ad=solve_eq1_use_ad,
+                         solver_max_steps=solver_max_steps)),
+      solve_rest_fn=jit(get_eq4_rest_solver(solver_max_steps=solver_max_steps)))
+
+  if eq1_cov_use_ad:
     eq1_compute_H_fn = eq1_compute_H_ad
   else:
     eq1_compute_H_fn = eq1_compute_H_manual
-  del params["eq1_cov_use_ad"]
 
-  params["cov_beta_k_correction_fn"] = jit(
+  cov_beta_k_correction_fn = jit(
       get_eq4_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_fn))
 
+  return group_labels_gen, gen, solve_eq4_fn, cov_beta_k_correction_fn
 
-def cov_experiment_eq4_core(rnd_keys,
-                            N=1000,
-                            X_DIM=4,
-                            K=3,
-                            gen=None,
-                            group_labels_gen=None,
-                            solve_eq4_fn=None,
-                            cov_beta_k_correction_fn=None):
+
+def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
+    rnd_keys,
+    rerunning_failed=False,
+    N=1000,
+    X_DIM=4,
+    K=3,
+    group_labels_generator_kind="same",
+    group_labels_generator_kind_kwargs={},
+    solve_eq1_use_ad=True,
+    eq1_cov_use_ad=True):
   """Equation 4 experiment core."""
-  del N
-  assert gen is not None
-  assert group_labels_gen is not None
-  assert solve_eq4_fn is not None
-  assert cov_beta_k_correction_fn is not None
+
+  group_labels_gen, gen, solve_eq4_fn, cov_beta_k_correction_fn = get_fns(
+      rerunning_failed, N, K, X_DIM, group_labels_generator_kind,
+      group_labels_generator_kind_kwargs, solve_eq1_use_ad, eq1_cov_use_ad)
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
 
@@ -95,6 +102,10 @@ def cov_experiment_eq4_core(rnd_keys,
   X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
                                                 group_labels)
 
+  if rerunning_failed:
+    initial_guess = beta + onp.random.normal(size=beta.shape)
+  else:
+    initial_guess = beta
   pt1_sols, pt2_sols = solve_eq4_fn(key,
                                     X,
                                     delta,
@@ -102,7 +113,7 @@ def cov_experiment_eq4_core(rnd_keys,
                                     group_labels,
                                     X_groups=X_groups,
                                     delta_groups=delta_groups,
-                                    initial_guess=beta,
+                                    initial_guess=initial_guess,
                                     log=False)
 
   beta_k_hat = pt1_sols.guess
@@ -121,7 +132,7 @@ def cov_experiment_eq4_core(rnd_keys,
 
   ret = expand_namedtuples(
       CovExperimentResultItem(sol=expand_namedtuples(
-          Experiment4SolResult(beta_k_hat=beta_k_hat, beta_hat=beta_hat)),
+          Experiment4SolResult(pt1=pt1_sols, pt2=pt2_sols)),
                               cov=cov_beta_k_correction))
   return ret
 

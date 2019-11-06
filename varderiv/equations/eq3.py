@@ -26,17 +26,17 @@ def eq3_log_likelihood_grad(eq1_ll_grad_fn, X_groups, delta_groups, beta):
 
 
 @functools.lru_cache(maxsize=None)
-def get_eq3_solver(eq1_log_likelihood_grad_fn, solver_num_steps=10):
+def get_eq3_solver(eq1_log_likelihood_grad_fn, solver_max_steps=10):
   """Solves equation 3 given eq1's ll_grad function."""
 
-  @vectorize("(k),(K,N,p),(K,N),(p)->(p)")
+  @vectorize("(K,N,p),(K,N),(p)->(p)")
   def wrapped(X_groups, delta_groups, initial_guess):
     return solve_newton(functools.partial(eq3_log_likelihood_grad,
                                           eq1_log_likelihood_grad_fn, X_groups,
                                           delta_groups),
                         initial_guess,
                         sym_pos=True,
-                        max_num_steps=solver_num_steps)
+                        max_num_steps=solver_max_steps)
 
   return wrapped
 
