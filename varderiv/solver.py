@@ -28,7 +28,7 @@ def solve_newton(fn,
   else:
     jac_fn = jacrev(fn, 0)
 
-  norm_fn = functools.partial(np.linalg.norm, ord=2)
+  norm_fn = functools.partial(np.linalg.norm, ord=np.inf)
 
   initial_value = fn(initial_guess)
   norm = norm_fn(initial_value)
