@@ -46,7 +46,7 @@ def solve_newton(fn,
       return InternalState(guess, value, norm, step + 1, key)
 
     def update(state: InternalState):
-      guess, value, step, key = state
+      guess, value, _, step, key = state
       jacobian = jac_fn(guess)
       guess = guess + scipy.linalg.solve(-jacobian, value, sym_pos=sym_pos)
       value = fn(guess)
