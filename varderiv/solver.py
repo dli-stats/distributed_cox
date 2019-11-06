@@ -55,8 +55,9 @@ def solve_newton(fn,
 
     step = state.step
     norm = state.norm
-    return jax.lax.cond(((step + 1) % max_reset_steps == 0 or np.isnan(norm)),
-                        state, reset, state, update)
+    return jax.lax.cond(
+        np.logical_or((step + 1) % max_reset_steps == 0, np.isnan(norm)), state,
+        reset, state, update)
 
   def loop_cond(state):
     return np.logical_and(state.step < max_num_steps,
