@@ -38,19 +38,27 @@ def eq4(X_groups, delta_groups, beta_k_hat, beta):
   return ret
 
 
-def eq4_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
-                   beta_k_hat, beta_guess):
+def eq4_solve_rest(X,
+                   delta,
+                   K,
+                   group_labels,
+                   X_groups,
+                   delta_groups,
+                   beta_k_hat,
+                   beta_guess,
+                   solver_num_steps=10):
   """Function used by `solve_grouped_eq_batch`, customized for Eq 4."""
   del K, X, delta, group_labels
 
   @vectorize(f"(k),(K,N,p),(K,N),(K,p),(p)->(p)")
-  def _solve(key, X_groups, delta_groups, beta_k_hat, beta_guess):
-    sol = solve_newton(
-        functools.partial(eq4, X_groups, delta_groups, beta_k_hat), key,
-        beta_guess)
+  def _solve(X_groups, delta_groups, beta_k_hat, beta_guess):
+    sol = solve_newton(functools.partial(eq4, X_groups, delta_groups,
+                                         beta_k_hat),
+                       beta_guess,
+                       max_num_steps=solver_num_steps)
     return sol
 
-  return _solve(key, X_groups, delta_groups, beta_k_hat, beta_guess)
+  return _solve(X_groups, delta_groups, beta_k_hat, beta_guess)
 
 
 solve_eq4 = functools.partial(solve_grouped_eq_batch,

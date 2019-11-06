@@ -18,11 +18,12 @@ from varderiv.data import group_data_by_labels
 from varderiv.equations.eq1 import eq1_log_likelihood_grad_ad
 from varderiv.equations.eq1 import eq1_log_likelihood_grad_manual
 
-from varderiv.equations.eq3 import eq3_solver, get_eq3_cov_fn
+from varderiv.equations.eq3 import get_eq3_solver, get_eq3_cov_fn
 
 from varderiv.experiments.utils import expand_namedtuples
 from varderiv.experiments.utils import run_cov_experiment
 from varderiv.experiments.utils import CovExperimentResultItem
+from varderiv.experiments.utils import check_value_converged
 
 from varderiv.experiments.common import ingredient as base_ingredient
 from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
@@ -47,7 +48,7 @@ def cov_experiment_eq3_init(params):
     eq1_ll_grad_fn = eq1_log_likelihood_grad_ad
   else:
     eq1_ll_grad_fn = eq1_log_likelihood_grad_manual
-  solve_eq3_fn = jit(eq3_solver(eq1_ll_grad_fn))
+  solve_eq3_fn = jit(get_eq3_solver(eq1_ll_grad_fn))
   eq3_cov_fn = jit(get_eq3_cov_fn(eq1_ll_grad_fn))
 
   params["solve_eq3_fn"] = solve_eq3_fn
@@ -70,6 +71,7 @@ def cov_experiment_eq3_core(rnd_keys,
   assert eq3_cov_fn is not None
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
+  assert key.shape == data_generation_key.shape
 
   X, delta, beta = gen(data_generation_key)
   group_labels = group_labels_gen(data_generation_key)
@@ -79,7 +81,7 @@ def cov_experiment_eq3_core(rnd_keys,
   X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
                                                 group_labels)
 
-  sol = solve_eq3_fn(key, X_groups, delta_groups, beta)
+  sol = solve_eq3_fn(X_groups, delta_groups, beta)
   beta_hat = sol.guess
 
   sol = expand_namedtuples(type(sol)(*map(onp.array, sol)))
@@ -90,9 +92,11 @@ def cov_experiment_eq3_core(rnd_keys,
   return ret
 
 
-cov_experiment_eq3 = functools.partial(run_cov_experiment,
-                                       cov_experiment_eq3_init,
-                                       cov_experiment_eq3_core)
+cov_experiment_eq3 = functools.partial(
+    run_cov_experiment,
+    cov_experiment_eq3_init,
+    cov_experiment_eq3_core,
+    check_fail_fn=lambda r: check_value_converged(r.sol.value))
 
 ex = Experiment("eq3", ingredients=[base_ingredient, grouped_ingredient])
 

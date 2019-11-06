@@ -85,8 +85,15 @@ def eq2_jac_manual(X, delta, group_labels, beta_k_hat, beta):
   return eq2_rest(X, delta, *precomputed, beta)
 
 
-def eq2_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
-                   beta_k_hat, beta_guess):
+def eq2_solve_rest(X,
+                   delta,
+                   K,
+                   group_labels,
+                   X_groups,
+                   delta_groups,
+                   beta_k_hat,
+                   beta_guess,
+                   solver_num_steps=10):
   """Function used by `solve_grouped_eq_batch`, customized for Eq 2."""
 
   del K, X_groups, delta_groups
@@ -94,16 +101,18 @@ def eq2_solve_rest(key, X, delta, K, group_labels, X_groups, delta_groups,
   precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
 
   @vectorize(f"(k),(N,p),(N),{precomputed_signature},(p)->(p)")
-  def _solve(key, X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
+  def _solve(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
              e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped,
              beta_guess):
-    return solve_newton(
-        functools.partial(eq2_rest, X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X,
-                          XX_e_beta_k_hat_X, e_beta_k_hat_X_cs,
-                          X_e_beta_k_hat_X_cs, beta_k_hat_grouped), key,
-        beta_guess)
+    return solve_newton(functools.partial(eq2_rest, X, delta, e_beta_k_hat_X,
+                                          X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
+                                          e_beta_k_hat_X_cs,
+                                          X_e_beta_k_hat_X_cs,
+                                          beta_k_hat_grouped),
+                        beta_guess,
+                        max_num_steps=solver_num_steps)
 
-  return _solve(key, X, delta, *precomputed, beta_guess)
+  return _solve(X, delta, *precomputed, beta_guess)
 
 
 def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
@@ -168,10 +177,7 @@ def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
   assert X_groups.shape == (batch_size, K, group_size, X_dim)
   assert delta_groups.shape == (batch_size, K, group_size)
 
-  eq1_sols = solve_eq1_fn(
-      np.broadcast_to(key, (K,) + key.shape).reshape(
-          (batch_size, K, key.shape[-1])), X_groups, delta_groups,
-      step_1_initial_guess)
+  eq1_sols = solve_eq1_fn(X_groups, delta_groups, step_1_initial_guess)
   if log:
     for i, sol_single_batch in enumerate(
         zip(eq1_sols.guess, eq1_sols.value, eq1_sols.step)):
@@ -181,8 +187,8 @@ def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
 
   beta_k_hat = eq1_sols.guess
 
-  rest_sol = solve_rest_fn(key, X, delta, K, group_labels, X_groups,
-                           delta_groups, beta_k_hat, initial_guess)
+  rest_sol = solve_rest_fn(X, delta, K, group_labels, X_groups, delta_groups,
+                           beta_k_hat, initial_guess)
 
   if log:
     print("Solved {} beta={} value={} in {} steps".format(

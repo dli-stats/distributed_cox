@@ -27,6 +27,7 @@ from varderiv.equations.eq2 import eq2_cov_robust_ad_impl
 from varderiv.experiments.utils import expand_namedtuples
 from varderiv.experiments.utils import run_cov_experiment
 from varderiv.experiments.utils import CovExperimentResultItem
+from varderiv.experiments.utils import check_value_converged
 
 from varderiv.experiments.common import ingredient as base_ingredient
 from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
@@ -136,9 +137,11 @@ def cov_experiment_eq2_core(rnd_keys,
   return ret
 
 
-cov_experiment_eq2 = functools.partial(run_cov_experiment,
-                                       cov_experiment_eq2_init,
-                                       cov_experiment_eq2_core)
+cov_experiment_eq2 = functools.partial(
+    run_cov_experiment,
+    cov_experiment_eq2_init,
+    cov_experiment_eq2_core,
+    check_fail_fn=lambda r: check_value_converged(r.sol.pt2.value))
 
 ex = Experiment("eq2", ingredients=[base_ingredient, grouped_ingredient])
 

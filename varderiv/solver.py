@@ -5,7 +5,6 @@ import collections
 import jax.lax
 import jax.numpy as np
 from jax import jacrev, jacfwd, jit
-from jax import random as jrandom
 import jax.scipy as scipy
 
 NewtonSolverState = collections.namedtuple("NewtonSolverState",
@@ -13,13 +12,11 @@ NewtonSolverState = collections.namedtuple("NewtonSolverState",
 
 
 def solve_newton(fn,
-                 key,
                  initial_guess,
                  sym_pos=False,
                  norm_stop_thres=1e-3,
                  jac_mode='forward',
-                 max_reset_steps=20,
-                 max_num_steps=1000):
+                 max_num_steps=10):
   """HOF for newton's method solver."""
 
   if jac_mode == 'forward':
@@ -29,27 +26,14 @@ def solve_newton(fn,
 
   initial_value = fn(initial_guess)
 
-  InternalState = collections.namedtuple("InternalState",
-                                         "guess value step key")
+  InternalState = collections.namedtuple("InternalState", "guess value step")
 
   def newton_update(state: InternalState):
-
-    def reset(state: InternalState):
-      key, subkey = jrandom.split(state.key, 2)
-      guess = initial_guess + jrandom.normal(subkey, shape=initial_guess.shape)
-      value = fn(guess)
-      return InternalState(guess, value, step + 1, key)
-
-    def update(state: InternalState):
-      guess, value, step, key = state
-      jacobian = jac_fn(guess)
-      guess = guess + scipy.linalg.solve(-jacobian, value, sym_pos=sym_pos)
-      value = fn(guess)
-      return InternalState(guess, value, step + 1, key)
-
-    step = state.step
-    return jax.lax.cond(((step + 1) % max_reset_steps == 0), state, reset,
-                        state, update)
+    guess, value, step = state
+    jacobian = jac_fn(guess)
+    guess = guess + scipy.linalg.solve(-jacobian, value, sym_pos=sym_pos)
+    value = fn(guess)
+    return InternalState(guess, value, step + 1)
 
   def stop_cond(state):
     return np.logical_and(
@@ -57,7 +41,7 @@ def solve_newton(fn,
         np.linalg.norm(state.value, ord=np.inf) > norm_stop_thres)
 
   ret = jax.lax.while_loop(stop_cond, newton_update,
-                           InternalState(initial_guess, initial_value, 0, key))
+                           InternalState(initial_guess, initial_value, 0))
 
   return NewtonSolverState(ret.guess, ret.value, ret.step)
 

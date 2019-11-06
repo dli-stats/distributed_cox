@@ -54,36 +54,30 @@ eq1_log_likelihood_grad_ad = vectorize('(N,p),(N),(p)->(p)')(jacrev(
     eq1_log_likelihood, 2))
 
 
-def _solve_eq1(key, X, delta, initial_guess, eq1_ll_grad_fn):
-  sol = solve_newton(
-      functools.partial(eq1_ll_grad_fn, X, delta),
-      key,
-      initial_guess,
-      sym_pos=True  # since eq1 is optimizing loglikelihood,
-      # its hessian is always symmetric positive definite
-  )
-  return sol
-
-
-@vectorize("(k),(N,p),(N),(p)->(p)")
-def solve_eq1_ad(key, X, delta, initial_guess):
-  return _solve_eq1(key, X, delta, initial_guess, eq1_log_likelihood_grad_ad)
-
-
-@vectorize("(k),(N,p),(N),(p)->(p)")
-def solve_eq1_manual(key, X, delta, initial_guess):
-  return _solve_eq1(key, X, delta, initial_guess,
-                    eq1_log_likelihood_grad_manual)
-
-
-def solve_eq1(key, X, delta, initial_guess=None, use_ad=False):
-  if initial_guess is None:
-    initial_guess = np.abs(jrandom.normal(key, X.shape[1]))
+@functools.lru_cache(maxsize=None)
+def get_eq1_solver(use_ad=True, solver_max_steps=10):
+  """Returns solver for specified arguments"""
   if use_ad:
-    return solve_eq1_ad(key, X, delta, initial_guess)
+    eq1_ll_grad_fn = eq1_log_likelihood_grad_ad
   else:
-    return solve_eq1_manual(key, X, delta, initial_guess)
+    eq1_ll_grad_fn = eq1_log_likelihood_grad_manual
 
+  @vectorize("(k),(N,p),(N),(p)->(p)")
+  def wrapped(X, delta, initial_guess):
+    sol = solve_newton(
+        functools.partial(eq1_ll_grad_fn, X, delta),
+        initial_guess,
+        max_num_steps=solver_max_steps,
+        sym_pos=True  # since eq1 is optimizing loglikelihood,
+        # its hessian is always symmetric positive definite
+    )
+    return sol
+
+  return wrapped
+
+
+solve_eq1_ad = get_eq1_solver(use_ad=True)
+solve_eq1_manual = get_eq1_solver(use_ad=False)
 
 #########################################################
 # BEGIN COV

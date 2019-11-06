@@ -6,6 +6,8 @@ import collections
 import itertools
 import functools
 
+import numpy as onp
+
 from multiprocessing.dummy import Pool as ThreadPool
 
 import tqdm
@@ -59,6 +61,7 @@ def expand_namedtuples(tup):
 def run_cov_experiment(
     init_fn,
     experiment_fn,
+    check_fail_fn=lambda x: False,
     data_generation_key=data_generation_key,  # pylint: disable=redefined-outer-name
     num_experiments=1000,
     num_threads=8,
@@ -71,22 +74,24 @@ def run_cov_experiment(
 
   subkeys = jrandom.split(experiment_rand_key, num_experiments)
   data_generation_subkeys = jrandom.split(data_generation_key, num_experiments)
-  data_iterator = list(zip(subkeys, data_generation_subkeys))
+  all_data = list(zip(range(num_experiments), subkeys, data_generation_subkeys))
 
   # We fill in some arbitrary key value for the residuals
-  data_iterator = grouper(data_iterator,
+  data_iterator = grouper(all_data,
                           batch_size,
                           fillvalue=(subkeys[0], subkeys[0]))
 
   init_fn(experiment_params)
-
-  results = []
 
   if num_threads > 1:
     pool = ThreadPool(num_threads)
     parallel_map = pool.imap_unordered
   else:
     parallel_map = map
+
+  def experiment_fn_wrapper(args):
+    i, *keys = args
+    return i, experiment_fn(keys, **experiment_params)
 
   desc = "Experiment {}".format(experiment_fn.__name__)
   if in_notebook():
@@ -95,18 +100,33 @@ def run_cov_experiment(
     pbar = tqdm.tqdm(desc=desc, total=num_experiments)
   pbar.update(0)
   time.sleep(1)
-  for sol in parallel_map(functools.partial(experiment_fn, **experiment_params),
-                          data_iterator):
-    results += sol
-    pbar.update(len(sol))
+
+  results, failed = [], []
+  for batch_idxs, batch_sols in parallel_map(experiment_fn_wrapper,
+                                             data_iterator):
+    num_succeed = 0
+    for idx, sol in zip(batch_idxs, batch_sols):
+      if idx >= num_experiments:
+        continue
+      if check_fail_fn(sol):
+        failed.append(idx)
+      else:
+        results.append(sol)
+        num_succeed += 1
+    pbar.update(len(batch_sols))
   pbar.close()
+
+  print("Failed {}".format(len(failed)))
+  # more_data = [(fi, *all_data[fi]) for fi in failed]
 
   if num_threads > 1:
     pool.close()
     pool.join()
 
-  # Trim results that are padded
-  results = results[:num_experiments]
-
   return ExperimentResult(data_generation_key=data_generation_key,
                           results=results)
+
+
+def check_value_converged(value, tol=1e-3):
+  return onp.all(
+      onp.isfinite(value)) and onp.linalg.norm(value, ord=onp.inf) > tol

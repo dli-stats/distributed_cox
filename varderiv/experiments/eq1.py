@@ -19,6 +19,7 @@ from varderiv.equations.eq1 import eq1_cov_ad, eq1_cov_manual
 from varderiv.experiments.utils import expand_namedtuples
 from varderiv.experiments.utils import run_cov_experiment
 from varderiv.experiments.utils import CovExperimentResultItem
+from varderiv.experiments.utils import check_value_converged
 
 from varderiv.experiments.common import ingredient as base_ingredient
 
@@ -55,7 +56,7 @@ def cov_experiment_eq1_core(args, gen=None, solve_eq1_fn=None, eq1_cov_fn=None):
 
   assert key.shape == data_generation_key.shape
 
-  sol = solve_eq1_fn(key, X, delta, beta)
+  sol = solve_eq1_fn(X, delta, beta)
   beta_hat = sol.guess
   sol = expand_namedtuples(
       type(sol)(*map(onp.array, sol)))  # release from jax to numpy
@@ -64,9 +65,11 @@ def cov_experiment_eq1_core(args, gen=None, solve_eq1_fn=None, eq1_cov_fn=None):
   return ret
 
 
-cov_experiment_eq1 = functools.partial(run_cov_experiment,
-                                       cov_experiment_eq1_init,
-                                       cov_experiment_eq1_core)
+cov_experiment_eq1 = functools.partial(
+    run_cov_experiment,
+    cov_experiment_eq1_init,
+    cov_experiment_eq1_core,
+    check_fail_fn=lambda r: check_value_converged(r.sol.value) > 1e-3)
 
 ex = Experiment("eq1", ingredients=[base_ingredient])
 
