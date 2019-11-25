@@ -314,10 +314,11 @@ eq2_cov_beta_k_correction = get_eq2_cov_beta_k_correction_fn(
 eq2_cov = eq2_cov_beta_k_correction
 
 if __name__ == '__main__':
-  N = 500
-  K = 3
-  X_DIM = 2
-  from varderiv.data import data_generator, key, data_generation_key, group_labels_generator
+  N = 5000
+  K = 5
+  X_DIM = 5
+  from varderiv.data import data_generator, key, \
+    data_generation_key, group_labels_generator
   key, subkey = jrandom.split(key)
   X, delta, beta = data_generator(N, X_DIM)(data_generation_key)
 
@@ -328,14 +329,15 @@ if __name__ == '__main__':
 
   X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_labels)
 
-  beta_k_hat, beta_hat = solve_eq2(key,
-                                   X,
-                                   delta,
-                                   K,
-                                   group_labels,
-                                   initial_guess=beta,
-                                   log=True)
-
+  sol_pt1, sol_pt2 = solve_eq2(key,
+                               X,
+                               delta,
+                               K,
+                               group_labels,
+                               initial_guess=beta,
+                               log=True)
+  beta_k_hat = sol_pt1.guess
+  beta_hat = sol_pt2.guess
   cov_beta_k_correction = eq2_cov_beta_k_correction(X, delta, X_groups,
                                                     delta_groups, group_labels,
                                                     beta_k_hat, beta_hat)

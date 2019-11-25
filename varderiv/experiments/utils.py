@@ -4,11 +4,10 @@ import sys
 import time
 import collections
 import itertools
-import functools
-
-import numpy as onp
 
 from multiprocessing.dummy import Pool as ThreadPool
+
+import numpy as onp
 
 import tqdm
 
@@ -119,7 +118,9 @@ def run_cov_experiment(
 
   print("Failed {}".format(len(failed)))
 
-  # failed_data = [(fi, all_data[fi]) for fi in failed]
+  failed_data = [(fi, all_data[fi]) for fi in failed]
+  while len(failed_data) > 0:
+    pass  # TODO(camyang) need to further process failed data
 
   if num_threads > 1:
     pool.close()

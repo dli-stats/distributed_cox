@@ -4,8 +4,10 @@ import functools
 
 import jax.numpy as np
 from jax.experimental.vectorize import vectorize
-from jax import jacfwd, jacrev, hessian
-from jax import random as jrandom
+# from jax import jacfwd
+from jax import jacrev
+from jax import hessian
+# from jax import random as jrandom
 
 from varderiv.solver import solve_newton
 
