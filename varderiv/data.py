@@ -27,7 +27,11 @@ def default_X_generator(N, dim, key):
 
 
 @functools.lru_cache(maxsize=None)
-def data_generator(N, X_dim, X_generator=default_X_generator, exp_scale=3.5):
+def data_generator(N,
+                   X_dim,
+                   X_generator=default_X_generator,
+                   exp_scale=3.5,
+                   return_T=False):
   """HOF for data generation.
 
   The function is cached so that we avoid potential repeating jits'.
@@ -73,8 +77,10 @@ def data_generator(N, X_dim, X_generator=default_X_generator, exp_scale=3.5):
     delta = np.take(delta, sorted_idx, axis=0)
 
     # X = X - np.mean(X, axis=0)
-
-    return X, delta, beta
+    if return_T:  # pylint: disable=no-else-return
+      return T, X, delta, beta
+    else:
+      return X, delta, beta
 
   return wrapped
 
