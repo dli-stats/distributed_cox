@@ -8,6 +8,9 @@ setup(
     packages=[
         'varderiv',
     ],
+    entry_points={
+        'console_scripts': ['distributed_cmd=varderiv.distributed.cmd:main'],
+    },
     license='MIT license',
     long_description=open('README.md').read(),
 )

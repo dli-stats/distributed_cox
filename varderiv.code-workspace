@@ -5,5 +5,6 @@
 		}
 	],
 	"settings": {
+		"editor.tabSize": 2
 	}
 }
