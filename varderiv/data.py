@@ -6,7 +6,7 @@ import functools
 import numpy as onp
 
 import jax.numpy as np
-from jax import jit, vmap
+from jax import vmap
 from jax.experimental.vectorize import vectorize
 import jax.lax
 
@@ -161,7 +161,7 @@ def group_labels_to_indices(K, group_labels):
 
 
 def _pad_X_delta(X, delta, indices, padded_group_size):
-
+  """Currently Unused."""
   X_group = onp.take(X, indices, axis=0)
   X_group = onp.pad(X_group, [(0, padded_group_size - X_group.shape[0]),
                               (0, 0)])
@@ -201,7 +201,7 @@ def group_data_by_labels(batch_size, K, X, delta, group_labels):
     group_labels = group_labels.reshape((1,) + group_labels.shape)
 
   batch_size = X.shape[0]
-  X_dim = X.shape[-1]
+  # X_dim = X.shape[-1]
 
   group_mask = onp.array(
       [[group_labels[i] == k for k in range(K)] for i in range(batch_size)])

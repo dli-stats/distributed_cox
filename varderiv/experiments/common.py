@@ -1,8 +1,7 @@
 """Basic Common configs for experiments."""
 
-from sacred import Ingredient
-
 import jax.random as jrandom
+from sacred import Ingredient
 
 # pylint: disable=unused-variable
 # pylint: disable=missing-function-docstring
