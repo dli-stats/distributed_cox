@@ -45,7 +45,6 @@ def distributed_compute_eq2_local(key,
 
   eq1_sol = solve_eq1_fn(X_group, delta_group, initial_guess)
   beta_k_hat = eq1_sol.guess
-  print(eq1_sol)
   eq1_H = eq1_compute_H_fn(X_group, delta_group, beta_k_hat)
 
   ebkx = np.exp(np.dot(X_group, beta_k_hat))
@@ -58,7 +57,9 @@ def distributed_compute_eq2_local(key,
   xxebkx_cs = np.cumsum(xxebkx, 0)
   xxxebkx_cs = np.cumsum(xxxebkx, 0)
 
-  idxs = onp.searchsorted(onp.array(-T_group), onp.array(-T_delta), side='left')
+  idxs = onp.searchsorted(onp.array(-T_group),
+                          onp.array(-T_delta),
+                          side='right')
   ebkx_cs_d = np.take(ebkx_cs, idxs, axis=0)
   xebkx_cs_d = np.take(xebkx_cs, idxs, axis=0)
   xxebkx_cs_d = np.take(xxebkx_cs, idxs, axis=0)
@@ -93,11 +94,9 @@ def distributed_eq2_jac_master(X_delta_sum, ebkx_cs_d, xebkx_cs_d, xxebkx_cs_d,
 distributed_eq2_hess_master = jacfwd(distributed_eq2_jac_master, -1)
 
 
-def distributed_eq2_grad_beta_k_master(X_delta_sum, ebkx_cs_d, xebkx_cs_d,
-                                       xxebkx_cs_d, xxxebkx_cs_d, beta_k_hat,
-                                       beta):
+def distributed_eq2_grad_beta_k_master(ebkx_cs_d, xebkx_cs_d, xxebkx_cs_d,
+                                       xxxebkx_cs_d, beta_k_hat, beta):
   """Compute gradient of jac relative to beta_k."""
-  del X_delta_sum
   bmb = beta - beta_k_hat
   xxebkxbmb_cs_d = np.einsum("kdij,kj->kdi", xxebkx_cs_d, bmb)
   xxxebkxbmb_cs_d = np.einsum("kdnmp,kp->kdnm", xxxebkx_cs_d, bmb)
@@ -124,8 +123,7 @@ def distributed_compute_eq2_master(eq1_H, X_delta_sum, ebkx_cs_d, xebkx_cs_d,
 
   I_diag_wo_last = -eq1_H
   I_row = -distributed_eq2_grad_beta_k_master(
-      X_delta_sum, ebkx_cs_d, xebkx_cs_d, xxebkx_cs_d, xxxebkx_cs_d, beta_k_hat,
-      beta_hat)
+      ebkx_cs_d, xebkx_cs_d, xxebkx_cs_d, xxxebkx_cs_d, beta_k_hat, beta_hat)
   I_row = np.swapaxes(I_row, 0, 1)
 
   I_diag_last = -distributed_eq2_hess_master(
