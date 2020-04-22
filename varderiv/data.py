@@ -7,7 +7,6 @@ import numpy as onp
 
 import jax.numpy as np
 from jax import vmap
-from jax.experimental.vectorize import vectorize
 import jax.lax
 
 from jax import random as jrandom
@@ -37,7 +36,7 @@ def data_generator(N,
   The function is cached so that we avoid potential repeating jits'.
   """
 
-  @vectorize("(k)->(N,p),(N),(p)")
+  @functools.partial(np.vectorize, signature="(k)->(N,p),(N),(p)")
   def wrapped(key):
     r"""Generates dummy data.
 
@@ -98,7 +97,7 @@ def group_labels_generator(N, K, group_labels_generator_kind="random",
   elif group_labels_generator_kind == "single_ladder":
     assert kwargs.keys() == {"start_val", "repeat_start"}
 
-  @vectorize("(k)->(N)")
+  @functools.partial(np.vectorize, signature="(k)->(N)")
   def generate_group_labels(key):
     if group_labels_generator_kind == "random":  # pylint: disable=no-else-return
       key, subkey = jrandom.split(key)
@@ -241,3 +240,11 @@ def group_data_by_labels(batch_size, K, X, delta, group_labels):
 
 key = jrandom.PRNGKey(0)
 key, data_generation_key = jrandom.split(key)
+
+
+def normalize(X, beta):
+    X = X - onp.mean(X, axis=0)
+    scale = X.shape[0] / onp.linalg.norm(X, ord=1, axis=0)
+    X *= scale
+    beta /= scale
+    return X, beta, scale

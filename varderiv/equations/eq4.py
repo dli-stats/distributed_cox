@@ -3,7 +3,6 @@
 import functools
 
 import jax.numpy as np
-from jax.experimental.vectorize import vectorize
 from jax import jacfwd
 
 from varderiv.solver import solve_newton
@@ -18,7 +17,7 @@ from varderiv.equations.eq2 import eq2_jac_manual
 #########################################################
 
 
-@vectorize("(K,S,p),(K,S),(K,p),(p)->(p)")
+@functools.partial(np.vectorize, signature="(K,S,p),(K,S),(K,p),(p)->(p)")
 def eq4(X_groups, delta_groups, beta_k_hat, beta):
   """Equation 4's ll_grad function."""
   K = X_groups.shape[0]
@@ -47,7 +46,7 @@ def get_eq4_rest_solver(solver_max_steps=10):
     """Function used by `solve_grouped_eq_batch`, customized for Eq 4."""
     del K, X, delta, group_labels
 
-    @vectorize(f"(K,N,p),(K,N),(K,p),(p)->(p)")
+    @functools.partial(np.vectorize, signature=f"(K,N,p),(K,N),(K,p),(p)->(p)")
     def _solve(X_groups, delta_groups, beta_k_hat, beta_guess):
       sol = solve_newton(functools.partial(eq4, X_groups, delta_groups,
                                            beta_k_hat),

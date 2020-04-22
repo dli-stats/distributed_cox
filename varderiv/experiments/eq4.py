@@ -106,8 +106,7 @@ def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
     initial_guess = beta + onp.random.normal(size=beta.shape)
   else:
     initial_guess = beta
-  pt1_sols, pt2_sols = solve_eq4_fn(key,
-                                    X,
+  pt1_sols, pt2_sols = solve_eq4_fn(X,
                                     delta,
                                     K,
                                     group_labels,

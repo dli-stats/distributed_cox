@@ -22,8 +22,7 @@ from varderiv.distributed.eq2 import distributed_compute_eq2_local
 #########################################################
 
 
-def distributed_compute_eq4_local(key,
-                                  T_group,
+def distributed_compute_eq4_local(T_group,
                                   X_group,
                                   delta_group,
                                   initial_guess=None,
@@ -40,8 +39,7 @@ def distributed_compute_eq4_local(key,
     array of shape (D, ), where D is #(delta_group == 1)
   """
   T_delta = T_group[delta_group == 1]
-  return distributed_compute_eq2_local(key,
-                                       T_group,
+  return distributed_compute_eq2_local(T_group,
                                        X_group,
                                        delta_group,
                                        T_delta,

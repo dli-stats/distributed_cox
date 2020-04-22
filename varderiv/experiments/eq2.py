@@ -101,8 +101,7 @@ def cov_experiment_eq2_core(rnd_keys,
   X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
                                                 group_labels)
 
-  pt1_sols, pt2_sols = solve_eq2_fn(key,
-                                    X,
+  pt1_sols, pt2_sols = solve_eq2_fn(X,
                                     delta,
                                     K,
                                     group_labels,

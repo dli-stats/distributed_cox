@@ -3,7 +3,6 @@
 import functools
 
 import jax.numpy as np
-from jax.experimental.vectorize import vectorize
 # from jax import jacfwd
 from jax import jacrev
 from jax import hessian
@@ -16,7 +15,7 @@ from varderiv.solver import solve_newton
 #########################################################
 
 
-@vectorize('(N,p),(N),(p)->(p)')
+@functools.partial(np.vectorize, signature='(N,p),(N),(p)->()')
 def eq1_log_likelihood(X, delta, beta):
   bx = np.dot(X, beta)
   ebx_cs = np.cumsum(np.exp(bx), 0)
@@ -25,7 +24,7 @@ def eq1_log_likelihood(X, delta, beta):
   return log_likelhihood
 
 
-@vectorize('(N,p),(N),(p)->(p)')
+@functools.partial(np.vectorize, signature='(N,p),(N),(p)->(p)')
 def eq1_log_likelihood_grad_manual(X, delta, beta):
   """Computes eq1.
 
@@ -52,26 +51,28 @@ def eq1_log_likelihood_grad_manual(X, delta, beta):
   return ret
 
 
-eq1_log_likelihood_grad_ad = vectorize('(N,p),(N),(p)->(p)')(jacrev(
-    eq1_log_likelihood, 2))
+eq1_log_likelihood_grad_ad = functools.partial(
+  np.vectorize, signature='(N,p),(N),(p)->(p)')(
+  jacrev(eq1_log_likelihood, 2))
 
 
 @functools.lru_cache(maxsize=None)
-def get_eq1_solver(use_ad=True, solver_max_steps=10):
+def get_eq1_solver(use_ad=True, solver_max_steps=10, norm_stop_thres=1e-3):
   """Returns solver for specified arguments"""
   if use_ad:
     eq1_ll_grad_fn = eq1_log_likelihood_grad_ad
   else:
     eq1_ll_grad_fn = eq1_log_likelihood_grad_manual
 
-  @vectorize("(N,p),(N),(p)->(p)")
+  @functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p),(p),()")
   def wrapped(X, delta, initial_guess):
     sol = solve_newton(
         functools.partial(eq1_ll_grad_fn, X, delta),
         initial_guess,
         max_num_steps=solver_max_steps,
-        sym_pos=True  # since eq1 is optimizing loglikelihood,
+        sym_pos=True,  # since eq1 is optimizing loglikelihood,
         # its hessian is always symmetric positive definite
+        norm_stop_thres=norm_stop_thres
     )
     return sol
 
@@ -85,11 +86,11 @@ solve_eq1_manual = get_eq1_solver(use_ad=False)
 # BEGIN COV
 #########################################################
 
-eq1_compute_H_ad = vectorize("(N,p),(N),(p)->(p,p)")(hessian(
+eq1_compute_H_ad = functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")(hessian(
     eq1_log_likelihood, 2))
 
 
-@vectorize("(N,p),(N),(p)->(p,p)")
+@functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")
 def eq1_compute_H_manual(X, delta, beta):
   """Eq1 Hessian manual."""
   e_beta_X = np.exp(np.dot(X, beta)).reshape((-1, 1))
@@ -122,12 +123,12 @@ def _eq1_cov(X, delta, beta, eq1_H_fn):
   return np.linalg.inv(-eq1_H_fn(X, delta, beta))
 
 
-@vectorize("(N,p),(N),(p)->(p,p)")
+@functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")
 def eq1_cov_manual(X, delta, beta):
   return _eq1_cov(X, delta, beta, eq1_compute_H_manual)
 
 
-@vectorize("(N,p),(N),(p)->(p,p)")
+@functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")
 def eq1_cov_ad(X, delta, beta):
   return _eq1_cov(X, delta, beta, eq1_compute_H_ad)
 
