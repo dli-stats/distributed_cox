@@ -31,7 +31,7 @@ local_send_vals() {
         local_data="${analysis_dir}/${local_data}"
         python -m $CMD local-send-vals $T_delta $local_data \
            --save-dir=$analysis_dir \
-           --solver-thres=1e-3 --solver-max-steps=50;
+           --solver-thres=1e-3 --solver-max-steps=300;
     done  
 }
 
@@ -48,7 +48,7 @@ master_analytics() {
     esac
     python -m $CMD master-analytics $analytics_arg \
        --save-dir=$analysis_dir \
-       --solver-thres=1e-1 --solver-max-steps=50
+       --solver-thres=1e-3 --solver-max-steps=300;
 }
 
 run_flow() {

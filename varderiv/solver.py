@@ -63,7 +63,6 @@ def solve_newton(fn,
 
   initial_value = fn(initial_guess)
   initial_state = InternalState(initial_guess, initial_value, 0, np.zeros_like(initial_guess), 1)
-
   ret = jax.lax.while_loop(stop_cond, newton_update, initial_state)
 
   return NewtonSolverState(ret.guess, ret.value, ret.step)

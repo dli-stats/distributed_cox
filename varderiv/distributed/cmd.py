@@ -138,7 +138,6 @@ def run_master_analytics(args):
       solve_eq3 = get_eq3_solver(eq1_ll_grad_fn, 
         solver_max_steps=solver_max_steps, norm_stop_thres=solver_thres)
       sol = solve_eq3(X_groups, delta_groups, beta_guess)
-      import pdb; pdb.set_trace()
       beta_hat = sol.guess
       eq3_cov_fn = get_eq3_cov_fn(eq1_ll_grad_fn)
       beta_cov = eq3_cov_fn(X_groups, delta_groups, beta_hat)

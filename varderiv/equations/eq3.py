@@ -36,7 +36,7 @@ def eq3_log_likelihood_grad(eq1_ll_grad_fn, X_groups, delta_groups, beta):
 def get_eq3_solver(eq1_log_likelihood_grad_fn, solver_max_steps=10, norm_stop_thres=1e-3):
   """Solves equation 3 given eq1's ll_grad function."""
 
-  @functools.partial(np.vectorize, signature="(K,N,p),(K,N),(p)->(p)")
+  @functools.partial(np.vectorize, signature="(K,N,p),(K,N),(p)->(p),(p),()")
   def wrapped(X_groups, delta_groups, initial_guess):
     return solve_newton(functools.partial(eq3_log_likelihood_grad,
                                           eq1_log_likelihood_grad_fn, X_groups,
