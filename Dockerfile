@@ -9,7 +9,7 @@ ARG GIT_PASSWORD
 # Set the working directory.
 
 # Run the command inside your image filesystem.
-RUN mkdir varderiv
+RUN rm -rf varderiv; mkdir varderiv
 WORKDIR varderiv
 RUN git init
 RUN git pull https://${GIT_USER}:${GIT_PASSWORD}@${REPO} ${BRANCH}
