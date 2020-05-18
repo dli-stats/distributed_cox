@@ -20,8 +20,7 @@ from varderiv.equations.eq2 import cov_pure_analytical_from_I
 #########################################################
 
 
-def distributed_compute_eq2_local(key,
-                                  T_group,
+def distributed_compute_eq2_local(T_group,
                                   X_group,
                                   delta_group,
                                   T_delta,
@@ -38,10 +37,10 @@ def distributed_compute_eq2_local(key,
   """
   assert T_group.shape[0] == X_group.shape[0] == delta_group.shape[0]
 
-  X_dim = X_group.shape[-1]
+  if initial_guess == None:
+    initial_guess = np.zeros((X_group.shape[1], ))
 
-  if initial_guess is None:
-    initial_guess = np.abs(jrandom.normal(key, shape=(X_dim,)))
+  X_dim = X_group.shape[-1]
 
   eq1_sol = solve_eq1_fn(X_group, delta_group, initial_guess)
   beta_k_hat = eq1_sol.guess
@@ -159,8 +158,7 @@ if __name__ == '__main__':
     T_group = T[group_labels == k]
     delta_group = delta[group_labels == k]
     local_data.append(
-        distributed_compute_eq2_local(key, T_group, X_group, delta_group,
-                                      T_delta))
+        distributed_compute_eq2_local(T_group, X_group, delta_group, T_delta))
   local_data = tuple(
       onp.stack([ld[d]
                  for ld in local_data])

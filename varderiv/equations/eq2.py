@@ -3,7 +3,6 @@
 import functools
 
 import jax.numpy as np
-from jax.experimental.vectorize import vectorize
 from jax import jacfwd
 from jax import random as jrandom
 
@@ -23,7 +22,7 @@ from varderiv.equations.eq1 import eq1_compute_H_ad
 precomputed_signature = "(N,c),(N,p),(N,p,p),(N,c),(N,p),(N,p)"
 
 
-@vectorize(f"(N,p),(N),(k,p)->{precomputed_signature}")
+@functools.partial(np.vectorize, signature=f"(N,p),(N),(k,p)->{precomputed_signature}")
 def _precompute_eq2_terms(X, group_labels, beta_k_hat):
   """Precomputes some tensors for equation 2."""
   beta_k_hat_grouped = np.take(beta_k_hat, group_labels, axis=0)
@@ -47,7 +46,7 @@ def _precompute_eq2_terms(X, group_labels, beta_k_hat):
     e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped
 
 
-@vectorize(f"(N,p),(N),{precomputed_signature},(p)->(N,p)")
+@functools.partial(np.vectorize, signature=f"(N,p),(N),{precomputed_signature},(p)->(N,p)")
 def compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
               e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped, beta):
   """Computes W tensor."""
@@ -71,7 +70,7 @@ def compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
   return W
 
 
-@vectorize(f"(N,p),(N),{precomputed_signature},(p)->(p)")
+@functools.partial(np.vectorize, signature=f"(N,p),(N),{precomputed_signature},(p)->(p)")
 def eq2_rest(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
              e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped, beta):
   W = compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
@@ -100,7 +99,7 @@ def eq2_solve_rest(X,
 
   precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
 
-  @vectorize(f"(N,p),(N),{precomputed_signature},(p)->(p)")
+  @functools.partial(np.vectorize, signature=f"(N,p),(N),{precomputed_signature},(p)->(p)")
   def _solve(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
              e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped,
              beta_guess):
@@ -116,7 +115,6 @@ def eq2_solve_rest(X,
 
 
 def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
-    key,
     X,
     delta,
     K,
@@ -161,7 +159,7 @@ def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
   X_dim = X.shape[-1]
 
   if initial_guess is None:
-    initial_guess = np.abs(jrandom.normal(key, shape=(batch_size, X_dim)))
+    initial_guess = np.zeros((batch_size, X_dim))
 
   assert initial_guess.shape == (batch_size, X_dim)
 
@@ -219,7 +217,7 @@ def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
                                  eq1_compute_H_fn=eq1_compute_H_ad):
   """HOF for covariance computation with beta_k correction."""
 
-  @vectorize("(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(p,p)")
+  @functools.partial(np.vectorize, signature="(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(p,p)")
   def wrapped(X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta):
     """Computes Eq 2 cov with beta_k correction.
 
@@ -245,7 +243,7 @@ def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
   return wrapped
 
 
-@vectorize("(k,p,p),(p,p),(p,k,p)->(p,p)")
+@functools.partial(np.vectorize, signature="(k,p,p),(p,p),(p,k,p)->(p,p)")
 def cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row):
   """
   Args:
@@ -273,7 +271,7 @@ get_eq2_cov_beta_k_correction_fn = functools.partial(
 eq2_compute_H = jacfwd(eq2_jac_manual, -1)
 
 
-@vectorize("(N,p),(N),(N),(k,p),(p)->(p,p)")
+@functools.partial(np.vectorize, signature="(N,p),(N),(N),(k,p),(p)->(p,p)")
 def eq2_cov_robust_ad_impl(X, delta, group_labels, beta_k_hat, beta):
   """Computes covariance for eq2 with AD jacobian.
 
