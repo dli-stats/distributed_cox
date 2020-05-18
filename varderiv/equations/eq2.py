@@ -277,7 +277,8 @@ get_eq2_cov_beta_k_correction_fn = functools.partial(
 eq2_compute_H = jacfwd(eq2_jac_manual, -1)
 
 
-@functools.partial(np.vectorize, signature="(N,p),(N),(N),(k,p),(p)->(p,p)")
+@functools.partial(np.vectorize,
+                   signature="(N,p),(N),(N),(k,p),(p)->(p,p),(p,p)")
 def eq2_cov_robust_ad_impl(X, delta, group_labels, beta_k_hat, beta):
   """Computes covariance for eq2 with AD jacobian.
 
