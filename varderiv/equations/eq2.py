@@ -22,7 +22,8 @@ from varderiv.equations.eq1 import eq1_compute_H_ad
 precomputed_signature = "(N,c),(N,p),(N,p,p),(N,c),(N,p),(N,p)"
 
 
-@functools.partial(np.vectorize, signature=f"(N,p),(N),(k,p)->{precomputed_signature}")
+@functools.partial(np.vectorize,
+                   signature=f"(N,p),(N),(k,p)->{precomputed_signature}")
 def _precompute_eq2_terms(X, group_labels, beta_k_hat):
   """Precomputes some tensors for equation 2."""
   beta_k_hat_grouped = np.take(beta_k_hat, group_labels, axis=0)
@@ -46,7 +47,8 @@ def _precompute_eq2_terms(X, group_labels, beta_k_hat):
     e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped
 
 
-@functools.partial(np.vectorize, signature=f"(N,p),(N),{precomputed_signature},(p)->(N,p)")
+@functools.partial(np.vectorize,
+                   signature=f"(N,p),(N),{precomputed_signature},(p)->(N,p)")
 def compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
               e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped, beta):
   """Computes W tensor."""
@@ -70,7 +72,8 @@ def compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
   return W
 
 
-@functools.partial(np.vectorize, signature=f"(N,p),(N),{precomputed_signature},(p)->(p)")
+@functools.partial(np.vectorize,
+                   signature=f"(N,p),(N),{precomputed_signature},(p)->(p)")
 def eq2_rest(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
              e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped, beta):
   W = compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
@@ -99,7 +102,8 @@ def eq2_solve_rest(X,
 
   precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
 
-  @functools.partial(np.vectorize, signature=f"(N,p),(N),{precomputed_signature},(p)->(p)")
+  @functools.partial(np.vectorize,
+                     signature=f"(N,p),(N),{precomputed_signature},(p)->(p)")
   def _solve(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
              e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped,
              beta_guess):
@@ -217,7 +221,8 @@ def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
                                  eq1_compute_H_fn=eq1_compute_H_ad):
   """HOF for covariance computation with beta_k correction."""
 
-  @functools.partial(np.vectorize, signature="(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(p,p)")
+  @functools.partial(np.vectorize,
+                     signature="(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(p,p)")
   def wrapped(X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta):
     """Computes Eq 2 cov with beta_k correction.
 
