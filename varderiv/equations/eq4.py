@@ -46,7 +46,8 @@ def get_eq4_rest_solver(solver_max_steps=10):
     """Function used by `solve_grouped_eq_batch`, customized for Eq 4."""
     del K, X, delta, group_labels
 
-    @functools.partial(np.vectorize, signature=f"(K,N,p),(K,N),(K,p),(p)->(p)")
+    @functools.partial(np.vectorize,
+                       signature=f"(K,N,p),(K,N),(K,p),(p)->(p),(p),()")
     def _solve(X_groups, delta_groups, beta_k_hat, beta_guess):
       sol = solve_newton(functools.partial(eq4, X_groups, delta_groups,
                                            beta_k_hat),

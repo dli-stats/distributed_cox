@@ -102,8 +102,9 @@ def eq2_solve_rest(X,
 
   precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
 
-  @functools.partial(np.vectorize,
-                     signature=f"(N,p),(N),{precomputed_signature},(p)->(p)")
+  @functools.partial(
+      np.vectorize,
+      signature=f"(N,p),(N),{precomputed_signature},(p)->(p),(p),()")
   def _solve(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
              e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped,
              beta_guess):

@@ -4,7 +4,6 @@ import functools
 
 import jax.numpy as np
 from jax import jacfwd
-from jax import random as jrandom
 
 from varderiv.solver import solve_newton
 
@@ -19,10 +18,9 @@ import varderiv.equations.eq1 as eq1
 
 def eq3_log_likelihood(X_groups, delta_groups, beta):
   return np.sum(eq1.eq1_log_likelihood(
-    X_groups, 
-    delta_groups, 
-    np.broadcast_to(beta, (X_groups.shape[0],) + beta.shape)), axis=(0,)
-  )
+      X_groups, delta_groups,
+      np.broadcast_to(beta, (X_groups.shape[0],) + beta.shape)),
+                axis=(0,))
 
 
 def eq3_log_likelihood_grad(eq1_ll_grad_fn, X_groups, delta_groups, beta):
@@ -33,7 +31,9 @@ def eq3_log_likelihood_grad(eq1_ll_grad_fn, X_groups, delta_groups, beta):
 
 
 @functools.lru_cache(maxsize=None)
-def get_eq3_solver(eq1_log_likelihood_grad_fn, solver_max_steps=10, norm_stop_thres=1e-3):
+def get_eq3_solver(eq1_log_likelihood_grad_fn,
+                   solver_max_steps=10,
+                   norm_stop_thres=1e-3):
   """Solves equation 3 given eq1's ll_grad function."""
 
   @functools.partial(np.vectorize, signature="(K,N,p),(K,N),(p)->(p),(p),()")
@@ -43,7 +43,7 @@ def get_eq3_solver(eq1_log_likelihood_grad_fn, solver_max_steps=10, norm_stop_th
                                           delta_groups),
                         initial_guess,
                         sym_pos=True,
-                        max_num_steps=solver_max_steps, 
+                        max_num_steps=solver_max_steps,
                         norm_stop_thres=norm_stop_thres)
 
   return wrapped
@@ -71,7 +71,8 @@ def solve_eq3(X,
   else:
     eq1_ll_grad_fn = eq1.eq1_log_likelihood_grad_ad
 
-  sol = get_eq3_solver(eq1_ll_grad_fn, **solver_args)(X_groups, delta_groups, initial_guess)
+  sol = get_eq3_solver(eq1_ll_grad_fn, **solver_args)(X_groups, delta_groups,
+                                                      initial_guess)
 
   return sol
 

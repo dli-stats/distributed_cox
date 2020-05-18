@@ -52,8 +52,7 @@ def eq1_log_likelihood_grad_manual(X, delta, beta):
 
 
 eq1_log_likelihood_grad_ad = functools.partial(
-  np.vectorize, signature='(N,p),(N),(p)->(p)')(
-  jacrev(eq1_log_likelihood, 2))
+    np.vectorize, signature='(N,p),(N),(p)->(p)')(jacrev(eq1_log_likelihood, 2))
 
 
 @functools.lru_cache(maxsize=None)
@@ -72,8 +71,7 @@ def get_eq1_solver(use_ad=True, solver_max_steps=10, norm_stop_thres=1e-3):
         max_num_steps=solver_max_steps,
         sym_pos=True,  # since eq1 is optimizing loglikelihood,
         # its hessian is always symmetric positive definite
-        norm_stop_thres=norm_stop_thres
-    )
+        norm_stop_thres=norm_stop_thres)
     return sol
 
   return wrapped
@@ -86,8 +84,9 @@ solve_eq1_manual = get_eq1_solver(use_ad=False)
 # BEGIN COV
 #########################################################
 
-eq1_compute_H_ad = functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")(hessian(
-    eq1_log_likelihood, 2))
+eq1_compute_H_ad = functools.partial(np.vectorize,
+                                     signature="(N,p),(N),(p)->(p,p)")(hessian(
+                                         eq1_log_likelihood, 2))
 
 
 @functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")
