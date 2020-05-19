@@ -167,6 +167,9 @@ def group_sizes_generator(N, K, group_labels_generator_kind="random", **kwargs):
     residual = N - current_total
     group_sizes[K - residual:] += 1
 
+  elif group_labels_generator_kind == "manual":
+    group_sizes = kwargs["sizes"]
+
   else:
     raise TypeError("Invalid group_label_generator_kind")
 
