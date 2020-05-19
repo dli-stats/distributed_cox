@@ -38,16 +38,6 @@ ExperimentMetaAnalysisSolResult = collections.namedtuple(
 
 
 def cov_experiment_meta_analysis_init(params):
-  group_sizes = group_sizes_generator(
-      params["N"],
-      params["K"],
-      group_labels_generator_kind=params["group_labels_generator_kind"],
-      **params["group_labels_generator_kind_kwargs"])
-  del params["group_labels_generator_kind"]
-  del params["group_labels_generator_kind_kwargs"]
-
-  gen = jit(data_generator(params["N"], params["X_DIM"], group_sizes))
-  params["gen"] = gen
 
   if params["eq1_cov_use_ad"]:
     eq1_compute_H_fn = eq1_compute_H_ad
