@@ -38,7 +38,14 @@ def cov_experiment_eq1_init(params):
   del params["eq1_cov_use_ad"]
 
 
-def cov_experiment_eq1_core(args, gen=None, solve_eq1_fn=None, eq1_cov_fn=None):
+def cov_experiment_eq1_core(rnd_keys,
+                            N=1000,
+                            X_DIM=4,
+                            K=3,
+                            gen=None,
+                            solve_eq1_fn=None,
+                            eq1_cov_fn=None):
+  del N, X_DIM, K
   assert gen is not None
   assert solve_eq1_fn is not None
   assert eq1_cov_fn is not None
