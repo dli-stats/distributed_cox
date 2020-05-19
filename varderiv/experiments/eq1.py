@@ -50,7 +50,7 @@ def cov_experiment_eq1_core(rnd_keys,
   assert solve_eq1_fn is not None
   assert eq1_cov_fn is not None
 
-  key, data_generation_key = map(np.array, zip(*args))
+  key, data_generation_key = map(np.array, zip(*rnd_keys))
   X, delta, beta, _ = gen(data_generation_key)
 
   assert key.shape == data_generation_key.shape
