@@ -87,36 +87,38 @@ def eq2_jac_manual(X, delta, group_labels, beta_k_hat, beta):
   return eq2_rest(X, delta, *precomputed, beta)
 
 
-def eq2_solve_rest(X,
-                   delta,
-                   K,
-                   group_labels,
-                   X_groups,
-                   delta_groups,
-                   beta_k_hat,
-                   beta_guess,
-                   solver_max_steps=10):
-  """Function used by `solve_grouped_eq_batch`, customized for Eq 2."""
+@functools.lru_cache(maxsize=None)
+def get_eq2_rest_solver(solver_max_steps=10):
+  """HOF for getting Eq 2's solve rest function."""
 
-  del K, X_groups, delta_groups
+  def eq2_solve_rest(X, delta, K, group_labels, X_groups, delta_groups,
+                     beta_k_hat, beta_guess):
+    """Function used by `solve_grouped_eq_batch`, customized for Eq 2."""
 
-  precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
+    del K, X_groups, delta_groups
 
-  @functools.partial(
-      np.vectorize,
-      signature=f"(N,p),(N),{precomputed_signature},(p)->(p),(p),()")
-  def _solve(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
-             e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped,
-             beta_guess):
-    return solve_newton(functools.partial(eq2_rest, X, delta, e_beta_k_hat_X,
-                                          X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
-                                          e_beta_k_hat_X_cs,
-                                          X_e_beta_k_hat_X_cs,
-                                          beta_k_hat_grouped),
-                        beta_guess,
-                        max_num_steps=solver_max_steps)
+    precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
 
-  return _solve(X, delta, *precomputed, beta_guess)
+    @functools.partial(
+        np.vectorize,
+        signature=f"(N,p),(N),{precomputed_signature},(p)->(p),(p),()")
+    def _solve(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
+               e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped,
+               beta_guess):
+      return solve_newton(functools.partial(eq2_rest, X, delta, e_beta_k_hat_X,
+                                            X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
+                                            e_beta_k_hat_X_cs,
+                                            X_e_beta_k_hat_X_cs,
+                                            beta_k_hat_grouped),
+                          beta_guess,
+                          max_num_steps=solver_max_steps)
+
+    return _solve(X, delta, *precomputed, beta_guess)
+
+  return eq2_solve_rest
+
+
+eq2_solve_rest = get_eq2_rest_solver()
 
 
 def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
@@ -135,7 +137,7 @@ def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
 
   This function is done in few stages:
     1. Arguments are tested to see if we are in batch mode, if not, necessary
-      arguments are turn batch of size 1.
+      arguments are turned into batch of size 1.
     2. A single group_size is decided over all batch and all groups. All groups
       are padded and converted; then a single solve_eq_fn is invoked to solve
       for all groups at the same time.
@@ -149,7 +151,6 @@ def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
     beta_k_hat: solved K groups of beta_k_hat,
     beta: final solution beta
   """
-
   if len(X.shape) == 2:
     # We are not in batch mode
     assert len(delta.shape) == 1
@@ -326,13 +327,12 @@ if __name__ == '__main__':
   N = 5000
   K = 3
   X_DIM = 4
-  from varderiv.data import data_generator, key, group_labels_generator
+  from varderiv.data import data_generator, group_labels_generator
   k1, k2 = jrandom.split(jrandom.PRNGKey(0))
   T, X, delta, beta = data_generator(N, X_DIM, return_T=True)(k1)
   group_labels = group_labels_generator(N, K, "same")(k2)
   X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_labels)
-  sol_pt1, sol_pt2 = solve_eq2(key,
-                               X,
+  sol_pt1, sol_pt2 = solve_eq2(X,
                                delta,
                                K,
                                group_labels,

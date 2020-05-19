@@ -39,7 +39,7 @@ def eq4(X_groups, delta_groups, beta_k_hat, beta):
 
 @functools.lru_cache(maxsize=None)
 def get_eq4_rest_solver(solver_max_steps=10):
-  """HOF for getting eq4's solve rest function."""
+  """HOF for getting Eq 2's solve rest function."""
 
   def eq4_solve_rest(X, delta, K, group_labels, X_groups, delta_groups,
                      beta_k_hat, beta_guess):

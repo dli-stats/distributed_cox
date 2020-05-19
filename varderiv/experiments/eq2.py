@@ -91,6 +91,7 @@ def cov_experiment_eq2_core(rnd_keys,
   assert cov_robust_fn is not None
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
+  del key  # Not used currently
 
   X, delta, beta = gen(data_generation_key)
   group_labels = group_labels_gen(data_generation_key)

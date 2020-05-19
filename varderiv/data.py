@@ -36,7 +36,12 @@ def data_generator(N,
   The function is cached so that we avoid potential repeating jits'.
   """
 
-  @functools.partial(np.vectorize, signature="(k)->(N,p),(N),(p)")
+  if return_T:
+    wrapped_signature = "(k)->(N),(N,p),(N),(p)"
+  else:
+    wrapped_signature = "(k)->(N,p),(N),(p)"
+
+  @functools.partial(np.vectorize, signature=wrapped_signature)
   def wrapped(key):
     r"""Generates dummy data.
 
@@ -105,7 +110,7 @@ def group_labels_generator(N, K, group_labels_generator_kind="random",
       return group_labels
     elif group_labels_generator_kind == "same":
       group_labels = np.arange(N) % K
-      group_labels = jrandom.shuffle(key, group_labels)
+      group_labels = jrandom.permutation(key, group_labels)
       return group_labels
     elif group_labels_generator_kind == "arithmetic_sequence":
       start_val = kwargs["start_val"]
@@ -243,8 +248,8 @@ key, data_generation_key = jrandom.split(key)
 
 
 def normalize(X, beta):
-    X = X - onp.mean(X, axis=0)
-    scale = X.shape[0] / onp.linalg.norm(X, ord=1, axis=0)
-    X *= scale
-    beta /= scale
-    return X, beta, scale
+  X = X - onp.mean(X, axis=0)
+  scale = X.shape[0] / onp.linalg.norm(X, ord=1, axis=0)
+  X *= scale
+  beta /= scale
+  return X, beta, scale
