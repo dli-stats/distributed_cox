@@ -57,10 +57,6 @@ def cov_experiment_eq2_init(params):
     solve_eq1_fn = solve_eq1_ad
   else:
     solve_eq1_fn = solve_eq1_manual
-  solve_eq2 = functools.partial(solve_grouped_eq_batch,
-                                solve_eq1_fn=jit(solve_eq1_fn),
-                                solve_rest_fn=jit(eq2_solve_rest))
-  params["solve_eq2_fn"] = solve_eq2
   del params["solve_eq1_use_ad"]
 
   if params["eq1_cov_use_ad"]:
@@ -68,6 +64,11 @@ def cov_experiment_eq2_init(params):
   else:
     eq1_compute_H_fn = eq1_compute_H_manual
   del params["eq1_cov_use_ad"]
+
+  solve_eq2 = functools.partial(solve_grouped_eq_batch,
+                                solve_eq1_fn=jit(solve_eq1_fn),
+                                solve_rest_fn=jit(eq2_solve_rest))
+  params["solve_eq2_fn"] = solve_eq2
 
   params["cov_beta_k_correction_fn"] = jit(
       get_eq2_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_fn))

@@ -11,6 +11,12 @@ import jax.lax
 
 from jax import random as jrandom
 
+if hasattr(jrandom, "permutation"):
+  jrandom_shuffle = jrandom.permutation
+else:
+  # backward compat
+  jrandom_shuffle = jrandom.shuffle
+
 floatt = np.float32
 
 # pylint: disable=redefined-outer-name
@@ -110,7 +116,7 @@ def group_labels_generator(N, K, group_labels_generator_kind="random",
       return group_labels
     elif group_labels_generator_kind == "same":
       group_labels = np.arange(N) % K
-      group_labels = jrandom.permutation(key, group_labels)
+      group_labels = jrandom_shuffle(key, group_labels)
       return group_labels
     elif group_labels_generator_kind == "arithmetic_sequence":
       start_val = kwargs["start_val"]
@@ -121,7 +127,7 @@ def group_labels_generator(N, K, group_labels_generator_kind="random",
       residual = N - current_total
       group_sizes[K - residual:] += 1
       group_labels = np.repeat(np.arange(K), group_sizes)
-      group_labels = jrandom.shuffle(key, group_labels)
+      group_labels = jrandom_shuffle(key, group_labels)
       return group_labels
     elif group_labels_generator_kind == "single_ladder":
       start_val = kwargs["start_val"]
@@ -135,7 +141,7 @@ def group_labels_generator(N, K, group_labels_generator_kind="random",
       residual = N - current_total
       group_sizes[K - residual:] += 1
       group_labels = np.repeat(np.arange(K), group_sizes)
-      group_labels = jrandom.shuffle(key, group_labels)
+      group_labels = jrandom_shuffle(key, group_labels)
       return group_labels
     else:
       raise TypeError("Invalid group_label_generator_kind")
