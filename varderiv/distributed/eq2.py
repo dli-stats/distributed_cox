@@ -37,7 +37,7 @@ def distributed_compute_eq2_local(T_group,
   """
   assert T_group.shape[0] == X_group.shape[0] == delta_group.shape[0]
 
-  if initial_guess == None:
+  if initial_guess is None:
     initial_guess = np.zeros((X_group.shape[1],))
 
   X_dim = X_group.shape[-1]

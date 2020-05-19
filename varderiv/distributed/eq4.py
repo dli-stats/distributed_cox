@@ -1,4 +1,4 @@
-"""Distributed implementation of Equation 2."""
+"""Distributed implementation of Equation 4."""
 
 import functools
 
@@ -120,6 +120,7 @@ def distributed_compute_eq4_master(eq1_H, X_delta_sum, ebkx_cs_d, xebkx_cs_d,
   beta_hat = sol.guess
 
   I_diag_wo_last = -eq1_H
+  # pylint: disable=invalid-unary-operand-type
   I_row = -distributed_eq4_grad_beta_k_master(
       ebkx_cs_d, xebkx_cs_d, xxebkx_cs_d, xxxebkx_cs_d, beta_k_hat, beta_hat)
   I_row = np.swapaxes(I_row, 0, 1)
@@ -141,13 +142,12 @@ if __name__ == '__main__':
   N = 1000
   K = 3
   X_DIM = 4
-  from varderiv.data import data_generator, key, \
-    data_generation_key, group_labels_generator
+  from varderiv.data import (data_generator, key, data_generation_key,
+                             group_sizes_generator)
   key, subkey = jrandom.split(key)
-  T, X, delta, beta = data_generator(N, X_DIM,
-                                     return_T=True)(data_generation_key)
-
-  group_labels = group_labels_generator(N, K, "same")(data_generation_key)
+  group_sizes = group_sizes_generator(N, K, "same")
+  T, X, delta, beta, group_labels = data_generator(
+      N, X_DIM, group_sizes, return_T=True)(data_generation_key)
 
   local_data = []
   for k in range(K):
