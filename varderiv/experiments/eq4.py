@@ -13,7 +13,6 @@ from jax import jit
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-from varderiv.data import data_generator, group_sizes_generator
 from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import get_eq1_solver
@@ -35,60 +34,37 @@ Experiment4SolResult = collections.namedtuple("Experiment4SolResult", "pt1 pt2")
 
 
 def cov_experiment_eq4_init(params):
-  return params
+  """Initializes parameters for Eq 4."""
+  solve_eq1_use_ad = params.pop("solve_eq1_use_ad", True)
+  solver_max_steps = params.pop("solver_max_steps", 40)
 
-
-def get_fns(rerunning_failed, N, K, X_DIM, group_labels_generator_kind,
-            group_labels_generator_kind_kwargs, solve_eq1_use_ad,
-            eq1_cov_use_ad):
-  # pylint: disable=missing-function-docstring
-
-  if rerunning_failed:
-    solver_max_steps = 20
+  if params["eq1_cov_use_ad"]:
+    eq1_compute_H_fn = eq1_compute_H_ad
   else:
-    solver_max_steps = 10
+    eq1_compute_H_fn = eq1_compute_H_manual
+  del params["eq1_cov_use_ad"]
 
-  group_sizes = group_sizes_generator(
-      N,
-      K,
-      group_labels_generator_kind=group_labels_generator_kind,
-      **group_labels_generator_kind_kwargs)
-
-  gen = jit(data_generator(N, X_DIM, group_sizes))
-
-  solve_eq4_fn = functools.partial(
+  params["solve_eq4_fn"] = functools.partial(
       solve_grouped_eq_batch,
       solve_eq1_fn=jit(
           get_eq1_solver(use_ad=solve_eq1_use_ad,
                          solver_max_steps=solver_max_steps)),
       solve_rest_fn=jit(get_eq4_rest_solver(solver_max_steps=solver_max_steps)))
 
-  if eq1_cov_use_ad:
-    eq1_compute_H_fn = eq1_compute_H_ad
-  else:
-    eq1_compute_H_fn = eq1_compute_H_manual
-
-  cov_beta_k_correction_fn = jit(
+  params["cov_beta_k_correction_fn"] = jit(
       get_eq4_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_fn))
-
-  return gen, solve_eq4_fn, cov_beta_k_correction_fn
 
 
 def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
     rnd_keys,
-    rerunning_failed=False,
     N=1000,
     X_DIM=4,
     K=3,
-    group_labels_generator_kind="same",
-    group_labels_generator_kind_kwargs={},
-    solve_eq1_use_ad=True,
-    eq1_cov_use_ad=True):
+    gen=None,
+    solve_eq4_fn=None,
+    cov_beta_k_correction_fn=None):
   """Equation 4 experiment core."""
-
-  gen, solve_eq4_fn, cov_beta_k_correction_fn = get_fns(
-      rerunning_failed, N, K, X_DIM, group_labels_generator_kind,
-      group_labels_generator_kind_kwargs, solve_eq1_use_ad, eq1_cov_use_ad)
+  del N
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
   del key
@@ -101,10 +77,7 @@ def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
   X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
                                                 group_labels)
 
-  if rerunning_failed:
-    initial_guess = beta + onp.random.normal(size=beta.shape)
-  else:
-    initial_guess = beta
+  initial_guess = beta
   pt1_sols, pt2_sols = solve_eq4_fn(X,
                                     delta,
                                     K,

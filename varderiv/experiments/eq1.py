@@ -12,7 +12,6 @@ from jax import jit
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-from varderiv.data import data_generator
 from varderiv.equations.eq1 import get_eq1_solver
 from varderiv.equations.eq1 import eq1_cov_ad, eq1_cov_manual
 
@@ -27,10 +26,6 @@ from varderiv.experiments.common import ingredient as base_ingredient
 
 
 def cov_experiment_eq1_init(params):
-  gen = jit(data_generator(params["N"], params["X_DIM"]))
-  params["gen"] = gen
-  del params["N"], params["X_DIM"]
-
   params["solve_eq1_fn"] = jit(
       get_eq1_solver(use_ad=params["solve_eq1_use_ad"]))
   del params["solve_eq1_use_ad"]
@@ -49,7 +44,7 @@ def cov_experiment_eq1_core(args, gen=None, solve_eq1_fn=None, eq1_cov_fn=None):
   assert eq1_cov_fn is not None
 
   key, data_generation_key = map(np.array, zip(*args))
-  X, delta, beta = gen(data_generation_key)
+  X, delta, beta, _ = gen(data_generation_key)
 
   assert key.shape == data_generation_key.shape
 

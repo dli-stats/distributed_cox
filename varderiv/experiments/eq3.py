@@ -12,7 +12,6 @@ from jax import jit
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-from varderiv.data import data_generator, group_sizes_generator
 from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import eq1_log_likelihood_grad_ad
@@ -32,17 +31,6 @@ from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
 
 def cov_experiment_eq3_init(params):
-  group_sizes = group_sizes_generator(
-      params["N"],
-      params["K"],
-      group_labels_generator_kind=params["group_labels_generator_kind"],
-      **params["group_labels_generator_kind_kwargs"])
-  del params["group_labels_generator_kind"]
-  del params["group_labels_generator_kind_kwargs"]
-
-  gen = jit(data_generator(params["N"], params["X_DIM"], group_sizes))
-  params["gen"] = gen
-
   if params["eq1_ll_grad_use_ad"]:
     eq1_ll_grad_fn = eq1_log_likelihood_grad_ad
   else:

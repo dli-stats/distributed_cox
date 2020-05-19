@@ -52,7 +52,7 @@ def grouping_X_generator(N, dim, key, group_label=0):
 def data_generator(N,
                    X_dim,
                    group_sizes,
-                   X_generator=default_X_generator,
+                   X_generator=None,
                    exp_scale=3.5,
                    return_T=False):
   """HOF for data generation.
@@ -66,6 +66,9 @@ def data_generator(N,
     wrapped_signature = "(k)->(N,p),(N),(p),(N)"
 
   K = len(group_sizes)
+
+  if X_generator is None:
+    X_generator = default_X_generator
 
   @functools.partial(np.vectorize, signature=wrapped_signature)
   def wrapped(key):

@@ -58,6 +58,7 @@ def distributed_eq4_precompute_1_group(ebkx_cs_d, xebkx_cs_d, xxebkx_cs_d, bmb):
 
 def distributed_eq4_jac_master(X_delta_sum, ebkx_cs_d, xebkx_cs_d, xxebkx_cs_d,
                                xxxebkx_cs_d, beta_k_hat, beta):
+  """Distributed Eq4 master."""
   del xxxebkx_cs_d
   K = X_delta_sum.shape[0]
   nums, denoms = [], []

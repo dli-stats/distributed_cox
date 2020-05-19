@@ -12,8 +12,10 @@ import numpy as onp
 import tqdm
 
 from jax import random as jrandom
+from jax import jit
 
-from varderiv.data import key, data_generation_key
+from varderiv.data import (key, data_generation_key, group_sizes_generator,
+                           data_generator)
 
 
 def in_notebook():
@@ -57,6 +59,25 @@ def expand_namedtuples(tup):
   return ret
 
 
+def init_data_gen_fn(params):
+  """Initializes data generation."""
+  group_sizes = group_sizes_generator(
+      params["N"],
+      params["K"],
+      group_labels_generator_kind=params["group_labels_generator_kind"],
+      **params["group_labels_generator_kind_kwargs"])
+  del params["group_labels_generator_kind"]
+  del params["group_labels_generator_kind_kwargs"]
+
+  X_generator = params.pop("X_generator", None)
+  gen = jit(
+      data_generator(params["N"],
+                     params["X_DIM"],
+                     group_sizes,
+                     X_generator=X_generator))
+  params["gen"] = gen
+
+
 def run_cov_experiment(
     init_fn,
     experiment_fn,
@@ -80,6 +101,7 @@ def run_cov_experiment(
                           batch_size,
                           fillvalue=(-1, subkeys[0], subkeys[0]))
 
+  init_data_gen_fn(experiment_params)
   init_fn(experiment_params)
 
   if num_threads > 1:

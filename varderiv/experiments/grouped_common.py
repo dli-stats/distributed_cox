@@ -22,12 +22,6 @@ def group_labels_same():
 
 
 @ingredient.named_config
-def group_labels_random():
-  group_labels_generator_kind = "random"
-  group_labels_generator_kind_kwargs = {}
-
-
-@ingredient.named_config
 def group_labels_arithmetic_sequence():
   group_labels_generator_kind = "arithmetic_sequence"
   group_labels_generator_kind_kwargs = dict(start_val=50)
