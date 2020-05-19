@@ -13,7 +13,7 @@ from jax import jit
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-from varderiv.data import data_generator, group_labels_generator
+from varderiv.data import data_generator, group_sizes_generator
 from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import solve_eq1_ad, solve_eq1_manual
@@ -38,16 +38,15 @@ ExperimentMetaAnalysisSolResult = collections.namedtuple(
 
 
 def cov_experiment_meta_analysis_init(params):
-  params["group_labels_gen"] = jit(
-      group_labels_generator(
-          params["N"],
-          params["K"],
-          group_labels_generator_kind=params["group_labels_generator_kind"],
-          **params["group_labels_generator_kind_kwargs"]))
+  group_sizes = group_sizes_generator(
+      params["N"],
+      params["K"],
+      group_labels_generator_kind=params["group_labels_generator_kind"],
+      **params["group_labels_generator_kind_kwargs"])
   del params["group_labels_generator_kind"]
   del params["group_labels_generator_kind_kwargs"]
 
-  gen = jit(data_generator(params["N"], params["X_DIM"]))
+  gen = jit(data_generator(params["N"], params["X_DIM"], group_sizes))
   params["gen"] = gen
 
   if params["eq1_cov_use_ad"]:
@@ -77,20 +76,17 @@ def cov_experiment_meta_analysis_core(rnd_keys,
                                       X_DIM=4,
                                       K=3,
                                       gen=None,
-                                      group_labels_gen=None,
                                       solve_meta_analysis_fn=None,
                                       meta_analysis_cov_fn=None):
   del N
   assert gen is not None
-  assert group_labels_gen is not None
   assert solve_meta_analysis_fn is not None
   assert meta_analysis_cov_fn is not None
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
   del key  # Not used currently
 
-  X, delta, beta = gen(data_generation_key)
-  group_labels = group_labels_gen(data_generation_key)
+  X, delta, beta, group_labels = gen(data_generation_key)
 
   batch_size = len(X)
   assert beta.shape == (batch_size, X_DIM)

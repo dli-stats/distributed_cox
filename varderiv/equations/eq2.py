@@ -327,10 +327,13 @@ if __name__ == '__main__':
   N = 5000
   K = 3
   X_DIM = 4
-  from varderiv.data import data_generator, group_labels_generator
+  from varderiv.data import data_generator, group_sizes_generator
   k1, k2 = jrandom.split(jrandom.PRNGKey(0))
-  T, X, delta, beta = data_generator(N, X_DIM, return_T=True)(k1)
-  group_labels = group_labels_generator(N, K, "same")(k2)
+  group_sizes = group_sizes_generator(N, K, "same")(k2)
+  T, X, delta, beta, group_labels = data_generator(N,
+                                                   X_DIM,
+                                                   group_sizes,
+                                                   return_T=True)(k1)
   X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_labels)
   sol_pt1, sol_pt2 = solve_eq2(X,
                                delta,

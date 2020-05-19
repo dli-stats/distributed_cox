@@ -38,7 +38,7 @@ def distributed_compute_eq2_local(T_group,
   assert T_group.shape[0] == X_group.shape[0] == delta_group.shape[0]
 
   if initial_guess == None:
-    initial_guess = np.zeros((X_group.shape[1], ))
+    initial_guess = np.zeros((X_group.shape[1],))
 
   X_dim = X_group.shape[-1]
 
@@ -142,13 +142,12 @@ if __name__ == '__main__':
   N = 1000
   K = 3
   X_DIM = 4
-  from varderiv.data import data_generator, key, \
-    data_generation_key, group_labels_generator
+  from varderiv.data import (data_generator, key, data_generation_key,
+                             group_sizes_generator)
   key, subkey = jrandom.split(key)
-  T, X, delta, beta = data_generator(N, X_DIM,
-                                     return_T=True)(data_generation_key)
-
-  group_labels = group_labels_generator(N, K, "same")(data_generation_key)
+  group_sizes = group_sizes_generator(N, K, "same")
+  T, X, delta, beta, group_labels = data_generator(
+      N, X_DIM, group_sizes, return_T=True)(data_generation_key)
 
   T_delta = T[delta == 1]
 

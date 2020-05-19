@@ -22,7 +22,8 @@ floatt = np.float32
 # pylint: disable=redefined-outer-name
 
 
-def default_X_generator(N, dim, key):
+def default_X_generator(N, dim, key, group_label=0):
+  del group_label
   return jax.lax.cond(
       dim % 2 == 0,
       key, \
@@ -31,9 +32,26 @@ def default_X_generator(N, dim, key):
       lambda key: jrandom.normal(key, shape=(N,)))
 
 
+def grouping_X_generator(N, dim, key, group_label=0):
+  if group_label == 0:
+    bernoulli_theta, normal_variance = 0.5, 1
+  elif group_label == 1:
+    bernoulli_theta, normal_variance = 0.3, 0.5
+  elif group_label == 2:
+    bernoulli_theta, normal_variance = 0.7, 1.5
+  return jax.lax.cond(
+      dim % 2 == 0,
+      key, \
+      lambda key: jrandom.bernoulli(key, p=bernoulli_theta,
+                                    shape=(N,)).astype(floatt),
+      key, \
+      lambda key: jrandom.normal(key, shape=(N,))) * normal_variance
+
+
 @functools.lru_cache(maxsize=None)
 def data_generator(N,
                    X_dim,
+                   group_sizes,
                    X_generator=default_X_generator,
                    exp_scale=3.5,
                    return_T=False):
@@ -43,9 +61,11 @@ def data_generator(N,
   """
 
   if return_T:
-    wrapped_signature = "(k)->(N),(N,p),(N),(p)"
+    wrapped_signature = "(k)->(N),(N,p),(N),(p),(N)"
   else:
-    wrapped_signature = "(k)->(N,p),(N),(p)"
+    wrapped_signature = "(k)->(N,p),(N),(p),(N)"
+
+  K = len(group_sizes)
 
   @functools.partial(np.vectorize, signature=wrapped_signature)
   def wrapped(key):
@@ -61,14 +81,23 @@ def data_generator(N,
     """
     beta = np.arange(1, X_dim + 1, dtype=floatt) / X_dim
 
-    key, *subkeys = jrandom.split(key, X_dim + 1)
-
+    key, *subkeys = jrandom.split(key, K + 1)
     subkeys = np.stack(subkeys)
+    subkeys = vmap(jrandom.split, (0, None))(subkeys, X_dim)
 
     dims = np.arange(X_dim, dtype=np.int32)
-    gen_X_dim_fn = functools.partial(X_generator, N)
 
-    X = vmap(gen_X_dim_fn, (0, 0), 1)(dims, subkeys)
+    Xs = []
+    idx = 0
+    for group_label, group_size in enumerate(group_sizes):
+      gen_X_fn = functools.partial(X_generator,
+                                   group_size,
+                                   group_label=group_label)
+      Xs.append(vmap(gen_X_fn, (0, 0), 1)(dims, subkeys[group_label]))
+      idx += group_size
+    X = np.concatenate(Xs)
+
+    group_labels = np.repeat(np.arange(K), group_sizes)
 
     key, subkey = jrandom.split(key)
     u = jrandom.uniform(subkey, shape=(N,), minval=0, maxval=1)
@@ -85,68 +114,63 @@ def data_generator(N,
     T = np.take(T, sorted_idx, axis=0)
     X = np.take(X, sorted_idx, axis=0)
     delta = np.take(delta, sorted_idx, axis=0)
+    group_labels = np.take(group_labels, sorted_idx, axis=0)
 
     # X = X - np.mean(X, axis=0)
     if return_T:  # pylint: disable=no-else-return
-      return T, X, delta, beta
+      return T, X, delta, beta, group_labels
     else:
-      return X, delta, beta
+      return X, delta, beta, group_labels
 
   return wrapped
 
 
 @functools.lru_cache(maxsize=None)
-def group_labels_generator(N, K, group_labels_generator_kind="random",
-                           **kwargs):
-  """HOF for group labels generation."""
+def group_sizes_generator(N, K, group_labels_generator_kind="random", **kwargs):
+  """HOF for group sizes generation."""
 
   # Validate arguments
-  if group_labels_generator_kind in {"random", "same"}:
+  if group_labels_generator_kind == "random":
+    assert kwargs == {}
+  elif group_labels_generator_kind == "same":
     assert kwargs == {}
   elif group_labels_generator_kind == "arithmetic_sequence":
     assert kwargs.keys() == {"start_val"}
   elif group_labels_generator_kind == "single_ladder":
     assert kwargs.keys() == {"start_val", "repeat_start"}
+  elif group_labels_generator_kind == "manual":
+    assert kwargs.keys() == {"sizes"}
+    assert len(kwargs["sizes"]) == K and sum(kwargs["sizes"]) == N
 
-  @functools.partial(np.vectorize, signature="(k)->(N)")
-  def generate_group_labels(key):
-    if group_labels_generator_kind == "random":  # pylint: disable=no-else-return
-      key, subkey = jrandom.split(key)
-      group_labels = jrandom.randint(subkey, (N,), minval=0, maxval=K)
-      return group_labels
-    elif group_labels_generator_kind == "same":
-      group_labels = np.arange(N) % K
-      group_labels = jrandom_shuffle(key, group_labels)
-      return group_labels
-    elif group_labels_generator_kind == "arithmetic_sequence":
-      start_val = kwargs["start_val"]
-      step = int(math.floor(2 * (N - start_val * K) / ((K - 1) * K)))
-      end_val = start_val + (K - 1) * step
-      group_sizes = onp.arange(start_val, end_val + 1, step)
-      current_total = (start_val + end_val) * K // 2
-      residual = N - current_total
-      group_sizes[K - residual:] += 1
-      group_labels = np.repeat(np.arange(K), group_sizes)
-      group_labels = jrandom_shuffle(key, group_labels)
-      return group_labels
-    elif group_labels_generator_kind == "single_ladder":
-      start_val = kwargs["start_val"]
-      repeat_start = kwargs["repeat_start"]
-      assert 1 <= repeat_start <= K - 1
-      rest_val = int(
-          math.floor((N - start_val * repeat_start) / (K - repeat_start)))
-      group_sizes = onp.array([start_val] * repeat_start + [rest_val] *
-                              (K - repeat_start))
-      current_total = onp.sum(group_sizes)
-      residual = N - current_total
-      group_sizes[K - residual:] += 1
-      group_labels = np.repeat(np.arange(K), group_sizes)
-      group_labels = jrandom_shuffle(key, group_labels)
-      return group_labels
-    else:
-      raise TypeError("Invalid group_label_generator_kind")
+  if group_labels_generator_kind == "same":
+    group_sizes = onp.repeat(N // K, K)
+    group_sizes[:N % K] += 1
 
-  return generate_group_labels
+  elif group_labels_generator_kind == "arithmetic_sequence":
+    start_val = kwargs["start_val"]
+    step = int(math.floor(2 * (N - start_val * K) / ((K - 1) * K)))
+    end_val = start_val + (K - 1) * step
+    group_sizes = onp.arange(start_val, end_val + 1, step)
+    current_total = (start_val + end_val) * K // 2
+    residual = N - current_total
+    group_sizes[K - residual:] += 1
+
+  elif group_labels_generator_kind == "single_ladder":
+    start_val = kwargs["start_val"]
+    repeat_start = kwargs["repeat_start"]
+    assert 1 <= repeat_start <= K - 1
+    rest_val = int(
+        math.floor((N - start_val * repeat_start) / (K - repeat_start)))
+    group_sizes = onp.array([start_val] * repeat_start + [rest_val] *
+                            (K - repeat_start))
+    current_total = onp.sum(group_sizes)
+    residual = N - current_total
+    group_sizes[K - residual:] += 1
+
+  else:
+    raise TypeError("Invalid group_label_generator_kind")
+
+  return tuple(group_sizes)
 
 
 def group_labels_to_indices(K, group_labels):

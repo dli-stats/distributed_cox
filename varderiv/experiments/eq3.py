@@ -12,7 +12,7 @@ from jax import jit
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-from varderiv.data import data_generator, group_labels_generator
+from varderiv.data import data_generator, group_sizes_generator
 from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import eq1_log_likelihood_grad_ad
@@ -32,16 +32,15 @@ from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
 
 def cov_experiment_eq3_init(params):
-  params["group_labels_gen"] = jit(
-      group_labels_generator(
-          params["N"],
-          params["K"],
-          group_labels_generator_kind=params["group_labels_generator_kind"],
-          **params["group_labels_generator_kind_kwargs"]))
+  group_sizes = group_sizes_generator(
+      params["N"],
+      params["K"],
+      group_labels_generator_kind=params["group_labels_generator_kind"],
+      **params["group_labels_generator_kind_kwargs"])
   del params["group_labels_generator_kind"]
   del params["group_labels_generator_kind_kwargs"]
 
-  gen = jit(data_generator(params["N"], params["X_DIM"]))
+  gen = jit(data_generator(params["N"], params["X_DIM"], group_sizes))
   params["gen"] = gen
 
   if params["eq1_ll_grad_use_ad"]:
@@ -61,20 +60,17 @@ def cov_experiment_eq3_core(rnd_keys,
                             X_DIM=4,
                             K=3,
                             gen=None,
-                            group_labels_gen=None,
                             solve_eq3_fn=None,
                             eq3_cov_fn=None):
   del N, X_DIM
   assert gen is not None
-  assert group_labels_gen is not None
   assert solve_eq3_fn is not None
   assert eq3_cov_fn is not None
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
   assert key.shape == data_generation_key.shape
 
-  X, delta, beta = gen(data_generation_key)
-  group_labels = group_labels_gen(data_generation_key)
+  X, delta, beta, group_labels = gen(data_generation_key)
 
   batch_size = len(X)
 

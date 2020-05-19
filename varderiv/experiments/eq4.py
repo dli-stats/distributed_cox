@@ -13,7 +13,7 @@ from jax import jit
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-from varderiv.data import data_generator, group_labels_generator
+from varderiv.data import data_generator, group_sizes_generator
 from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import get_eq1_solver
@@ -48,14 +48,13 @@ def get_fns(rerunning_failed, N, K, X_DIM, group_labels_generator_kind,
   else:
     solver_max_steps = 10
 
-  group_labels_gen = jit(
-      group_labels_generator(
-          N,
-          K,
-          group_labels_generator_kind=group_labels_generator_kind,
-          **group_labels_generator_kind_kwargs))
+  group_sizes = group_sizes_generator(
+      N,
+      K,
+      group_labels_generator_kind=group_labels_generator_kind,
+      **group_labels_generator_kind_kwargs)
 
-  gen = jit(data_generator(N, X_DIM))
+  gen = jit(data_generator(N, X_DIM, group_sizes))
 
   solve_eq4_fn = functools.partial(
       solve_grouped_eq_batch,
@@ -72,7 +71,7 @@ def get_fns(rerunning_failed, N, K, X_DIM, group_labels_generator_kind,
   cov_beta_k_correction_fn = jit(
       get_eq4_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_fn))
 
-  return group_labels_gen, gen, solve_eq4_fn, cov_beta_k_correction_fn
+  return gen, solve_eq4_fn, cov_beta_k_correction_fn
 
 
 def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
@@ -87,14 +86,14 @@ def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
     eq1_cov_use_ad=True):
   """Equation 4 experiment core."""
 
-  group_labels_gen, gen, solve_eq4_fn, cov_beta_k_correction_fn = get_fns(
+  gen, solve_eq4_fn, cov_beta_k_correction_fn = get_fns(
       rerunning_failed, N, K, X_DIM, group_labels_generator_kind,
       group_labels_generator_kind_kwargs, solve_eq1_use_ad, eq1_cov_use_ad)
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
+  del key
 
-  X, delta, beta = gen(data_generation_key)
-  group_labels = group_labels_gen(data_generation_key)
+  X, delta, beta, group_labels = gen(data_generation_key)
 
   batch_size = len(X)
   assert beta.shape == (batch_size, X_DIM)

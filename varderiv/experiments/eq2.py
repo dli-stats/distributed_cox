@@ -13,7 +13,7 @@ from jax import jit
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-from varderiv.data import data_generator, group_labels_generator
+from varderiv.data import data_generator, group_sizes_generator
 from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import solve_eq1_ad, solve_eq1_manual
@@ -41,16 +41,15 @@ Experiment2CovResult = collections.namedtuple(
 
 
 def cov_experiment_eq2_init(params):
-  params["group_labels_gen"] = jit(
-      group_labels_generator(
-          params["N"],
-          params["K"],
-          group_labels_generator_kind=params["group_labels_generator_kind"],
-          **params["group_labels_generator_kind_kwargs"]))
+  group_sizes = group_sizes_generator(
+      params["N"],
+      params["K"],
+      group_labels_generator_kind=params["group_labels_generator_kind"],
+      **params["group_labels_generator_kind_kwargs"])
   del params["group_labels_generator_kind"]
   del params["group_labels_generator_kind_kwargs"]
 
-  gen = jit(data_generator(params["N"], params["X_DIM"]))
+  gen = jit(data_generator(params["N"], params["X_DIM"], group_sizes))
   params["gen"] = gen
 
   if params["solve_eq1_use_ad"]:
@@ -80,13 +79,11 @@ def cov_experiment_eq2_core(rnd_keys,
                             X_DIM=4,
                             K=3,
                             gen=None,
-                            group_labels_gen=None,
                             solve_eq2_fn=None,
                             cov_beta_k_correction_fn=None,
                             cov_robust_fn=None):
   del N
   assert gen is not None
-  assert group_labels_gen is not None
   assert solve_eq2_fn is not None
   assert cov_beta_k_correction_fn is not None
   assert cov_robust_fn is not None
@@ -94,8 +91,7 @@ def cov_experiment_eq2_core(rnd_keys,
   key, data_generation_key = map(np.array, zip(*rnd_keys))
   del key  # Not used currently
 
-  X, delta, beta = gen(data_generation_key)
-  group_labels = group_labels_gen(data_generation_key)
+  X, delta, beta, group_labels = gen(data_generation_key)
 
   batch_size = len(X)
   assert beta.shape == (batch_size, X_DIM)
