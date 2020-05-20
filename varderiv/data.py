@@ -57,7 +57,7 @@ def X_group_generator_indep_dim(N,
   gen_X_fn = functools.partial(Xi_generator, N, group_label=group_label)
   dims = np.arange(X_dim, dtype=np.int32)
   subkeys = jrandom.split(key, X_dim)
-  return vmap(gen_X_fn, (0, 0), 0)(dims, subkeys)
+  return vmap(gen_X_fn, (0, 0), 1)(dims, subkeys)
 
 
 default_X_generator = functools.partial(X_group_generator_indep_dim,
