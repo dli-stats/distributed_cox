@@ -22,7 +22,7 @@ floatt = np.float32
 # pylint: disable=redefined-outer-name
 
 
-def default_X_generator(N, dim, key, group_label=0):
+def default_Xi_generator(N, dim, key, group_label=0):
   del group_label
   return jax.lax.cond(
       dim % 2 == 0,
@@ -32,7 +32,7 @@ def default_X_generator(N, dim, key, group_label=0):
       lambda key: jrandom.normal(key, shape=(N,)))
 
 
-def grouping_X_generator(N, dim, key, group_label=0):
+def grouping_Xi_generator(N, dim, key, group_label=0):
   if group_label == 0:
     bernoulli_theta, normal_variance = 0.5, 1
   elif group_label == 1:
@@ -46,6 +46,24 @@ def grouping_X_generator(N, dim, key, group_label=0):
                                     shape=(N,)).astype(floatt),
       key, \
       lambda key: jrandom.normal(key, shape=(N,))) * normal_variance
+
+
+def X_group_generator_indep_dim(N,
+                                X_dim,
+                                key,
+                                group_label=0,
+                                Xi_generator=default_Xi_generator):
+  """Helper utility that lifts a generator that produces independent Xi."""
+  gen_X_fn = functools.partial(Xi_generator, N, group_label=group_label)
+  dims = np.arange(X_dim, dtype=np.int32)
+  subkeys = jrandom.split(key, X_dim)
+  return vmap(gen_X_fn, (0, 0), 0)(dims, subkeys)
+
+
+default_X_generator = functools.partial(X_group_generator_indep_dim,
+                                        Xi_generator=default_Xi_generator)
+grouping_X_generator = functools.partial(X_group_generator_indep_dim,
+                                         Xi_generator=grouping_Xi_generator)
 
 
 @functools.lru_cache(maxsize=None)
@@ -86,17 +104,15 @@ def data_generator(N,
 
     key, *subkeys = jrandom.split(key, K + 1)
     subkeys = np.stack(subkeys)
-    subkeys = vmap(jrandom.split, (0, None))(subkeys, X_dim)
-
-    dims = np.arange(X_dim, dtype=np.int32)
 
     Xs = []
     idx = 0
     for group_label, group_size in enumerate(group_sizes):
-      gen_X_fn = functools.partial(X_generator,
-                                   group_size,
-                                   group_label=group_label)
-      Xs.append(vmap(gen_X_fn, (0, 0), 1)(dims, subkeys[group_label]))
+      Xs.append(
+          X_generator(group_size,
+                      X_dim,
+                      subkeys[group_label],
+                      group_label=group_label))
       idx += group_size
     X = np.concatenate(Xs)
 
