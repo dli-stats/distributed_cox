@@ -47,10 +47,11 @@ def cov_experiment_eq2_init(params):
                                 solver_max_steps=solver_max_steps)
   eq2_solve_rest_fn = get_eq2_rest_solver(solver_max_steps=solver_max_steps)
 
-  if solve_eq1_use_ad:
+  if params["eq1_cov_use_ad"]:
     eq1_compute_H_fn = eq1_compute_H_ad
   else:
     eq1_compute_H_fn = eq1_compute_H_manual
+  del params["eq1_cov_use_ad"]
 
   solve_eq2 = functools.partial(solve_grouped_eq_batch,
                                 solve_eq1_fn=jit(solve_eq1_fn),
