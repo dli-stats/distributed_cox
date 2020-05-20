@@ -31,11 +31,14 @@ from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
 
 def cov_experiment_eq3_init(params):
+  solver_max_steps = params.pop("solver_max_steps", 80)
+
   if params["eq1_ll_grad_use_ad"]:
     eq1_ll_grad_fn = eq1_log_likelihood_grad_ad
   else:
     eq1_ll_grad_fn = eq1_log_likelihood_grad_manual
-  solve_eq3_fn = jit(get_eq3_solver(eq1_ll_grad_fn))
+  solve_eq3_fn = jit(
+      get_eq3_solver(eq1_ll_grad_fn, solver_max_steps=solver_max_steps))
   eq3_cov_fn = jit(get_eq3_cov_fn(eq1_ll_grad_fn))
 
   params["solve_eq3_fn"] = solve_eq3_fn

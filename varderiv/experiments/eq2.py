@@ -15,12 +15,12 @@ from sacred.utils import apply_backspaces_and_linefeeds
 
 from varderiv.data import group_data_by_labels
 
-from varderiv.equations.eq1 import solve_eq1_ad, solve_eq1_manual
+from varderiv.equations.eq1 import get_eq1_solver
 from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_compute_H_manual
 
 from varderiv.equations.eq2 import solve_grouped_eq_batch
 from varderiv.equations.eq2 import get_eq2_cov_beta_k_correction_fn
-from varderiv.equations.eq2 import eq2_solve_rest
+from varderiv.equations.eq2 import get_eq2_rest_solver
 from varderiv.equations.eq2 import eq2_cov_robust_ad_impl
 
 from varderiv.experiments.utils import expand_namedtuples
@@ -41,21 +41,20 @@ Experiment2CovResult = collections.namedtuple(
 
 def cov_experiment_eq2_init(params):
 
-  if params["solve_eq1_use_ad"]:
-    solve_eq1_fn = solve_eq1_ad
-  else:
-    solve_eq1_fn = solve_eq1_manual
-  del params["solve_eq1_use_ad"]
+  solver_max_steps = params.pop("solver_max_steps", 80)
+  solve_eq1_use_ad = params.pop("solve_eq1_use_ad", True)
+  solve_eq1_fn = get_eq1_solver(use_ad=solve_eq1_use_ad,
+                                solver_max_steps=solver_max_steps)
+  eq2_solve_rest_fn = get_eq2_rest_solver(solver_max_steps=solver_max_steps)
 
-  if params["eq1_cov_use_ad"]:
+  if solve_eq1_use_ad:
     eq1_compute_H_fn = eq1_compute_H_ad
   else:
     eq1_compute_H_fn = eq1_compute_H_manual
-  del params["eq1_cov_use_ad"]
 
   solve_eq2 = functools.partial(solve_grouped_eq_batch,
                                 solve_eq1_fn=jit(solve_eq1_fn),
-                                solve_rest_fn=jit(eq2_solve_rest))
+                                solve_rest_fn=jit(eq2_solve_rest_fn))
   params["solve_eq2_fn"] = solve_eq2
 
   params["cov_beta_k_correction_fn"] = jit(

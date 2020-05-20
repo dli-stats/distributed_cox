@@ -36,7 +36,7 @@ Experiment4SolResult = collections.namedtuple("Experiment4SolResult", "pt1 pt2")
 def cov_experiment_eq4_init(params):
   """Initializes parameters for Eq 4."""
   solve_eq1_use_ad = params.pop("solve_eq1_use_ad", True)
-  solver_max_steps = params.pop("solver_max_steps", 40)
+  solver_max_steps = params.pop("solver_max_steps", 80)
 
   if params["eq1_cov_use_ad"]:
     eq1_compute_H_fn = eq1_compute_H_ad

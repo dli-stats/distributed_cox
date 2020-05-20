@@ -329,7 +329,7 @@ if __name__ == '__main__':
   X_DIM = 4
   from varderiv.data import data_generator, group_sizes_generator
   k1, k2 = jrandom.split(jrandom.PRNGKey(0))
-  group_sizes = group_sizes_generator(N, K, "same")(k2)
+  group_sizes = group_sizes_generator(N, K, "same")
   T, X, delta, beta, group_labels = data_generator(N,
                                                    X_DIM,
                                                    group_sizes,

@@ -26,8 +26,10 @@ from varderiv.experiments.common import ingredient as base_ingredient
 
 
 def cov_experiment_eq1_init(params):
+  solver_max_steps = params.pop("solver_max_steps", 80)
   params["solve_eq1_fn"] = jit(
-      get_eq1_solver(use_ad=params["solve_eq1_use_ad"]))
+      get_eq1_solver(use_ad=params["solve_eq1_use_ad"],
+                     solver_max_steps=solver_max_steps))
   del params["solve_eq1_use_ad"]
 
   if params["eq1_cov_use_ad"]:
