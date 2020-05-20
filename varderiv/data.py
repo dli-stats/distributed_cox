@@ -299,9 +299,10 @@ key = jrandom.PRNGKey(0)
 key, data_generation_key = jrandom.split(key)
 
 
+@functools.partial(np.vectorize, signature="(N,p),(p)->(N,p),(p),(p)")
 def normalize(X, beta):
-  X = X - onp.mean(X, axis=0)
-  scale = X.shape[0] / onp.linalg.norm(X, ord=1, axis=0)
+  X = X - np.mean(X, axis=0)
+  scale = X.shape[0] / np.linalg.norm(X, ord=1, axis=0)
   X *= scale
   beta /= scale
   return X, beta, scale

@@ -16,7 +16,7 @@ def config():
   batch_size = 128
 
   N = 500
-  X_DIM = 2
+  X_DIM = 3
 
   seed = 0
   key = jrandom.PRNGKey(seed)
