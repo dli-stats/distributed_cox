@@ -100,9 +100,8 @@ def cov_experiment_eq2_core(rnd_keys,
                                     delta_groups=delta_groups,
                                     initial_guess=beta,
                                     log=False)
-
-  beta_k_hat = pt1_sols.guess * scale
-  beta_hat = pt2_sols.guess * scale
+  beta_k_hat = pt1_sols.guess
+  beta_hat = pt2_sols.guess
   X, beta = old_X, old_beta
 
   cov_beta_k_correction = cov_beta_k_correction_fn(X, delta, X_groups,

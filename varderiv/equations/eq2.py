@@ -190,7 +190,6 @@ def solve_grouped_eq_batch(  # pylint: disable=too-many-arguments
               "beta={} value={} in {} steps".format(i, k, beta, value, step))
 
   beta_k_hat = eq1_sols.guess
-
   rest_sol = solve_rest_fn(X, delta, K, group_labels, X_groups, delta_groups,
                            beta_k_hat, initial_guess)
 
@@ -324,9 +323,9 @@ eq2_cov = eq2_cov_beta_k_correction
 #########################################################
 
 if __name__ == '__main__':
-  N = 5000
+  N = 500
   K = 3
-  X_DIM = 4
+  X_DIM = 3
   from varderiv.data import data_generator, group_sizes_generator
   k1, k2 = jrandom.split(jrandom.PRNGKey(0))
   group_sizes = group_sizes_generator(N, K, "same")
