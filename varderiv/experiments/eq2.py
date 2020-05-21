@@ -14,7 +14,6 @@ from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
 from varderiv.data import group_data_by_labels
-import varderiv.data as data
 
 from varderiv.equations.eq1 import get_eq1_solver
 from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_compute_H_manual
@@ -86,9 +85,6 @@ def cov_experiment_eq2_core(rnd_keys,
   batch_size = len(X)
   assert beta.shape == (batch_size, X_DIM)
 
-  old_X, old_beta = X, beta
-  X, beta, scale = data.normalize(X, beta)
-
   X_groups, delta_groups = group_data_by_labels(batch_size, K, X, delta,
                                                 group_labels)
 
@@ -100,6 +96,7 @@ def cov_experiment_eq2_core(rnd_keys,
                                     delta_groups=delta_groups,
                                     initial_guess=beta,
                                     log=False)
+
   beta_k_hat = pt1_sols.guess
   beta_hat = pt2_sols.guess
 
