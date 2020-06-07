@@ -19,7 +19,8 @@ MetaAnalysisSolverState = collections.namedtuple("MetaAnalysisSolverState",
 
 
 @functools.lru_cache(maxsize=None)
-def get_meta_analysis_rest_solver(eq1_compute_H_fn=eq1_compute_H_ad):
+def get_meta_analysis_rest_solver(eq1_compute_H_fn=eq1_compute_H_ad,
+                                  slice_X_DIMs=None):
   """HOF for getting Meta analysis's solve rest function."""
 
   def _meta_analysis_solve_rest(X, delta, K, group_labels, X_groups,
@@ -32,6 +33,9 @@ def get_meta_analysis_rest_solver(eq1_compute_H_fn=eq1_compute_H_ad):
                        signature=f"(K,N,p),(K,N),(K,p)->(p),(p),()")
     def _solve(X_groups, delta_groups, beta_k_hat):
       I_diag_wo_last = -eq1_compute_H_fn(X_groups, delta_groups, beta_k_hat)
+      if slice_X_DIMs is not None:
+        I_diag_wo_last = np.take(I_diag_wo_last, slice_X_DIMs, axis=-1)
+        beta_k_hat = np.take(I_diag_wo_last, slice_X_DIMs, axis=-1)
       beta_hat = np.linalg.solve(
           np.sum(I_diag_wo_last, axis=0),
           np.einsum("Kab,Kb->a", I_diag_wo_last, beta_k_hat,
@@ -55,7 +59,8 @@ solve_meta_analysis = functools.partial(solve_grouped_eq_batch,
 
 
 @functools.lru_cache(maxsize=None)
-def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad):
+def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad,
+                             slice_X_DIMs=None):
   """HOF for covariance computation for Meta Analysis."""
 
   @functools.partial(np.vectorize,
@@ -63,6 +68,8 @@ def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad):
   def wrapped(X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta):
     del X, delta, group_labels, beta
     I_diag_wo_last = -eq1_compute_H_fn(X_groups, delta_groups, beta_k_hat)
+    if slice_X_DIMs is not None:
+      I_diag_wo_last = np.take(I_diag_wo_last, slice_X_DIMs, axis=-1)
     return np.linalg.inv(np.sum(I_diag_wo_last, axis=0))
 
   return wrapped
