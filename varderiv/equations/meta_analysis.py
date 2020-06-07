@@ -38,7 +38,7 @@ def get_meta_analysis_rest_solver(eq1_compute_H_fn=eq1_compute_H_ad,
     def _solve(X_groups, delta_groups, beta_k_hat):
       I_diag_wo_last = -eq1_compute_H_fn(X_groups, delta_groups, beta_k_hat)
       if slice_X_DIMs is not None:
-        I_diag_wo_last = np.take(I_diag_wo_last, slice_X_DIMs, axis=-1)
+        I_diag_wo_last = I_diag_wo_last[:, slice_X_DIMs, slice_X_DIMs]
         beta_k_hat = np.take(beta_k_hat, slice_X_DIMs, axis=-1)
       beta_hat = np.linalg.solve(
           np.sum(I_diag_wo_last, axis=0),
@@ -77,7 +77,7 @@ def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad,
     del X, delta, group_labels, beta
     I_diag_wo_last = -eq1_compute_H_fn(X_groups, delta_groups, beta_k_hat)
     if slice_X_DIMs is not None:
-      I_diag_wo_last = np.take(I_diag_wo_last, slice_X_DIMs, axis=-1)
+      I_diag_wo_last = I_diag_wo_last[:, slice_X_DIMs, slice_X_DIMs]
     return np.linalg.inv(np.sum(I_diag_wo_last, axis=0))
 
   return wrapped
