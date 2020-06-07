@@ -74,7 +74,7 @@ def cov_experiment_meta_analysis_core(rnd_keys,
                                       N=1000,
                                       X_DIM=4,
                                       K=3,
-                                      slice_X_DIM=None,
+                                      slice_X_DIMs=None,
                                       gen=None,
                                       solve_meta_analysis_fn=None,
                                       meta_analysis_cov_fn=None):
@@ -88,11 +88,11 @@ def cov_experiment_meta_analysis_core(rnd_keys,
 
   X, delta, beta, group_labels = gen(data_generation_key)
 
-  if slice_X_DIM is not None:
+  if slice_X_DIMs is not None:
     # Performa Meta Analysis on only certain X_DIMs
-    X = np.take(X, slice_X_DIM, axis=-1)
-    beta = np.take(beta, slice_X_DIM, axis=-1)
-    X_DIM = len(slice_X_DIM)
+    X = np.take(X, slice_X_DIMs, axis=-1)
+    beta = np.take(beta, slice_X_DIMs, axis=-1)
+    X_DIM = len(slice_X_DIMs)
 
   batch_size = len(X)
   assert beta.shape == (batch_size, X_DIM)
