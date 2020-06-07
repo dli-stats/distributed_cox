@@ -35,7 +35,7 @@ def get_meta_analysis_rest_solver(eq1_compute_H_fn=eq1_compute_H_ad,
       I_diag_wo_last = -eq1_compute_H_fn(X_groups, delta_groups, beta_k_hat)
       if slice_X_DIMs is not None:
         I_diag_wo_last = np.take(I_diag_wo_last, slice_X_DIMs, axis=-1)
-        beta_k_hat = np.take(I_diag_wo_last, slice_X_DIMs, axis=-1)
+        beta_k_hat = np.take(beta_k_hat, slice_X_DIMs, axis=-1)
       beta_hat = np.linalg.solve(
           np.sum(I_diag_wo_last, axis=0),
           np.einsum("Kab,Kb->a", I_diag_wo_last, beta_k_hat,
