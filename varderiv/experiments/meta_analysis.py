@@ -79,6 +79,7 @@ def cov_experiment_meta_analysis_core(rnd_keys,
   X, delta, beta, group_labels = gen(data_generation_key)
 
   if slice_X_DIM is not None:
+    # Performa Meta Analysis on only certain X_DIMs
     X = np.take(X, slice_X_DIM, axis=-1)
     beta = np.take(beta, slice_X_DIM, axis=-1)
     X_DIM = len(slice_X_DIM)

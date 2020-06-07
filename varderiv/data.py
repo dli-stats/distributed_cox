@@ -100,7 +100,8 @@ def data_generator(N,
           where `u \sim \text{Unif}(0, 1)`
       5. Reorder X by `T = \min(T^*, C)`
     """
-    beta = np.array([-1, 0, 1], dtype=np.float32)
+    # beta = np.array([-1, 0, 1], dtype=np.float32)
+    beta = np.arange(1, X_dim + 1, dtype=floatt) / X_dim
 
     key, *subkeys = jrandom.split(key, K + 1)
     subkeys = np.stack(subkeys)
