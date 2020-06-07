@@ -29,8 +29,12 @@ def get_meta_analysis_rest_solver(eq1_compute_H_fn=eq1_compute_H_ad,
     customized for Meta Analysis."""
     del K, X, delta, group_labels, beta_guess
 
-    @functools.partial(np.vectorize,
-                       signature=f"(K,N,p),(K,N),(K,p)->(p),(p),()")
+    if slice_X_DIMs is None:
+      signature = f"(K,N,p),(K,N),(K,p)->(p),(p),()"
+    else:
+      signature = f"(K,N,p),(K,N),(K,p)->(l),(l),()"
+
+    @functools.partial(np.vectorize, signature=signature)
     def _solve(X_groups, delta_groups, beta_k_hat):
       I_diag_wo_last = -eq1_compute_H_fn(X_groups, delta_groups, beta_k_hat)
       if slice_X_DIMs is not None:
@@ -63,8 +67,12 @@ def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad,
                              slice_X_DIMs=None):
   """HOF for covariance computation for Meta Analysis."""
 
-  @functools.partial(np.vectorize,
-                     signature="(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(p,p)")
+  if slice_X_DIMs is None:
+    signature = "(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(p,p)"
+  else:
+    signature = "(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(l,l)"
+
+  @functools.partial(np.vectorize, signature=signature)
   def wrapped(X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta):
     del X, delta, group_labels, beta
     I_diag_wo_last = -eq1_compute_H_fn(X_groups, delta_groups, beta_k_hat)
