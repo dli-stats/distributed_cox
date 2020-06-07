@@ -13,7 +13,6 @@ from jax import jit
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-from varderiv.data import data_generator, group_sizes_generator
 from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import solve_eq1_ad, solve_eq1_manual
@@ -65,6 +64,7 @@ def cov_experiment_meta_analysis_core(rnd_keys,
                                       N=1000,
                                       X_DIM=4,
                                       K=3,
+                                      slice_X_DIM=None,
                                       gen=None,
                                       solve_meta_analysis_fn=None,
                                       meta_analysis_cov_fn=None):
@@ -77,6 +77,11 @@ def cov_experiment_meta_analysis_core(rnd_keys,
   del key  # Not used currently
 
   X, delta, beta, group_labels = gen(data_generation_key)
+
+  if slice_X_DIM is not None:
+    X = np.take(X, slice_X_DIM, axis=-1)
+    beta = np.take(beta, slice_X_DIM, axis=-1)
+    X_DIM = len(slice_X_DIM)
 
   batch_size = len(X)
   assert beta.shape == (batch_size, X_DIM)
