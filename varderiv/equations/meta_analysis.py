@@ -72,7 +72,7 @@ def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad,
   if slice_X_DIMs is None:
     signature = "(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(p,p)"
   else:
-    signature = "(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(l,l)"
+    signature = "(N,p),(N),(k,s,p),(k,s),(N),(k,p),(l)->(l,l)"
 
   @functools.partial(np.vectorize, signature=signature)
   def wrapped(X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta):
