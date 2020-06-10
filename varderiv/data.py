@@ -70,6 +70,7 @@ grouping_X_generator = functools.partial(X_group_generator_indep_dim,
 def data_generator(N,
                    X_dim,
                    group_sizes,
+                   T_star_factors=None,
                    X_generator=None,
                    exp_scale=3.5,
                    return_T=False):
@@ -84,6 +85,11 @@ def data_generator(N,
     wrapped_signature = "(k)->(N,p),(N),(p),(N)"
 
   K = len(group_sizes)
+
+  if T_star_factors is not None:
+    assert len(T_star_factors) == K
+  else:
+    T_star_factors = tuple([1] * K)
 
   if X_generator is None:
     X_generator = default_X_generator
@@ -121,7 +127,8 @@ def data_generator(N,
 
     key, subkey = jrandom.split(key)
     u = jrandom.uniform(subkey, shape=(N,), minval=0, maxval=1)
-    T_star = -np.log(u) / np.exp(X.dot(beta))
+    T_star_factors = np.repeat(np.arange(K), T_star_factors)
+    T_star = -T_star_factors * np.log(u) / np.exp(X.dot(beta))
 
     key, subkey = jrandom.split(key)
     C = jrandom.exponential(subkey, shape=(N,)) * exp_scale

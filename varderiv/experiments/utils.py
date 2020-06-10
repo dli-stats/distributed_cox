@@ -74,6 +74,7 @@ def init_data_gen_fn(params):
       data_generator(params["N"],
                      params["X_DIM"],
                      group_sizes,
+                     T_star_factors=params.pop('T_star_factors', None),
                      X_generator=X_generator))
   params["gen"] = gen
 
