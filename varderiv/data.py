@@ -127,8 +127,8 @@ def data_generator(N,
 
     key, subkey = jrandom.split(key)
     u = jrandom.uniform(subkey, shape=(N,), minval=0, maxval=1)
-    T_star_factors = np.repeat(np.arange(K), T_star_factors)
-    T_star = -T_star_factors * np.log(u) / np.exp(X.dot(beta))
+    T_star_factors_per_item = np.repeat(np.arange(K), T_star_factors)
+    T_star = -T_star_factors_per_item * np.log(u) / np.exp(X.dot(beta))
 
     key, subkey = jrandom.split(key)
     C = jrandom.exponential(subkey, shape=(N,)) * exp_scale
