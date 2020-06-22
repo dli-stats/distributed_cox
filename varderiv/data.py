@@ -69,7 +69,7 @@ grouping_X_generator = functools.partial(X_group_generator_indep_dim,
 def T_star_factors_gamma_gen(K, shape, scale):
 
   def wrapped(key):
-    return jrandom.gamma(key, a=shape, shape=(K,)) / scale
+    return 1. / (jrandom.gamma(key, a=shape, shape=(K,)) / scale)
 
   return wrapped
 
@@ -142,9 +142,10 @@ def data_generator(N,
     u = jrandom.uniform(subkey, shape=(N,), minval=0, maxval=1)
     if random_T_star:
       key, subkey = jrandom.split(key)
-      T_star_factors_per_item = T_star_factors(subkey)
+      T_star_factors_ = T_star_factors(subkey)
     else:
-      T_star_factors_per_item = np.repeat(np.array(T_star_factors), group_sizes)
+      T_star_factors_ = np.array(T_star_factors)
+    T_star_factors_per_item = np.repeat(T_star_factors_, group_sizes)
     T_star = -T_star_factors_per_item * np.log(u) / np.exp(X.dot(beta))
 
     key, subkey = jrandom.split(key)
