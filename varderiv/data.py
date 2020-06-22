@@ -101,7 +101,7 @@ def data_generator(N,
     assert len(T_star_factors) == K
     random_T_star = False
   else:
-    assert isinstance(T_star_factors, callable)
+    assert callable(T_star_factors)
     random_T_star = True
 
   if X_generator is None:
