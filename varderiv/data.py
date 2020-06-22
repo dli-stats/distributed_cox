@@ -66,6 +66,14 @@ grouping_X_generator = functools.partial(X_group_generator_indep_dim,
                                          Xi_generator=grouping_Xi_generator)
 
 
+def T_star_factors_gamma_gen(K, shape, scale):
+
+  def wrapped(key):
+    return jrandom.gamma(key, a=shape, shape=(K,)) / scale
+
+  return wrapped
+
+
 @functools.lru_cache(maxsize=None)
 def data_generator(N,
                    X_dim,
@@ -86,10 +94,15 @@ def data_generator(N,
 
   K = len(group_sizes)
 
-  if T_star_factors is not None:
-    assert len(T_star_factors) == K
-  else:
+  if T_star_factors is None:
     T_star_factors = tuple([1] * K)
+
+  if isinstance(T_star_factors, tuple):
+    assert len(T_star_factors) == K
+    random_T_star = False
+  else:
+    assert isinstance(T_star_factors, callable)
+    random_T_star = True
 
   if X_generator is None:
     X_generator = default_X_generator
@@ -127,7 +140,11 @@ def data_generator(N,
 
     key, subkey = jrandom.split(key)
     u = jrandom.uniform(subkey, shape=(N,), minval=0, maxval=1)
-    T_star_factors_per_item = np.repeat(np.array(T_star_factors), group_sizes)
+    if random_T_star:
+      key, subkey = jrandom.split(key)
+      T_star_factors_per_item = T_star_factors(subkey)
+    else:
+      T_star_factors_per_item = np.repeat(np.array(T_star_factors), group_sizes)
     T_star = -T_star_factors_per_item * np.log(u) / np.exp(X.dot(beta))
 
     key, subkey = jrandom.split(key)
