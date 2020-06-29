@@ -124,18 +124,20 @@ def run_cov_experiment(
   pbar.update(0)
   time.sleep(1)
 
+  num_processed = 0
   results, failed = [], []
   for batch_idxs, batch_sols in parallel_map(experiment_fn_wrapper,
                                              data_iterator):
     num_succeed = 0
     for idx, sol in zip(batch_idxs, batch_sols):
-      if idx >= num_experiments:
+      if num_processed >= num_experiments:
         continue
       if check_fail_fn(sol):
         failed.append(idx)
       else:
         results.append(sol)
         num_succeed += 1
+      num_processed += 1
     pbar.update(len(batch_sols))
   pbar.close()
 
