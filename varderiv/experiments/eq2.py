@@ -16,6 +16,8 @@ from sacred.utils import apply_backspaces_and_linefeeds
 from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import get_eq1_solver
+from varderiv.equations.eq1 import (eq1_log_likelihood_grad_ad,
+                                    eq1_log_likelihood_grad_manual)
 from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_compute_H_manual
 
 from varderiv.equations.eq2 import solve_grouped_eq_batch
@@ -36,7 +38,8 @@ from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 Experiment2SolResult = collections.namedtuple("Experiment2SolResult", "pt1 pt2")
 
 Experiment2CovResult = collections.namedtuple(
-    "Experiment2CovResult", "cov_beta_k_correction cov_robust_ad cov_H")
+    "Experiment2CovResult",
+    "cov_beta_k_correction cov_beta_k_correction_robust cov_robust_ad cov_H")
 
 
 def cov_experiment_eq2_init(params):
@@ -48,8 +51,10 @@ def cov_experiment_eq2_init(params):
   eq2_solve_rest_fn = get_eq2_rest_solver(solver_max_steps=solver_max_steps)
 
   if params["eq1_cov_use_ad"]:
+    eq1_ll_grad_fn = eq1_log_likelihood_grad_ad
     eq1_compute_H_fn = eq1_compute_H_ad
   else:
+    eq1_ll_grad_fn = eq1_log_likelihood_grad_manual
     eq1_compute_H_fn = eq1_compute_H_manual
   del params["eq1_cov_use_ad"]
 
@@ -60,7 +65,12 @@ def cov_experiment_eq2_init(params):
 
   params["cov_beta_k_correction_fn"] = jit(
       get_eq2_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_fn))
+
   params["cov_robust_fn"] = jit(eq2_cov_robust_ad_impl)
+  params["cov_beta_k_correction_robust_fn"] = jit(
+      get_eq2_cov_beta_k_correction_fn(robust=True,
+                                       eq1_ll_grad_fn=eq1_ll_grad_fn,
+                                       eq1_compute_H_fn=eq1_compute_H_fn))
 
 
 def cov_experiment_eq2_core(rnd_keys,
@@ -70,11 +80,13 @@ def cov_experiment_eq2_core(rnd_keys,
                             gen=None,
                             solve_eq2_fn=None,
                             cov_beta_k_correction_fn=None,
+                            cov_beta_k_correction_robust_fn=None,
                             cov_robust_fn=None):
   del N
   assert gen is not None
   assert solve_eq2_fn is not None
   assert cov_beta_k_correction_fn is not None
+  assert cov_beta_k_correction_robust_fn is not None
   assert cov_robust_fn is not None
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
@@ -105,6 +117,10 @@ def cov_experiment_eq2_core(rnd_keys,
                                                    beta_k_hat, beta_hat)
   cov_beta_k_correction = onp.array(cov_beta_k_correction)
 
+  cov_beta_k_correction_robust = cov_beta_k_correction_fn(
+      X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta_hat)
+  cov_beta_k_correction_robust = onp.array(cov_beta_k_correction_robust)
+
   cov_H, cov_robust_ad = cov_robust_fn(X, delta, group_labels, beta_k_hat, beta)
   cov_H = onp.array(cov_H)
   cov_robust_ad = onp.array(cov_robust_ad)
@@ -117,9 +133,11 @@ def cov_experiment_eq2_core(rnd_keys,
           sol=expand_namedtuples(
               Experiment2SolResult(pt1=pt1_sols, pt2=pt2_sols)),
           cov=expand_namedtuples(
-              Experiment2CovResult(cov_beta_k_correction=cov_beta_k_correction,
-                                   cov_robust_ad=cov_robust_ad,
-                                   cov_H=cov_H))))
+              Experiment2CovResult(
+                  cov_beta_k_correction=cov_beta_k_correction,
+                  cov_beta_k_correction_robust=cov_beta_k_correction_robust,
+                  cov_robust_ad=cov_robust_ad,
+                  cov_H=cov_H))))
   return ret
 
 

@@ -8,7 +8,7 @@ from jax import random as jrandom
 
 from varderiv.solver import solve_newton
 
-from varderiv.equations.eq1 import solve_eq1_manual
+from varderiv.equations.eq1 import solve_eq1_manual, eq1_log_likelihood_grad_ad
 
 from varderiv.data import group_data_by_labels
 from varderiv.equations.eq1 import eq1_compute_H_ad
@@ -219,8 +219,13 @@ def eq2_compute_I_row_wrapped(X, delta, X_groups, delta_groups, group_labels,
 
 @functools.lru_cache(maxsize=None)
 def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
+                                 robust=False,
+                                 eq1_ll_grad_fn=eq1_log_likelihood_grad_ad,
                                  eq1_compute_H_fn=eq1_compute_H_ad):
   """HOF for covariance computation with beta_k correction."""
+
+  if not robust:
+    del eq1_ll_grad_fn
 
   @functools.partial(np.vectorize,
                      signature="(N,p),(N),(k,s,p),(k,s),(N),(k,p),(p)->(p,p)")
@@ -243,7 +248,23 @@ def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
 
     I_row, I_diag_last = -I_row, -I_diag_last
 
-    cov = cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row)
+    if not robust:
+      cov = cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row)
+    else:
+      B_diag_wo_last = eq1_ll_grad_fn(X_groups, delta_groups, beta_k_hat)
+      B_diag_last = eq2_jac_manual(X, delta, group_labels, beta_k_hat, beta)
+      B_diag_wo_last = np.einsum("ki,kj->kij",
+                                 B_diag_wo_last,
+                                 B_diag_wo_last,
+                                 optimize='optimal')
+      B_diag_last = np.outer(B_diag_last, B_diag_last)
+      cov = cov_pure_analytical_from_I_robust(
+          I_diag_wo_last,
+          I_diag_last,
+          I_row,
+          B_diag_wo_last,
+          B_diag_last,
+      )
     return cov
 
   return wrapped
@@ -260,13 +281,35 @@ def cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row):
   I_diag_inv_last = np.linalg.inv(I_diag_last)
   I_diag_inv_wo_last = np.linalg.inv(I_diag_wo_last)
 
-  cov = np.einsum("ab,bBc,Bcd,eBd,fe->af",
-                  I_diag_inv_last,
-                  I_row,
-                  I_diag_inv_wo_last,
-                  I_row,
-                  I_diag_inv_last,
-                  optimize='optimal') + I_diag_inv_last
+  S = np.einsum("ab,bBc->Bac", I_diag_inv_last, I_row, optimize="optimal")
+  cov = np.einsum(
+      "Bab,Bbc,Bdc->ad", S, I_diag_inv_wo_last, S,
+      optimize='optimal') + I_diag_inv_last
+
+  return cov
+
+
+@functools.partial(np.vectorize,
+                   signature="(k,p,p),(p,p),(p,k,p),(k,p,p),(p,p)->(p,p)")
+def cov_pure_analytical_from_I_robust(I_diag_wo_last, I_diag_last, I_row,
+                                      B_diag_wo_last, B_diag_last):
+  """Computes I^-1 B I"""
+  I_diag_inv_last = np.linalg.inv(I_diag_last)
+  I_diag_inv_wo_last = np.linalg.inv(I_diag_wo_last)
+
+  S = np.einsum("ab,bBc,Bcd->Bad",
+                I_diag_inv_last,
+                I_row,
+                I_diag_inv_wo_last,
+                optimize="optimal")
+
+  cov = (
+      np.einsum("Bab,Bbc,Bdc->ad", S, B_diag_wo_last, S, optimize='optimal') +
+      np.einsum('ab,bc,dc->ad',
+                I_diag_inv_last,
+                B_diag_last,
+                I_diag_inv_last,
+                optimize='optimal'))
 
   return cov
 
@@ -315,6 +358,10 @@ def eq2_cov_robust_ad(X, delta, X_groups, delta_groups, group_labels,
 
 # Default
 eq2_cov_beta_k_correction = get_eq2_cov_beta_k_correction_fn(
+    robust=False, eq1_compute_H_fn=eq1_compute_H_ad)
+eq2_cov_beta_k_correction_robust = get_eq2_cov_beta_k_correction_fn(
+    robust=True,
+    eq1_ll_grad_fn=eq1_log_likelihood_grad_ad,
     eq1_compute_H_fn=eq1_compute_H_ad)
 eq2_cov = eq2_cov_beta_k_correction
 
