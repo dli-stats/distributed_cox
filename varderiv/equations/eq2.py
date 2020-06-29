@@ -3,12 +3,15 @@
 import functools
 
 import jax.numpy as np
+import jax.ops
 from jax import jacfwd
 from jax import random as jrandom
 
 from varderiv.solver import solve_newton
 
-from varderiv.equations.eq1 import solve_eq1_manual, eq1_log_likelihood_grad_ad
+from varderiv.equations.eq1 import (solve_eq1_manual,
+                                    eq1_log_likelihood_grad_ad,
+                                    eq1_compute_W_manual)
 
 from varderiv.data import group_data_by_labels
 from varderiv.equations.eq1 import eq1_compute_H_ad
@@ -49,9 +52,14 @@ def _precompute_eq2_terms(X, group_labels, beta_k_hat):
 
 @functools.partial(np.vectorize,
                    signature=f"(N,p),(N),{precomputed_signature},(p)->(N,p)")
-def compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
-              e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped, beta):
-  """Computes W tensor."""
+def eq2_compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
+                  e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped,
+                  beta):
+  """Computes W matrix.
+
+  W is a N by X_DIM matrix that is same as left side of eq2_ll_grad, without
+  the final summation over all the deltas.
+  """
   # TODO(camyang) better docstring, explain W
   del delta, e_beta_k_hat_X
   beta_sub_beta_k_hat = beta - beta_k_hat_grouped
@@ -73,12 +81,25 @@ def compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
 
 
 @functools.partial(np.vectorize,
+                   signature=f"(N,p),(N),{precomputed_signature},(p)->(N,p)")
+def eq2_compute_eq1_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X,
+                      XX_e_beta_k_hat_X, e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs,
+                      beta_k_hat_grouped, beta):
+  """Computes the each group's W by eq1.
+  """
+  del (delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
+       beta_k_hat_grouped, beta)
+  W = X - X_e_beta_k_hat_X_cs / e_beta_k_hat_X_cs
+  return W
+
+
+@functools.partial(np.vectorize,
                    signature=f"(N,p),(N),{precomputed_signature},(p)->(p)")
 def eq2_rest(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
              e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped, beta):
-  W = compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
-                e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs, beta_k_hat_grouped,
-                beta)
+  W = eq2_compute_W(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X,
+                    XX_e_beta_k_hat_X, e_beta_k_hat_X_cs, X_e_beta_k_hat_X_cs,
+                    beta_k_hat_grouped, beta)
   return np.sum(W * delta.reshape((-1, 1)), axis=0)
 
 
@@ -251,20 +272,27 @@ def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
     if not robust:
       cov = cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row)
     else:
-      B_diag_wo_last = eq1_ll_grad_fn(X_groups, delta_groups, beta_k_hat)
-      B_diag_last = eq2_jac_manual(X, delta, group_labels, beta_k_hat, beta)
-      B_diag_wo_last = np.einsum("ki,kj->kij",
-                                 B_diag_wo_last,
-                                 B_diag_wo_last,
-                                 optimize='optimal')
-      B_diag_last = np.outer(B_diag_last, B_diag_last)
-      cov = cov_pure_analytical_from_I_robust(
-          I_diag_wo_last,
-          I_diag_last,
-          I_row,
-          B_diag_wo_last,
-          B_diag_last,
-      )
+      K = X_groups.shape[0]
+      X_DIM = X_groups.shape[-1]
+
+      precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
+      eq1_W = eq2_compute_eq1_W(X, delta, *precomputed, beta)
+      eq2_W = eq2_compute_W(X, delta, *precomputed, beta)
+      delta_mask = delta.reshape((-1, 1, 1))
+      eq1_W2 = np.einsum("bi,bj->bij", eq1_W, eq1_W,
+                         optimize="optimal") * delta_mask
+      eq2_W2 = np.einsum("bi,bj->bij", eq2_W, eq1_W,
+                         optimize="optimal") * delta_mask
+      eq1_W_eq2_W2 = np.einsum("bi,bj->bij", eq1_W, eq2_W,
+                               optimize="optimal") * delta_mask
+
+      B_zero = np.zeros((K, X_DIM, X_DIM))
+      B_diag_wo_last = jax.ops.index_add(B_zero, group_labels, eq1_W2)
+      B_diag_last = np.sum(eq2_W2, axis=0)
+      B_row_wo_last = jax.ops.index_add(B_zero, group_labels, eq1_W_eq2_W2)
+      cov = cov_pure_analytical_from_I_robust(I_diag_wo_last, I_diag_last,
+                                              I_row, B_diag_wo_last,
+                                              B_diag_last, B_row_wo_last)
     return cov
 
   return wrapped
@@ -289,10 +317,12 @@ def cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row):
   return cov
 
 
-@functools.partial(np.vectorize,
-                   signature="(k,p,p),(p,p),(p,k,p),(k,p,p),(p,p)->(p,p)")
+@functools.partial(
+    np.vectorize,
+    signature="(k,p,p),(p,p),(p,k,p),(k,p,p),(p,p),(k,p,p)->(p,p)")
 def cov_pure_analytical_from_I_robust(I_diag_wo_last, I_diag_last, I_row,
-                                      B_diag_wo_last, B_diag_last):
+                                      B_diag_wo_last, B_diag_last,
+                                      B_row_wo_last):
   """Computes I^-1 B I"""
   I_diag_inv_last = np.linalg.inv(I_diag_last)
   I_diag_inv_wo_last = np.linalg.inv(I_diag_wo_last)
@@ -303,14 +333,23 @@ def cov_pure_analytical_from_I_robust(I_diag_wo_last, I_diag_last, I_row,
                 I_diag_inv_wo_last,
                 optimize="optimal")
 
-  cov = (
-      np.einsum("Bab,Bbc,Bdc->ad", S, B_diag_wo_last, S, optimize='optimal') +
-      np.einsum('ab,bc,dc->ad',
-                I_diag_inv_last,
-                B_diag_last,
-                I_diag_inv_last,
-                optimize='optimal'))
-
+  sas = np.einsum("Bab,Bbc,Bdc->ad", S, B_diag_wo_last, S, optimize="optimal")
+  sb1s = np.einsum("ab,Bbc,Bdc->ad",
+                   I_diag_inv_last,
+                   B_row_wo_last,
+                   S,
+                   optimize="optimal")
+  sb2s = np.einsum("Bab,Bbc,dc->ad",
+                   S,
+                   B_row_wo_last,
+                   I_diag_inv_last,
+                   optimize="optimal")
+  scs = np.einsum('ab,bc,dc->ad',
+                  I_diag_inv_last,
+                  B_diag_last,
+                  I_diag_inv_last,
+                  optimize='optimal')
+  cov = sas + sb1s + sb2s + scs
   return cov
 
 
@@ -333,10 +372,10 @@ def eq2_cov_robust_ad_impl(X, delta, group_labels, beta_k_hat, beta):
 
   precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
 
-  H = eq2_compute_H(X, delta, group_labels, beta_k_hat, beta)
+  H = jacfwd(eq2_rest, -1)(X, delta, *precomputed, beta)
 
   # compute J
-  W = compute_W(X, delta, *precomputed, beta)
+  W = eq2_compute_W(X, delta, *precomputed, beta)
   W2 = np.einsum("bi,bj->bij", W, W, optimize='optimal')
   J = np.sum(W2 * delta.reshape((-1, 1, 1)), axis=0)
 

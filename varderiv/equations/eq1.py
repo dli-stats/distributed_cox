@@ -25,6 +25,19 @@ def eq1_log_likelihood(X, delta, beta):
 
 
 @functools.partial(np.vectorize, signature='(N,p),(N),(p)->(p)')
+def eq1_compute_W_manual(X, delta, beta):
+  del delta
+  e_beta_X = np.exp(np.dot(X, beta)).reshape((-1, 1))
+  X_e_beta_X = X * e_beta_X
+
+  e_beta_X_cs = np.cumsum(e_beta_X, axis=0)
+  X_e_beta_X_cs = np.cumsum(X_e_beta_X, axis=0)
+
+  W = (X - X_e_beta_X_cs / e_beta_X_cs)
+  return W
+
+
+@functools.partial(np.vectorize, signature='(N,p),(N),(p)->(p)')
 def eq1_log_likelihood_grad_manual(X, delta, beta):
   """Computes eq1.
 
@@ -38,13 +51,8 @@ def eq1_log_likelihood_grad_manual(X, delta, beta):
   Returns:
     Evaluation of LHS of Eq 1.
   """
-  e_beta_X = np.exp(np.dot(X, beta)).reshape((-1, 1))
-  X_e_beta_X = X * e_beta_X
-
-  e_beta_X_cs = np.cumsum(e_beta_X, axis=0)
-  X_e_beta_X_cs = np.cumsum(X_e_beta_X, axis=0)
-
-  sum_inner = (X - X_e_beta_X_cs / e_beta_X_cs) * delta.reshape(-1, 1)
+  W = eq1_compute_W_manual(X, delta, beta)
+  sum_inner = W * delta.reshape(-1, 1)
 
   ret = np.sum(sum_inner, axis=0)
 
