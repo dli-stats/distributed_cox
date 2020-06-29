@@ -349,7 +349,7 @@ def cov_pure_analytical_from_I_robust(I_diag_wo_last, I_diag_last, I_row,
                   B_diag_last,
                   I_diag_inv_last,
                   optimize='optimal')
-  cov = sas + sb1s + sb2s + scs
+  cov = sas - sb1s - sb2s - scs
   return cov
 
 
