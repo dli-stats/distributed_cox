@@ -321,6 +321,28 @@ def group_data_by_labels(batch_size, K, X, delta, group_labels):
   return all_X_groups, all_delta_groups
 
 
+def group_by_labels(K, group_size, X, group_labels):
+  """A convenience function for groupping X by labels in Jax."""
+  X_grouped = np.zeros((K, group_size) + X.shape[1:], dtype=X.dtype)
+  group_cnts = np.zeros((K,), np.int32)
+
+  def group_by(data, var):
+    x, g = var
+    x_grouped, group_cnts = data
+    # append entries into specified group
+    x_grouped = jax.ops.index_add(x_grouped, (g, group_cnts[g]), x)
+    # track how many entries appended into each group
+    group_cnts = jax.ops.index_add(group_cnts, g, 1)
+    return (x_grouped, group_cnts), 0  # '0' is just a dummy value
+
+  (X_grouped, group_cnts), _ = jax.lax.scan(
+      group_by,
+      (X_grouped, group_cnts),  # initial state
+      (X, group_labels))  # data to loop over
+
+  return X_grouped
+
+
 key = jrandom.PRNGKey(0)
 key, data_generation_key = jrandom.split(key)
 

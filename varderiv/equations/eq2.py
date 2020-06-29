@@ -3,18 +3,16 @@
 import functools
 
 import jax.numpy as np
-import jax.ops
 from jax import jacfwd
 from jax import random as jrandom
 
 from varderiv.solver import solve_newton
 
 from varderiv.equations.eq1 import (solve_eq1_manual,
-                                    eq1_log_likelihood_grad_ad,
-                                    eq1_compute_W_manual)
-
-from varderiv.data import group_data_by_labels
+                                    eq1_log_likelihood_grad_ad)
 from varderiv.equations.eq1 import eq1_compute_H_ad
+from varderiv.equations.eq1 import eq1_compute_W_manual
+from varderiv.data import group_data_by_labels, group_by_labels
 
 # pylint: disable=redefined-outer-name
 
@@ -103,6 +101,7 @@ def eq2_rest(X, delta, e_beta_k_hat_X, X_e_beta_k_hat_X, XX_e_beta_k_hat_X,
   return np.sum(W * delta.reshape((-1, 1)), axis=0)
 
 
+@functools.partial(np.vectorize, signature="(N,p),(N),(N),(k,p),(p)->(p)")
 def eq2_jac_manual(X, delta, group_labels, beta_k_hat, beta):
   precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
   return eq2_rest(X, delta, *precomputed, beta)
@@ -238,8 +237,38 @@ def eq2_compute_I_row_wrapped(X, delta, X_groups, delta_groups, group_labels,
   return eq2_compute_I_row(X, delta, group_labels, beta_k_hat, beta)
 
 
+@functools.partial(np.vectorize, signature="(N,p),(N),(N),(k,p),(p)->(N,p)")
+def eq2_compute_pt2_W(X, delta, group_labels, beta_k_hat, beta):
+  precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
+  pt2_W = eq2_compute_W(X, delta, *precomputed, beta)
+  return pt2_W
+
+
+def eq2_compute_B(X, delta, X_groups, delta_groups, group_labels, beta_k_hat,
+                  beta):
+  N = X.shape[0]
+  K = X_groups.shape[0]
+  Nk = X_groups.shape[1]
+  X_dim = X_groups.shape[2]
+  pt1_W = eq1_compute_W_manual(X_groups, delta_groups,
+                               beta_k_hat)  # K x Nk x X_DIM
+  pt2_W = eq2_compute_pt2_W(X, delta, group_labels, beta_k_hat,
+                            beta)  # N x X_DIM
+  pt1_W = pt1_W * delta_groups.reshape((K, Nk, 1))
+  pt2_W = pt2_W * delta.reshape((N, 1))
+  B_diag_wo_last = np.einsum("kbi,kbj->kij", pt1_W, pt1_W, optimize="optimal")
+  B_diag_last = np.einsum("ki,kj->ij", pt2_W, pt2_W, optimize="optimal")
+  pt2_W_grouped = group_by_labels(K, Nk, pt2_W, group_labels)
+  B_row_wo_last = np.einsum("kbi,kbj->kij",
+                            pt1_W,
+                            pt2_W_grouped,
+                            optimize="optimal")
+  return B_diag_wo_last, B_diag_last, B_row_wo_last
+
+
 @functools.lru_cache(maxsize=None)
 def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
+                                 compute_B_fn,
                                  robust=False,
                                  eq1_ll_grad_fn=eq1_log_likelihood_grad_ad,
                                  eq1_compute_H_fn=eq1_compute_H_ad):
@@ -272,24 +301,9 @@ def get_cov_beta_k_correction_fn(compute_I_row_wrapped_fn,
     if not robust:
       cov = cov_pure_analytical_from_I(I_diag_wo_last, I_diag_last, I_row)
     else:
-      K = X_groups.shape[0]
-      X_DIM = X_groups.shape[-1]
+      B_diag_wo_last, B_diag_last, B_row_wo_last = compute_B_fn(
+          X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta)
 
-      precomputed = _precompute_eq2_terms(X, group_labels, beta_k_hat)
-      eq1_W = eq2_compute_eq1_W(X, delta, *precomputed, beta)
-      eq2_W = eq2_compute_W(X, delta, *precomputed, beta)
-      delta_mask = delta.reshape((-1, 1, 1))
-      eq1_W2 = np.einsum("bi,bj->bij", eq1_W, eq1_W,
-                         optimize="optimal") * delta_mask
-      eq2_W2 = np.einsum("bi,bj->bij", eq2_W, eq1_W,
-                         optimize="optimal") * delta_mask
-      eq1_W_eq2_W2 = np.einsum("bi,bj->bij", eq1_W, eq2_W,
-                               optimize="optimal") * delta_mask
-
-      B_zero = np.zeros((K, X_DIM, X_DIM))
-      B_diag_wo_last = jax.ops.index_add(B_zero, group_labels, eq1_W2)
-      B_diag_last = np.sum(eq2_W2, axis=0)
-      B_row_wo_last = jax.ops.index_add(B_zero, group_labels, eq1_W_eq2_W2)
       cov = cov_pure_analytical_from_I_robust(I_diag_wo_last, I_diag_last,
                                               I_row, B_diag_wo_last,
                                               B_diag_last, B_row_wo_last)
@@ -354,7 +368,7 @@ def cov_pure_analytical_from_I_robust(I_diag_wo_last, I_diag_last, I_row,
 
 
 get_eq2_cov_beta_k_correction_fn = functools.partial(
-    get_cov_beta_k_correction_fn, eq2_compute_I_row_wrapped)
+    get_cov_beta_k_correction_fn, eq2_compute_I_row_wrapped, eq2_compute_B)
 
 eq2_compute_H = jacfwd(eq2_jac_manual, -1)
 

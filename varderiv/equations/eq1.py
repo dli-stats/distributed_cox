@@ -24,7 +24,7 @@ def eq1_log_likelihood(X, delta, beta):
   return log_likelhihood
 
 
-@functools.partial(np.vectorize, signature='(N,p),(N),(p)->(p)')
+@functools.partial(np.vectorize, signature='(N,p),(N),(p)->(N,p)')
 def eq1_compute_W_manual(X, delta, beta):
   del delta
   e_beta_X = np.exp(np.dot(X, beta)).reshape((-1, 1))
