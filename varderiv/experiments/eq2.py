@@ -117,7 +117,7 @@ def cov_experiment_eq2_core(rnd_keys,
                                                    beta_k_hat, beta_hat)
   cov_beta_k_correction = onp.array(cov_beta_k_correction)
 
-  cov_beta_k_correction_robust = cov_beta_k_correction_fn(
+  cov_beta_k_correction_robust = cov_beta_k_correction_robust_fn(
       X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta_hat)
   cov_beta_k_correction_robust = onp.array(cov_beta_k_correction_robust)
 
