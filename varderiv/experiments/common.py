@@ -83,14 +83,24 @@ def process_params(**params):
   else:
     params["X_generator"] = default_X_generator
 
+  K = params["K"]
+
   T_star_factors = params.pop("T_star_factors", None)
   if T_star_factors == "gamma":
     T_star_factors = T_star_factors_gamma_gen(1, 1)
   elif T_star_factors == "fixed":
-    K = params["K"]
     T_star_factors = tuple((k + 1) // 2 for k in range(K))
   else:
     T_star_factors = None
   params["T_star_factors"] = T_star_factors
+
+  N = params["N"]
+  group_labels_generator_kind = params.get("group_labels_generator_kind", None)
+  if group_labels_generator_kind == "arithmetic_sequence":
+    group_labels_generator_kind_kwargs = {"start_val": N * 2 // (K * (K + 1))}
+  else:
+    group_labels_generator_kind_kwargs = {}
+  params[
+      "group_labels_generator_kind_kwargs"] = group_labels_generator_kind_kwargs
 
   return params
