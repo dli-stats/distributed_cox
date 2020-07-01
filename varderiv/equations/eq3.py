@@ -104,7 +104,8 @@ def get_eq3_cov_fn(eq1_ll_grad_fn):
 @functools.partial(np.vectorize, signature="(K,N,p),(K,N),(p)->(p,p)")
 def eq3_cov_robust_ad(X_groups, delta_groups, beta):
   K, Nk, X_dim = X_groups.shape  # pylint: disable=unused-variable
-  H = eq3_compute_H(X_groups, delta_groups, beta)
+  H = eq3_compute_H(eq1.eq1_log_likelihood_grad_ad, X_groups, delta_groups,
+                    beta)
   H1 = np.linalg.inv(H)
   W = eq3_compute_W(X_groups, delta_groups, beta) * delta_groups.reshape(
       (K, Nk, 1))

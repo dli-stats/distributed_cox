@@ -6,7 +6,6 @@ import jax.numpy as np
 from jax import jacfwd
 
 from varderiv.solver import solve_newton
-from varderiv.data import group_by_labels
 
 from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_log_likelihood_grad_ad
 from varderiv.equations.eq1 import eq1_compute_W_manual
