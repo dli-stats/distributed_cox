@@ -31,6 +31,7 @@ from varderiv.experiments.utils import CovExperimentResultItem
 from varderiv.experiments.utils import check_value_converged
 
 from varderiv.experiments.common import ingredient as base_ingredient
+from varderiv.experiments.common import process_params
 
 Experiment4SolResult = collections.namedtuple("Experiment4SolResult", "pt1 pt2")
 Experiment4CovResult = collections.namedtuple(
@@ -148,7 +149,7 @@ def config():
 @ex.main
 def cov_experiment_eq4_main(base, solve_eq1_use_ad, eq1_cov_use_ad):
   # pylint: disable=missing-function-docstring
-  base = dict(base)
+  base = process_params(**base)
   base.pop("seed")
   pickle.dump(
       cov_experiment_eq4(solve_eq1_use_ad=solve_eq1_use_ad,

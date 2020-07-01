@@ -27,6 +27,7 @@ from varderiv.experiments.utils import CovExperimentResultItem
 from varderiv.experiments.utils import check_value_converged
 
 from varderiv.experiments.common import ingredient as base_ingredient
+from varderiv.experiments.common import process_params
 
 # pylint: disable=missing-function-docstring
 
@@ -110,7 +111,7 @@ def config():
 @ex.main
 def cov_experiment_eq3_main(base, eq1_ll_grad_use_ad):
   # pylint: disable=missing-function-docstring
-  base = dict(base)
+  base = process_params(**base)
   base.pop("seed")
   pickle.dump(cov_experiment_eq3(eq1_ll_grad_use_ad=eq1_ll_grad_use_ad, **base),
               result_file)
