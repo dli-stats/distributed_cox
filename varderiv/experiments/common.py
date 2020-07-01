@@ -11,12 +11,17 @@ ingredient = Ingredient('base')
 
 @ingredient.config
 def config():
-  num_experiments = 100000
+  num_experiments = 10000
   num_threads = 1
-  batch_size = 128
+  batch_size = 256
 
   N = 500
   X_DIM = 3
+  K = 3
+  group_labels_generator_kind = "same"
+  group_labels_generator_kind_kwargs = {}
+  group_X_same = True
+  T_star_factors = None
 
   seed = 0
   key = jrandom.PRNGKey(seed)

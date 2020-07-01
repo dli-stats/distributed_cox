@@ -28,7 +28,6 @@ from varderiv.experiments.utils import CovExperimentResultItem
 from varderiv.experiments.utils import check_value_converged
 
 from varderiv.experiments.common import ingredient as base_ingredient
-from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
 # pylint: disable=missing-function-docstring
 
@@ -132,8 +131,7 @@ cov_experiment_meta_analysis = functools.partial(
     cov_experiment_meta_analysis_core,
     check_fail_fn=lambda r: check_value_converged(r.sol.pt2.value))
 
-ex = Experiment("meta_analysis",
-                ingredients=[base_ingredient, grouped_ingredient])
+ex = Experiment("meta_analysis", ingredients=[base_ingredient])
 
 
 @ex.config
@@ -144,16 +142,14 @@ def config():
 
 
 @ex.main
-def cov_experiment_meta_analysis_main(base, grouped, solve_eq1_use_ad,
-                                      eq1_cov_use_ad):
+def cov_experiment_meta_analysis_main(base, solve_eq1_use_ad, eq1_cov_use_ad):
   # pylint: disable=missing-function-docstring
   base = dict(base)
   base.pop("seed")
   pickle.dump(
       cov_experiment_meta_analysis(solve_eq1_use_ad=solve_eq1_use_ad,
                                    eq1_cov_use_ad=eq1_cov_use_ad,
-                                   **base,
-                                   **grouped), result_file)
+                                   **base), result_file)
   ex.add_artifact(result_file.name, name="result")
 
 

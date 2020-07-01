@@ -27,7 +27,6 @@ from varderiv.experiments.utils import CovExperimentResultItem
 from varderiv.experiments.utils import check_value_converged
 
 from varderiv.experiments.common import ingredient as base_ingredient
-from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
 # pylint: disable=missing-function-docstring
 
@@ -99,7 +98,7 @@ cov_experiment_eq3 = functools.partial(
     cov_experiment_eq3_core,
     check_fail_fn=lambda r: check_value_converged(r.sol.value))
 
-ex = Experiment("eq3", ingredients=[base_ingredient, grouped_ingredient])
+ex = Experiment("eq3", ingredients=[base_ingredient])
 
 
 @ex.config
@@ -109,14 +108,12 @@ def config():
 
 
 @ex.main
-def cov_experiment_eq3_main(base, grouped, eq1_ll_grad_use_ad):
+def cov_experiment_eq3_main(base, eq1_ll_grad_use_ad):
   # pylint: disable=missing-function-docstring
   base = dict(base)
   base.pop("seed")
-  pickle.dump(
-      cov_experiment_eq3(eq1_ll_grad_use_ad=eq1_ll_grad_use_ad,
-                         **base,
-                         **grouped), result_file)
+  pickle.dump(cov_experiment_eq3(eq1_ll_grad_use_ad=eq1_ll_grad_use_ad, **base),
+              result_file)
   ex.add_artifact(result_file.name, name="result")
 
 
