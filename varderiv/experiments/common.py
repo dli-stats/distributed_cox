@@ -84,11 +84,13 @@ def process_params(**params):
     params["X_generator"] = default_X_generator
 
   T_star_factors = params.pop("T_star_factors", None)
-  if T_star_factors is "gamma":
+  if T_star_factors == "gamma":
     T_star_factors = T_star_factors_gamma_gen(1, 1)
-  elif T_star_factors is "fixed":
+  elif T_star_factors == "fixed":
     K = params["K"]
     T_star_factors = tuple((k + 1) // 2 for k in range(K))
+  else:
+    T_star_factors = None
   params["T_star_factors"] = T_star_factors
 
   return params
