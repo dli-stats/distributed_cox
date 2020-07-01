@@ -139,6 +139,8 @@ def config():
   # pylint: disable=unused-variable
   solve_eq1_use_ad = True
   eq1_cov_use_ad = True
+  slice_X_DIMs = None
+  post_slice_X_DIMs = False
 
 
 @ex.main
