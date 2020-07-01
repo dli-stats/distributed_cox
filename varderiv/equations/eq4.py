@@ -63,11 +63,7 @@ def eq4_compute_B(X, delta, X_groups, delta_groups, group_labels, beta_k_hat,
   pt2_W = pt2_W * delta_groups_mask
   B_diag_wo_last = np.einsum("kbi,kbj->bij", pt1_W, pt1_W, optimize="optimal")
   B_diag_last = np.einsum("kbi,kbj->ij", pt2_W, pt2_W, optimize="optimal")
-  pt2_W_grouped = group_by_labels(K, Nk, pt2_W, group_labels)
-  B_row_wo_last = np.einsum("kbi,kbj->bij",
-                            pt1_W,
-                            pt2_W_grouped,
-                            optimize="optimal")
+  B_row_wo_last = np.einsum("kbi,kbj->bij", pt2_W, pt1_W, optimize="optimal")
   return B_diag_wo_last, B_diag_last, B_row_wo_last
 
 
