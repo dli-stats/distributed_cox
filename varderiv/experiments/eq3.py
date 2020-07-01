@@ -3,6 +3,7 @@
 import tempfile
 import functools
 import pickle
+import collections
 
 import numpy as onp
 
@@ -17,7 +18,8 @@ from varderiv.data import group_data_by_labels
 from varderiv.equations.eq1 import eq1_log_likelihood_grad_ad
 from varderiv.equations.eq1 import eq1_log_likelihood_grad_manual
 
-from varderiv.equations.eq3 import get_eq3_solver, get_eq3_cov_fn
+from varderiv.equations.eq3 import (get_eq3_solver, get_eq3_cov_fn,
+                                    eq3_cov_robust_ad)
 
 from varderiv.experiments.utils import expand_namedtuples
 from varderiv.experiments.utils import run_cov_experiment
@@ -28,6 +30,9 @@ from varderiv.experiments.common import ingredient as base_ingredient
 from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
 # pylint: disable=missing-function-docstring
+
+Experiment3CovResult = collections.namedtuple("Experiment3CovResult",
+                                              "cov_robust cov_H")
 
 
 def cov_experiment_eq3_init(params):
@@ -43,6 +48,8 @@ def cov_experiment_eq3_init(params):
 
   params["solve_eq3_fn"] = solve_eq3_fn
   params["eq3_cov_fn"] = eq3_cov_fn
+  params["eq3_cov_robust_fn"] = eq3_cov_robust_ad
+
   del params["eq1_ll_grad_use_ad"]
 
 
@@ -52,11 +59,13 @@ def cov_experiment_eq3_core(rnd_keys,
                             K=3,
                             gen=None,
                             solve_eq3_fn=None,
-                            eq3_cov_fn=None):
+                            eq3_cov_fn=None,
+                            eq3_cov_robust_fn=None):
   del N, X_DIM
   assert gen is not None
   assert solve_eq3_fn is not None
   assert eq3_cov_fn is not None
+  assert eq3_cov_robust_fn is not None
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
   assert key.shape == data_generation_key.shape
@@ -74,8 +83,13 @@ def cov_experiment_eq3_core(rnd_keys,
   sol = expand_namedtuples(type(sol)(*map(onp.array, sol)))
 
   cov = onp.array(eq3_cov_fn(X_groups, delta_groups, beta_hat))
+  cov_robust = onp.array(eq3_cov_robust_fn(X_groups, delta_groups, beta_hat))
 
-  ret = expand_namedtuples(CovExperimentResultItem(sol=sol, cov=cov))
+  ret = expand_namedtuples(
+      CovExperimentResultItem(sol=sol,
+                              cov=expand_namedtuples(
+                                  Experiment3CovResult(cov_robust=cov_robust,
+                                                       cov_H=cov))))
   return ret
 
 

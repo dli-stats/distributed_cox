@@ -8,7 +8,7 @@ from jax import jacfwd
 from varderiv.solver import solve_newton
 from varderiv.data import group_by_labels
 
-from varderiv.equations.eq1 import eq1_compute_H_ad
+from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_log_likelihood_grad_ad
 from varderiv.equations.eq1 import eq1_compute_W_manual
 
 from varderiv.equations.eq2 import get_cov_beta_k_correction_fn
@@ -116,5 +116,9 @@ get_eq4_cov_beta_k_correction_fn = functools.partial(
 
 # Default
 eq4_cov_beta_k_correction = get_eq4_cov_beta_k_correction_fn(
+    eq1_compute_H_fn=eq1_compute_H_ad)
+eq4_cov_beta_k_correction_robust = get_eq4_cov_beta_k_correction_fn(
+    robust=True,
+    eq1_ll_grad_fn=eq1_log_likelihood_grad_ad,
     eq1_compute_H_fn=eq1_compute_H_ad)
 eq4_cov = eq4_cov_beta_k_correction

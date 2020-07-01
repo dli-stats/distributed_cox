@@ -26,6 +26,7 @@ def eq1_log_likelihood(X, delta, beta):
 
 @functools.partial(np.vectorize, signature='(N,p),(N),(p)->(N,p)')
 def eq1_compute_W_manual(X, delta, beta):
+  """Computes eq1 W."""
   del delta
   e_beta_X = np.exp(np.dot(X, beta)).reshape((-1, 1))
   X_e_beta_X = X * e_beta_X
@@ -145,3 +146,12 @@ def eq1_cov(X, delta, beta, use_ad=False):
     return eq1_cov_ad(X, delta, beta)
   else:
     return eq1_cov_manual(X, delta, beta)
+
+
+@functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")
+def eq1_cov_robust_ad(X, delta, beta):
+  H = eq1_compute_H_ad(X, delta, beta)
+  H1 = np.linalg.inv(H)
+  W = eq1_compute_W_manual(X, delta, beta) * delta.reshape((-1, 1))
+  J = np.einsum("bi,bj->ij", W, W, optimize='optimal')
+  return H1 @ J @ H1

@@ -3,6 +3,7 @@
 import tempfile
 import functools
 import pickle
+import collections
 
 import numpy as onp
 
@@ -13,7 +14,7 @@ from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
 from varderiv.equations.eq1 import get_eq1_solver
-from varderiv.equations.eq1 import eq1_cov_ad, eq1_cov_manual
+from varderiv.equations.eq1 import eq1_cov_ad, eq1_cov_manual, eq1_cov_robust_ad
 
 from varderiv.experiments.utils import expand_namedtuples
 from varderiv.experiments.utils import run_cov_experiment
@@ -23,6 +24,9 @@ from varderiv.experiments.utils import check_value_converged
 from varderiv.experiments.common import ingredient as base_ingredient
 
 # pylint: disable=missing-function-docstring
+
+Experiment1CovResult = collections.namedtuple("Experiment1CovResult",
+                                              "cov_robust cov_H")
 
 
 def cov_experiment_eq1_init(params):
@@ -37,6 +41,8 @@ def cov_experiment_eq1_init(params):
   else:
     eq1_cov_fn = jit(eq1_cov_manual)
   params["eq1_cov_fn"] = eq1_cov_fn
+
+  params["eq1_cov_robust_fn"] = eq1_cov_robust_ad
   del params["eq1_cov_use_ad"]
 
 
@@ -46,11 +52,13 @@ def cov_experiment_eq1_core(rnd_keys,
                             K=3,
                             gen=None,
                             solve_eq1_fn=None,
-                            eq1_cov_fn=None):
+                            eq1_cov_fn=None,
+                            eq1_cov_robust_fn=None):
   del N, X_DIM, K
   assert gen is not None
   assert solve_eq1_fn is not None
   assert eq1_cov_fn is not None
+  assert eq1_cov_robust_fn is not None
 
   key, data_generation_key = map(np.array, zip(*rnd_keys))
   X, delta, beta, _ = gen(data_generation_key)
@@ -61,8 +69,15 @@ def cov_experiment_eq1_core(rnd_keys,
   beta_hat = sol.guess
   sol = expand_namedtuples(
       type(sol)(*map(onp.array, sol)))  # release from jax to numpy
+
   cov = onp.array(eq1_cov_fn(X, delta, beta_hat))
-  ret = expand_namedtuples(CovExperimentResultItem(sol=sol, cov=cov))
+  cov_robust = onp.array(eq1_cov_robust_fn(X, delta, beta_hat))
+
+  ret = expand_namedtuples(
+      CovExperimentResultItem(sol=sol,
+                              cov=expand_namedtuples(
+                                  Experiment1CovResult(cov_robust=cov_robust,
+                                                       cov_H=cov))))
   return ret
 
 

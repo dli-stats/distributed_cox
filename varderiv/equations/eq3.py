@@ -23,6 +23,12 @@ def eq3_log_likelihood(X_groups, delta_groups, beta):
                 axis=(0,))
 
 
+def eq3_compute_W(X_groups, delta_groups, beta):
+  return eq1.eq1_compute_W_manual(X_groups, delta_groups,
+                                  np.broadcast_to(beta, (X_groups.shape[0],) +
+                                                  beta.shape))  # K x Nk x X_DIM
+
+
 def eq3_log_likelihood_grad(eq1_ll_grad_fn, X_groups, delta_groups, beta):
   return np.sum(eq1_ll_grad_fn(
       X_groups, delta_groups,
@@ -93,3 +99,14 @@ def get_eq3_cov_fn(eq1_ll_grad_fn):
     return np.linalg.inv(-H)
 
   return wrapped
+
+
+@functools.partial(np.vectorize, signature="(K,N,p),(K,N),(p)->(p,p)")
+def eq3_cov_robust_ad(X_groups, delta_groups, beta):
+  K, Nk, X_dim = X_groups.shape  # pylint: disable=unused-variable
+  H = eq3_compute_H(X_groups, delta_groups, beta)
+  H1 = np.linalg.inv(H)
+  W = eq3_compute_W(X_groups, delta_groups, beta) * delta_groups.reshape(
+      (K, Nk, 1))
+  J = np.einsum("kni,knj->ij", W, W, optimize='optimal')
+  return H1 @ J @ H1

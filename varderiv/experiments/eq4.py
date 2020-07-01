@@ -17,8 +17,11 @@ from varderiv.data import group_data_by_labels
 
 from varderiv.equations.eq1 import get_eq1_solver
 from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_compute_H_manual
+from varderiv.equations.eq1 import (eq1_log_likelihood_grad_ad,
+                                    eq1_log_likelihood_grad_manual)
 
 from varderiv.equations.eq2 import solve_grouped_eq_batch
+
 from varderiv.equations.eq4 import get_eq4_cov_beta_k_correction_fn
 from varderiv.equations.eq4 import get_eq4_rest_solver
 
@@ -31,6 +34,9 @@ from varderiv.experiments.common import ingredient as base_ingredient
 from varderiv.experiments.grouped_common import ingredient as grouped_ingredient
 
 Experiment4SolResult = collections.namedtuple("Experiment4SolResult", "pt1 pt2")
+Experiment4CovResult = collections.namedtuple(
+    "Experiment4CovResult",
+    "cov_beta_k_correction cov_beta_k_correction_robust")
 
 
 def cov_experiment_eq4_init(params):
@@ -39,8 +45,10 @@ def cov_experiment_eq4_init(params):
   solver_max_steps = params.pop("solver_max_steps", 80)
 
   if params["eq1_cov_use_ad"]:
+    eq1_ll_grad_fn = eq1_log_likelihood_grad_ad
     eq1_compute_H_fn = eq1_compute_H_ad
   else:
+    eq1_ll_grad_fn = eq1_log_likelihood_grad_manual
     eq1_compute_H_fn = eq1_compute_H_manual
   del params["eq1_cov_use_ad"]
 
@@ -54,6 +62,11 @@ def cov_experiment_eq4_init(params):
   params["cov_beta_k_correction_fn"] = jit(
       get_eq4_cov_beta_k_correction_fn(eq1_compute_H_fn=eq1_compute_H_fn))
 
+  params["cov_beta_k_correction_robust_fn"] = jit(
+      get_eq4_cov_beta_k_correction_fn(robust=True,
+                                       eq1_ll_grad_fn=eq1_ll_grad_fn,
+                                       eq1_compute_H_fn=eq1_compute_H_fn))
+
 
 def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
     rnd_keys,
@@ -62,7 +75,8 @@ def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
     K=3,
     gen=None,
     solve_eq4_fn=None,
-    cov_beta_k_correction_fn=None):
+    cov_beta_k_correction_fn=None,
+    cov_beta_k_correction_robust_fn=None):
   """Equation 4 experiment core."""
   del N
 
@@ -95,6 +109,10 @@ def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
                                                    beta_k_hat, beta_hat)
   cov_beta_k_correction = onp.array(cov_beta_k_correction)
 
+  cov_beta_k_correction_robust = cov_beta_k_correction_robust_fn(
+      X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta_hat)
+  cov_beta_k_correction = onp.array(cov_beta_k_correction)
+
   beta_k_hat = onp.array(beta_k_hat)
   beta_hat = onp.array(beta_hat)
 
@@ -102,9 +120,13 @@ def cov_experiment_eq4_core(  # pylint: disable=dangerous-default-value
   pt2_sols = expand_namedtuples(type(pt2_sols)(*map(onp.array, pt2_sols)))
 
   ret = expand_namedtuples(
-      CovExperimentResultItem(sol=expand_namedtuples(
-          Experiment4SolResult(pt1=pt1_sols, pt2=pt2_sols)),
-                              cov=cov_beta_k_correction))
+      CovExperimentResultItem(
+          sol=expand_namedtuples(
+              Experiment4SolResult(pt1=pt1_sols, pt2=pt2_sols)),
+          cov=expand_namedtuples(
+              Experiment4CovResult(
+                  cov_beta_k_correction=cov_beta_k_correction,
+                  cov_beta_k_correction_robust=cov_beta_k_correction_robust))))
   return ret
 
 

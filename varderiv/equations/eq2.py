@@ -249,7 +249,7 @@ def eq2_compute_B(X, delta, X_groups, delta_groups, group_labels, beta_k_hat,
   N = X.shape[0]
   K = X_groups.shape[0]
   Nk = X_groups.shape[1]
-  X_dim = X_groups.shape[2]
+  X_dim = X_groups.shape[2]  # pylint: disable=unused-variable
   pt1_W = eq1_compute_W_manual(X_groups, delta_groups,
                                beta_k_hat)  # K x Nk x X_DIM
   pt2_W = eq2_compute_pt2_W(X, delta, group_labels, beta_k_hat,
@@ -394,7 +394,7 @@ def eq2_cov_robust_ad_impl(X, delta, group_labels, beta_k_hat, beta):
   J = np.sum(W2 * delta.reshape((-1, 1, 1)), axis=0)
 
   H_inv = np.linalg.inv(H)
-  ret = (-H_inv) @ J @ (-H_inv)
+  ret = H_inv @ J @ H_inv
 
   return -H_inv, ret
 
