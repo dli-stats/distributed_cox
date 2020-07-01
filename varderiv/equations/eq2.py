@@ -260,8 +260,8 @@ def eq2_compute_B(X, delta, X_groups, delta_groups, group_labels, beta_k_hat,
   B_diag_last = np.einsum("ki,kj->ij", pt2_W, pt2_W, optimize="optimal")
   pt2_W_grouped = group_by_labels(K, Nk, pt2_W, group_labels)
   B_row_wo_last = np.einsum("kbi,kbj->kij",
-                            pt1_W,
                             pt2_W_grouped,
+                            pt1_W,
                             optimize="optimal")
   return B_diag_wo_last, B_diag_last, B_row_wo_last
 
