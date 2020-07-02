@@ -17,6 +17,7 @@ from varderiv.experiments.eq1 import Experiment1CovResult
 from varderiv.experiments.eq2 import Experiment2SolResult, Experiment2CovResult
 from varderiv.experiments.eq3 import Experiment3CovResult
 from varderiv.experiments.eq4 import Experiment4SolResult, Experiment4CovResult
+from varderiv.experiments.meta_analysis import ExperimentMetaAnalysisSolResult
 
 
 def iterate_experiements(runs_dir):
@@ -72,9 +73,16 @@ def get_paper_data(result):
     cov_empirical = cov_empirical.reshape((1, 1))
   all_covs["Empirical"] = cov_empirical
 
-  for analytical_name in results[0].cov._fields:
+  if isinstance(results[0].cov, tuple):
+    analytical_names = results[0].cov._fields
+    get_cov_fn = lambda cov, name: getattr(cov, analytical_name)
+  else:
+    analytical_names = ["cov_H"]
+    get_cov_fn = lambda cov, name: cov
+
+  for analytical_name in analytical_names:
     cov_analyticals = onp.array(
-        [getattr(r.cov, analytical_name) for r in results])
+        [get_cov_fn(r.cov, analytical_name) for r in results])
     cov_analyticals = cov_analyticals[~outlier_betas_idxs &
                                       ~beta_empirical_nan_idxs]
     cov_analyticals_nan_idxs = onp.any(onp.isnan(
