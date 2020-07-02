@@ -111,7 +111,7 @@ def main(args):
 
   cov_names = set()
 
-  expkey_names = ("K N T T_star_factors X_DIM "
+  expkey_names = ("K N T_star_factors X_DIM "
                   "group_X_same group_labels_generator_kind").split()
 
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
