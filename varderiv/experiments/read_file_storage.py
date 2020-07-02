@@ -42,9 +42,6 @@ def get_paper_data(result):
       to plot the analytical cov. The function returns the cov
       matrices from result.cov.
   """
-  if get_cov_mapping is None:
-    get_cov_mapping = {"Analytical": lambda cov: cov}
-
   all_covs = collections.OrderedDict()
 
   results = result.results
