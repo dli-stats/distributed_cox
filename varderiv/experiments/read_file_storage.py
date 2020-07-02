@@ -102,10 +102,10 @@ def get_paper_data(result):
 
 
 def main(args):
-  runs = list(
-      filter(
-          lambda run_dir, config_json, run_json: run_json["status"] ==
-          "COMPLETED", iterate_experiements(args.runs_dir)))
+  runs = [
+      experiment for experiment in iterate_experiements(args.runs_dir)
+      if experiment[-1]["status"] == "COMPLETED"
+  ]
 
   paper_results = {}
 
@@ -114,7 +114,7 @@ def main(args):
   expkey_names = ("K N T T_star_factors X_DIM "
                   "group_X_same group_labels_generator_kind").split()
 
-  for run_dir, config_json, run_json in tqdm.tqdm(runs):
+  for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
     eq = run_json["name"]
     expkey = tuple(config_json["base"][n] for n in expkey_names)
     with open(os.path.join(run_dir, "result"), "rb") as f:
