@@ -115,7 +115,7 @@ def main(args):
                   "group_X_same group_labels_generator_kind").split()
 
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
-    eq = run_json["name"]
+    eq = run_json["experiment"]["name"]
     expkey = tuple(config_json["base"][n] for n in expkey_names)
     with open(os.path.join(run_dir, "result"), "rb") as f:
       result = pickle.load(f)
