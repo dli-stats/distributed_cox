@@ -135,4 +135,5 @@ def main(args):
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--runs_dir', type=str, default="runs/")
-  main(parser.parse_args())
+  df = main(parser.parse_args())
+  df.to_csv("paper_results.csv")
