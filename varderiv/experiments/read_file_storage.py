@@ -103,8 +103,9 @@ def get_paper_data(result):
 
 def main(args):
   runs = list(
-      filter(lambda _, _, run_json: run_json["status"] == "COMPLETED",
-             iterate_experiements(args.runs_dir)))
+      filter(
+          lambda run_dir, config_json, run_json: run_json["status"] ==
+          "COMPLETED", iterate_experiements(args.runs_dir)))
 
   paper_results = {}
 
