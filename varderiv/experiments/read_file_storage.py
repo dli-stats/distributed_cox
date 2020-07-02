@@ -24,9 +24,9 @@ def iterate_experiements(runs_dir):
     if run_dir.endswith("_sources"):
       continue
     try:
-      with open(os.path.join(runs_dir, "config.json"), "r") as config_file:
+      with open(os.path.join(run_dir, "config.json"), "r") as config_file:
         config_json = json.load(config_file)
-      with open(os.path.join(runs_dir, "run.json"), "r") as run_file:
+      with open(os.path.join(run_dir, "run.json"), "r") as run_file:
         run_json = json.load(run_file)
       yield run_dir, config_json, run_json
     except IOError:
@@ -111,10 +111,11 @@ def main(args):
 
   cov_names = set()
 
+  expkey_names = ("K N T T_star_factors X_DIM "
+                  "group_X_same group_labels_generator_kind").split()
+
   for run_dir, config_json, run_json in tqdm.tqdm(runs):
     eq = run_json["name"]
-    expkey_names = ("K N T T_star_factors X_DIM"
-                    " group_X_same group_labels_generator_kind").split()
     expkey = tuple(config_json["base"][n] for n in expkey_names)
     with open(os.path.join(run_dir, "result"), "rb") as f:
       result = pickle.load(f)
