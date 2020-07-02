@@ -92,8 +92,7 @@ def get_paper_data(result):
     #     analytical_name,
     # np.sum(cov_analyticals_nan_idxs)))
     out_of_range_cov_analyticals_idxs = onp.any(
-        cov_analyticals.reshape(-1, cov_analyticals.shape[1]**2) < -1000,
-        axis=1)
+        onp.diagonal(cov_analyticals, axis1=1, axis2=2) < 0, axis=1)
     cov_analyticals = cov_analyticals[~cov_analyticals_nan_idxs &
                                       ~out_of_range_cov_analyticals_idxs]
     cov_analytical = onp.mean(cov_analyticals, axis=0)
