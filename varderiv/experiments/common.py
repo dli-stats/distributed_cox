@@ -89,7 +89,7 @@ def process_params(**params):
   if T_star_factors == "gamma":
     T_star_factors = T_star_factors_gamma_gen(1, 1)
   elif T_star_factors == "fixed":
-    T_star_factors = tuple((k + 1) // 2 for k in range(K))
+    T_star_factors = tuple((k + 1) / 2 for k in range(K))
   else:
     T_star_factors = None
   params["T_star_factors"] = T_star_factors

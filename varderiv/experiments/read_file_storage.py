@@ -34,6 +34,20 @@ def iterate_experiements(runs_dir):
       pass
 
 
+def find_experiment(runs_dir, **kwargs):
+  for run_dir, config_json, run_json in iterate_experiements(runs_dir):
+    ok = True
+    for k, v in kwargs.items():
+      if k == "eq":
+        ok &= run_json["experiment"]["name"] == v
+      else:
+        ok &= config_json["base"][k] == v
+      if not ok:
+        break
+    if ok:
+      yield (run_dir, config_json, run_json)
+
+
 def get_paper_data(result):
   """
   Args:
@@ -75,7 +89,7 @@ def get_paper_data(result):
 
   if isinstance(results[0].cov, tuple):
     analytical_names = results[0].cov._fields
-    get_cov_fn = lambda cov, name: getattr(cov, analytical_name)
+    get_cov_fn = getattr
   else:
     analytical_names = ["cov_H"]
     get_cov_fn = lambda cov, name: cov
@@ -91,8 +105,9 @@ def get_paper_data(result):
     # print("Cov {} has {} nans".format(
     #     analytical_name,
     # np.sum(cov_analyticals_nan_idxs)))
-    out_of_range_cov_analyticals_idxs = onp.any(
-        onp.diagonal(cov_analyticals, axis1=1, axis2=2) < 0, axis=1)
+    out_of_range_cov_analyticals_idxs = (
+        onp.any(onp.diagonal(cov_analyticals, axis1=1, axis2=2) < 0, axis=1) |
+        onp.any(onp.diagonal(cov_analyticals, axis1=1, axis2=2) > 1, axis=1))
     cov_analyticals = cov_analyticals[~cov_analyticals_nan_idxs &
                                       ~out_of_range_cov_analyticals_idxs]
     cov_analytical = onp.mean(cov_analyticals, axis=0)
