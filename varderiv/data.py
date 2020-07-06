@@ -81,16 +81,20 @@ def data_generator(N,
                    T_star_factors=None,
                    X_generator=None,
                    exp_scale=3.5,
-                   return_T=False):
+                   return_T=False,
+                   return_T_star=False):
   """HOF for data generation.
 
   The function is cached so that we avoid potential repeating jits'.
   """
 
+  ret_signature = "(N,p),(N),(p),(N)"
   if return_T:
-    wrapped_signature = "(k)->(N),(N,p),(N),(p),(N)"
-  else:
-    wrapped_signature = "(k)->(N,p),(N),(p),(N)"
+    ret_signature = "(N)," + ret_signature
+  if return_T_star:
+    ret_signature = "(N)," + ret_signature
+
+  wrapped_signature = "(k)->" + ret_signature
 
   K = len(group_sizes)
 
@@ -162,10 +166,12 @@ def data_generator(N,
     group_labels = np.take(group_labels, sorted_idx, axis=0)
 
     # X = X - np.mean(X, axis=0)
-    if return_T:  # pylint: disable=no-else-return
-      return T, X, delta, beta, group_labels
-    else:
-      return X, delta, beta, group_labels
+    ret = (X, delta, beta, group_labels)
+    if return_T:
+      ret = (T,) + ret
+    if return_T_star:
+      ret = (T_star,) + ret
+    return ret
 
   return wrapped
 

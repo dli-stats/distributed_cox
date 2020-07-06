@@ -59,7 +59,7 @@ def expand_namedtuples(tup):
   return ret
 
 
-def init_data_gen_fn(params):
+def init_data_gen_fn(params, **extra_data_gen_params):
   """Initializes data generation."""
   group_sizes = group_sizes_generator(
       params["N"],
@@ -75,7 +75,8 @@ def init_data_gen_fn(params):
                      params["X_DIM"],
                      group_sizes,
                      T_star_factors=params.pop('T_star_factors', None),
-                     X_generator=X_generator))
+                     X_generator=X_generator,
+                     **extra_data_gen_params))
   params["gen"] = gen
 
 
