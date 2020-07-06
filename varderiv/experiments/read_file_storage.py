@@ -136,7 +136,7 @@ def main(args):
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
     eq = run_json["experiment"]["name"]
     if eq == "meta_analysis":
-      if config_json["univariate"]:
+      if config_json.get("univariate", False):
         eq = "meta_analysis_univariate"
     expkey = tuple(config_json["base"][n] for n in expkey_names)
     with open(os.path.join(run_dir, "result"), "rb") as f:
