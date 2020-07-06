@@ -26,7 +26,7 @@ def gen_R_data(outdir,
   T_star, T, X, delta, beta, group_labels = data_gen(data_generation_subkeys)  # pylint: disable=unused-variable
   os.makedirs(outdir, exist_ok=True)
   for vname in ["T_star", "T", "X", "delta", "beta", "group_labels"]:
-    a = eval(vname)  # pylint:
+    a = eval(vname)  # pylint: disable=eval-used
     a = a.reshape((-1, a.shape[-1]))
     onp.savetxt(os.path.join(outdir, vname), a, delimiter=",")
 
