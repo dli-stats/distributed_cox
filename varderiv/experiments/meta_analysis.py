@@ -56,18 +56,22 @@ def cov_experiment_meta_analysis_init(params):
     post_slice_X_DIMs = None
   del params["post_slice_X_DIMs"]
 
+  univariate = params.pop("univariate", False)
+
   solve_meta_analysis_fn = functools.partial(
       solve_grouped_eq_batch,
       solve_eq1_fn=jit(solve_eq1_fn),
       solve_rest_fn=jit(
           get_meta_analysis_rest_solver(eq1_compute_H_fn=eq1_compute_H_fn,
-                                        slice_X_DIMs=post_slice_X_DIMs)))
+                                        slice_X_DIMs=post_slice_X_DIMs,
+                                        univariate=univariate)))
   params["solve_meta_analysis_fn"] = solve_meta_analysis_fn
   del params["solve_eq1_use_ad"]
 
   params["meta_analysis_cov_fn"] = jit(
       get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_fn,
-                               slice_X_DIMs=post_slice_X_DIMs))
+                               slice_X_DIMs=post_slice_X_DIMs,
+                               univariate=univariate))
 
 
 def cov_experiment_meta_analysis_core(rnd_keys,

@@ -5,6 +5,7 @@ import functools
 
 import jax.numpy as np
 from jax import random as jrandom
+import jax.ops
 
 from varderiv.equations.eq1 import eq1_compute_H_ad
 from varderiv.equations.eq2 import solve_grouped_eq_batch
@@ -20,7 +21,8 @@ MetaAnalysisSolverState = collections.namedtuple("MetaAnalysisSolverState",
 
 @functools.lru_cache(maxsize=None)
 def get_meta_analysis_rest_solver(eq1_compute_H_fn=eq1_compute_H_ad,
-                                  slice_X_DIMs=None):
+                                  slice_X_DIMs=None,
+                                  univariate=False):
   """HOF for getting Meta analysis's solve rest function."""
 
   def _meta_analysis_solve_rest(X, delta, K, group_labels, X_groups,
@@ -42,10 +44,17 @@ def get_meta_analysis_rest_solver(eq1_compute_H_fn=eq1_compute_H_ad,
                                  slice_X_DIMs,
                                  axis=2)
         beta_k_hat = np.take(beta_k_hat, slice_X_DIMs, axis=-1)
-      beta_hat = np.linalg.solve(
-          np.sum(I_diag_wo_last, axis=0),
-          np.einsum("Kab,Kb->a", I_diag_wo_last, beta_k_hat,
-                    optimize='optimal'))
+      if univariate:
+        wk = 1. / np.diagonal(np.linalg.inv(I_diag_wo_last), axis1=-2, axis2=-1)
+        beta_hat = np.einsum("kp,kp->p", wk, beta_k_hat,
+                             optimize="optimal") / np.sum(wk, axis=0)
+      else:
+        beta_hat = np.linalg.solve(
+            np.sum(I_diag_wo_last, axis=0),
+            np.einsum("Kab,Kb->a",
+                      I_diag_wo_last,
+                      beta_k_hat,
+                      optimize='optimal'))
       return MetaAnalysisSolverState(guess=beta_hat,
                                      value=np.zeros_like(beta_hat),
                                      step=0)
@@ -66,7 +75,8 @@ solve_meta_analysis = functools.partial(solve_grouped_eq_batch,
 
 @functools.lru_cache(maxsize=None)
 def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad,
-                             slice_X_DIMs=None):
+                             slice_X_DIMs=None,
+                             univariate=False):
   """HOF for covariance computation for Meta Analysis."""
 
   if slice_X_DIMs is None:
@@ -82,7 +92,15 @@ def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad,
       I_diag_wo_last = np.take(np.take(I_diag_wo_last, slice_X_DIMs, axis=1),
                                slice_X_DIMs,
                                axis=2)
-    return np.linalg.inv(np.sum(I_diag_wo_last, axis=0))
+    if univariate:  # pylint: disable=no-else-return
+      wk = 1. / np.diagonal(np.linalg.inv(I_diag_wo_last), axis1=-2, axis2=-1)
+      X_DIM = X.shape[-1]
+      cov = np.zeros((X_DIM, X_DIM))
+      cov = jax.ops.index_update(cov, np.diag_indices(X_DIM),
+                                 1. / np.sum(wk, axis=0))
+      return cov
+    else:
+      return np.linalg.inv(np.sum(I_diag_wo_last, axis=0))
 
   return wrapped
 
@@ -95,9 +113,9 @@ meta_analysis_cov = get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad)
 #########################################################
 
 if __name__ == '__main__':
-  N = 1000
-  K = 3
-  X_DIM = 4
+  N = 500
+  K = 4
+  X_DIM = 3
   from varderiv.data import data_generator, group_sizes_generator
   k1, k2 = jrandom.split(jrandom.PRNGKey(0))
   group_sizes = group_sizes_generator(N, K, "same")
@@ -106,6 +124,8 @@ if __name__ == '__main__':
                                                    group_sizes,
                                                    return_T=True)(k1)
   X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_labels)
+  import pdb
+  pdb.set_trace()
   sol_pt1, sol_pt2 = solve_meta_analysis(X,
                                          delta,
                                          K,
