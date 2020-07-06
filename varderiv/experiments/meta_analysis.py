@@ -146,11 +146,13 @@ def config():
   eq1_cov_use_ad = True
   slice_X_DIMs = None
   post_slice_X_DIMs = False
+  univariate = False
 
 
 @ex.main
 def cov_experiment_meta_analysis_main(base, solve_eq1_use_ad, eq1_cov_use_ad,
-                                      slice_X_DIMs, post_slice_X_DIMs):
+                                      slice_X_DIMs, post_slice_X_DIMs,
+                                      univariate):
   # pylint: disable=missing-function-docstring
   base = process_params(**base)
   base.pop("seed")
@@ -159,6 +161,7 @@ def cov_experiment_meta_analysis_main(base, solve_eq1_use_ad, eq1_cov_use_ad,
                                    eq1_cov_use_ad=eq1_cov_use_ad,
                                    slice_X_DIMs=slice_X_DIMs,
                                    post_slice_X_DIMs=post_slice_X_DIMs,
+                                   univariate=univariate,
                                    **base), result_file)
   ex.add_artifact(result_file.name, name="result")
 
