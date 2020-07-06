@@ -86,6 +86,7 @@ def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad,
 
   @functools.partial(np.vectorize, signature=signature)
   def wrapped(X, delta, X_groups, delta_groups, group_labels, beta_k_hat, beta):
+    X_DIM = X.shape[-1]
     del X, delta, group_labels, beta
     I_diag_wo_last = -eq1_compute_H_fn(X_groups, delta_groups, beta_k_hat)
     if slice_X_DIMs is not None:
@@ -94,7 +95,6 @@ def get_cov_meta_analysis_fn(eq1_compute_H_fn=eq1_compute_H_ad,
                                axis=2)
     if univariate:  # pylint: disable=no-else-return
       wk = 1. / np.diagonal(np.linalg.inv(I_diag_wo_last), axis1=-2, axis2=-1)
-      X_DIM = X.shape[-1]
       cov = np.zeros((X_DIM, X_DIM))
       cov = jax.ops.index_update(cov, np.diag_indices(X_DIM),
                                  1. / np.sum(wk, axis=0))
