@@ -10,6 +10,8 @@ import varderiv.data as data
 import varderiv.experiments.common as experiment_common
 import varderiv.experiments.utils as experiment_utils
 
+# pylint: disable=missing-function-docstring
+
 
 def gen_R_data(outdir,
                data_generation_key=data.data_generation_key,
@@ -21,10 +23,10 @@ def gen_R_data(outdir,
                                     return_T=True,
                                     return_T_star=True)
   data_gen = experiment_params["gen"]
-  T_star, T, X, delta, beta, group_labels = data_gen(data_generation_subkeys)
+  T_star, T, X, delta, beta, group_labels = data_gen(data_generation_subkeys)  # pylint: disable=unused-variable
   os.makedirs(outdir, exist_ok=True)
   for vname in ["T_star", "T", "X", "delta", "beta", "group_labels"]:
-    a = eval(vname)
+    a = eval(vname)  # pylint:
     a = a.reshape((-1, a.shape[-1]))
     onp.savetxt(os.path.join(outdir, vname), a, delimiter=",")
 
