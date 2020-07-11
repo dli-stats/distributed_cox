@@ -173,6 +173,7 @@ def data_generator(N,
     if return_T:
       ret = (T,) + ret
     if return_T_star:
+      T_star = np.take(T_star, sorted, axis=0)
       ret = (T_star,) + ret
     return ret
 
