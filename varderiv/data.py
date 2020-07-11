@@ -18,7 +18,7 @@ else:
   # backward compat
   jrandom_shuffle = jrandom.shuffle
 
-if jax.config.config.read("jax_enable_x64"):
+if jax.config.read("jax_enable_x64"):
   floatt = np.float64
 else:
   floatt = np.float32
