@@ -8,6 +8,7 @@ import numpy as onp
 import jax.numpy as np
 from jax import vmap
 import jax.lax
+import jax.config
 
 from jax import random as jrandom
 
@@ -17,8 +18,10 @@ else:
   # backward compat
   jrandom_shuffle = jrandom.shuffle
 
-floatt = np.float32
-
+if jax.config.config.read("jax_enable_x64"):
+  floatt = np.float64
+else:
+  floatt = np.float32
 # pylint: disable=redefined-outer-name
 
 
