@@ -7,6 +7,9 @@ import pickle
 
 import numpy as onp
 
+# import jax.config
+# jax.config.update("jax_enable_x64", True)
+
 import jax.numpy as np
 from jax import jit
 

@@ -20,7 +20,7 @@ from varderiv.experiments.eq4 import Experiment4SolResult, Experiment4CovResult
 from varderiv.experiments.meta_analysis import ExperimentMetaAnalysisSolResult
 
 
-def iterate_experiements(runs_dir):
+def iterate_experiments(runs_dir):
   for run_dir in glob.iglob(os.path.join(runs_dir, "*")):
     if run_dir.endswith("_sources"):
       continue
@@ -35,7 +35,7 @@ def iterate_experiements(runs_dir):
 
 
 def find_experiment(runs_dir, **kwargs):
-  for run_dir, config_json, run_json in iterate_experiements(runs_dir):
+  for run_dir, config_json, run_json in iterate_experiments(runs_dir):
     ok = True
     for k, v in kwargs.items():
       if k == "eq":
@@ -71,15 +71,16 @@ def get_paper_data(result):
   beta_empirical_nan_idxs = onp.any(onp.isnan(beta), axis=1)
   # print("Cov empirical has {} nans".format(np.sum(beta_empirical_nan_idxs)))
 
-  beta_norm = onp.linalg.norm(onp.abs(beta), axis=1)
-  out_of_range_beta_idxs = onp.any(beta < -2, axis=1) | onp.any(beta > 2,
-                                                                axis=1)
-  # beta_norm_median = onp.median(beta_norm, axis=0)
-  outlier_betas_idxs = out_of_range_beta_idxs
+  # beta_norm = onp.linalg.norm(onp.abs(beta), axis=1)
+  # out_of_range_beta_idxs = onp.any(beta < -2, axis=1) | onp.any(beta > 2,
+  #                                                               axis=1)
+  # # beta_norm_median = onp.median(beta_norm, axis=0)
+  # outlier_betas_idxs = out_of_range_beta_idxs
   # print("Cov empirical has {} outliers".format(
   #     np.sum(outlier_betas_idxs)))
 
-  beta = beta[~outlier_betas_idxs & ~beta_empirical_nan_idxs]
+  outlier_betas_idxs = beta_empirical_nan_idxs
+  beta = beta[~outlier_betas_idxs]
   beta_hat = onp.average(beta, axis=0)
 
   cov_empirical = onp.cov(beta, rowvar=False)
@@ -97,19 +98,17 @@ def get_paper_data(result):
   for analytical_name in analytical_names:
     cov_analyticals = onp.array(
         [get_cov_fn(r.cov, analytical_name) for r in results])
-    cov_analyticals = cov_analyticals[~outlier_betas_idxs &
-                                      ~beta_empirical_nan_idxs]
-    cov_analyticals_nan_idxs = onp.any(onp.isnan(
-        cov_analyticals.reshape(-1, cov_analyticals.shape[1]**2)),
-                                       axis=1)
+    cov_analyticals = cov_analyticals[~outlier_betas_idxs]
+    # cov_analyticals_nan_idxs = onp.any(onp.isnan(
+    #     cov_analyticals.reshape(-1, cov_analyticals.shape[1]**2)),
+    #                                    axis=1)
     # print("Cov {} has {} nans".format(
     #     analytical_name,
     # np.sum(cov_analyticals_nan_idxs)))
-    out_of_range_cov_analyticals_idxs = (
-        onp.any(onp.diagonal(cov_analyticals, axis1=1, axis2=2) < 0, axis=1) |
-        onp.any(onp.diagonal(cov_analyticals, axis1=1, axis2=2) > 1, axis=1))
-    cov_analyticals = cov_analyticals[~cov_analyticals_nan_idxs &
-                                      ~out_of_range_cov_analyticals_idxs]
+    # out_of_range_cov_analyticals_idxs = (
+    #     onp.any(onp.diagonal(cov_analyticals, axis1=1, axis2=2) < 0, axis=1) |
+    #     onp.any(onp.diagonal(cov_analyticals, axis1=1, axis2=2) > 1, axis=1))
+    # cov_analyticals = cov_analyticals[~cov_analyticals_nan_idxs]
     cov_analytical = onp.mean(cov_analyticals, axis=0)
     all_covs[analytical_name] = cov_analytical
 
@@ -122,7 +121,7 @@ def get_paper_data(result):
 
 def main(args):
   runs = [
-      experiment for experiment in iterate_experiements(args.runs_dir)
+      experiment for experiment in iterate_experiments(args.runs_dir)
       if experiment[-1]["status"] == "COMPLETED"
   ]
 
