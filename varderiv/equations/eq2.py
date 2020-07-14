@@ -20,6 +20,11 @@ from varderiv.data import group_data_by_labels, group_by_labels
 # BEGIN eq2
 #########################################################
 
+
+def eq2_log_likelihood(X, delta, beta):
+  pass
+
+
 precomputed_signature = "(N,c),(N,p),(N,p,p),(N,c),(N,p),(N,p)"
 
 

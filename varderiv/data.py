@@ -72,7 +72,7 @@ grouping_X_generator = functools.partial(X_group_generator_indep_dim,
 def T_star_factors_gamma_gen(shape, scale):
 
   def wrapped(key, K):
-    return 1. / (jrandom.gamma(key, a=shape, shape=(K,)) / scale)
+    return 1. / (jrandom.gamma(key, a=shape, shape=(K,)) * scale)
 
   return wrapped
 
