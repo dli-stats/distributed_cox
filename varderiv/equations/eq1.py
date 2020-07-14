@@ -155,3 +155,12 @@ def eq1_cov_robust_ad(X, delta, beta):
   W = eq1_compute_W_manual(X, delta, beta) * delta.reshape((-1, 1))
   J = np.einsum("bi,bj->ij", W, W, optimize='optimal')
   return H1 @ J @ H1
+
+
+@functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")
+def eq1_cov_robust2_ad(X, delta, beta):
+  H = eq1_compute_H_ad(X, delta, beta)
+  H1 = np.linalg.inv(H)
+  t = eq1_log_likelihood_grad_ad(X, delta, beta)
+  J = np.outer(t, t)
+  return H1 @ J @ H1
