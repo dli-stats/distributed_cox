@@ -161,6 +161,6 @@ def eq1_cov_robust_ad(X, delta, beta):
 def eq1_cov_robust2_ad(X, delta, beta):
   H = eq1_compute_H_ad(X, delta, beta)
   H1 = np.linalg.inv(H)
-  t = eq1_log_likelihood_grad_ad(X, delta, beta)
+  t = eq1_log_likelihood_grad_manual(X, delta, beta)
   J = np.outer(t, t)
   return H1 @ J @ H1
