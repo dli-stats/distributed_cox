@@ -171,7 +171,7 @@ def eq1_cov_robust3_ad(X, delta, beta):
   N = X.shape[0]
   H = eq1_compute_H_ad(X, delta, beta)
   H1 = np.linalg.inv(H)
-  W = eq1_compute_W_manual(X, delta, beta) * delta.reshape((-1, 1))
+  W = eq1_compute_W_manual(X, delta, beta)
 
   # Compute correction term
   bx = np.dot(X, beta)
@@ -179,7 +179,7 @@ def eq1_cov_robust3_ad(X, delta, beta):
   ebx_cs = np.cumsum(ebx, 0)
   ebx_cs_1 = 1. / ebx_cs
   frac_sum_term = np.cumsum(ebx_cs_1[::-1])[::-1].flatten()
-  W = (1 - frac_sum_term * ebx / N).reshape((N, 1)) * W
+  W = (delta - frac_sum_term * ebx / N).reshape((N, 1)) * W
 
   J = np.einsum("bi,bj->ij", W, W, optimize='optimal')
   return H1 @ J @ H1
