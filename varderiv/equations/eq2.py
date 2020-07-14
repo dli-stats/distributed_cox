@@ -21,7 +21,7 @@ from varderiv.data import group_data_by_labels, group_by_labels
 #########################################################
 
 
-def eq2_log_likelihood(X, delta, beta):
+def eq2_log_likelihood(X, delta, beta, X_groups, delta_groups, beta_groups):
   pass
 
 
