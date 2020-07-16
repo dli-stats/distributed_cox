@@ -132,16 +132,20 @@ def data_generator(N,
     key, *subkeys = jrandom.split(key, K + 1)
     subkeys = np.stack(subkeys)
 
-    Xs = []
-    idx = 0
-    for group_label, group_size in enumerate(group_sizes):
-      Xs.append(
-          X_generator(group_size,
-                      X_dim,
-                      subkeys[group_label],
-                      group_label=group_label))
-      idx += group_size
-    X = np.concatenate(Xs)
+    X = np.zeros((N, X_dim), dtype=floatt)
+    max_group_size = max(group_sizes)
+
+    def gen_X(carry, group_size):
+      X, group_label, cur_idx = carry
+      X_group = X_generator(max_group_size,
+                            X_dim,
+                            subkeys[group_label],
+                            group_label=group_label)
+      X = jax.lax.dynamic_update_slice(X, X_group,
+                                       np.array([cur_idx, 0], dtype=np.int32))
+      return (X, group_label + 1, cur_idx + group_size), 0
+
+    (X, _, _), _ = jax.lax.scan(gen_X, (X, 0, 0), np.array(group_sizes))
 
     group_labels = np.repeat(np.arange(K), group_sizes)
 
@@ -331,7 +335,7 @@ def group_data_by_labels(batch_size, K, X, delta, group_labels):
   return all_X_groups, all_delta_groups
 
 
-def group_by_labels(K, group_size, X, group_labels):
+def _group_by_labels(X, group_labels, K=1, group_size=-1):
   """A convenience function for groupping X by labels in Jax."""
   X_grouped = np.zeros((K, group_size) + X.shape[1:], dtype=X.dtype)
   group_cnts = np.zeros((K,), np.int32)
@@ -351,6 +355,29 @@ def group_by_labels(K, group_size, X, group_labels):
       (X, group_labels))  # data to loop over
 
   return X_grouped
+
+
+def group_by_labels(X, group_labels, K: int = 1, group_size: int = -1):
+  """Group data by labels.
+
+  Args:
+    X: array of dimension (...batch_dims... , N, ...X_dims...)
+    group_labels: array of dimension (...batch_dims..., N)
+
+  Returns:
+    X_grouped: dimension (...batch_dims..., K, group_size, ...X_dims...)
+  """
+  batch_dim = len(group_labels.shape)
+  X_dim = X.shape[batch_dim:]
+
+  assert X.shape[:batch_dim] == group_labels.shape
+
+  fun = functools.partial(_group_by_labels, K=K, group_size=group_size)
+  for _ in range(X_dim):
+    fun = vmap(fun, in_axes=-1, out_axes=-1)
+  for _ in range(batch_dim):
+    fun = vmap(fun, in_axes=0, out_axes=0)
+  return fun
 
 
 key = jrandom.PRNGKey(0)
