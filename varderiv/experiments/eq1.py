@@ -8,18 +8,18 @@ import collections
 import numpy as onp
 
 import jax.numpy as np
-from jax import jit
+from jax import jit, vmap
 
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-from varderiv.equations.eq1 import get_eq1_solver
-from varderiv.equations.eq1 import eq1_cov_ad, eq1_cov_manual, eq1_cov_robust_ad
+from varderiv.equations.eq1 import (eq1_log_likelihood, eq1_cov_ad,
+                                    eq1_cov_manual, eq1_cov_robust_ad)
+from varderiv.generic.model_solve import solve_single
 
 from varderiv.experiments.utils import expand_namedtuples
 from varderiv.experiments.utils import run_cov_experiment
 from varderiv.experiments.utils import CovExperimentResultItem
-from varderiv.experiments.utils import check_value_converged
 
 from varderiv.experiments.common import ingredient as base_ingredient
 from varderiv.experiments.common import process_params
@@ -31,10 +31,15 @@ Experiment1CovResult = collections.namedtuple("Experiment1CovResult",
 
 
 def cov_experiment_eq1_init(params):
+  solver_eps = params.pop("solver_eps", 1e-6)
   solver_max_steps = params.pop("solver_max_steps", 80)
+
   params["solve_eq1_fn"] = jit(
-      get_eq1_solver(use_ad=params["solve_eq1_use_ad"],
-                     solver_max_steps=solver_max_steps))
+      vmap(
+          solve_single(eq1_log_likelihood,
+                       max_num_steps=solver_max_steps,
+                       eps=solver_eps)))
+
   del params["solve_eq1_use_ad"]
 
   if params["eq1_cov_use_ad"]:
@@ -86,7 +91,7 @@ cov_experiment_eq1 = functools.partial(
     run_cov_experiment,
     cov_experiment_eq1_init,
     cov_experiment_eq1_core,
-    check_fail_fn=lambda r: check_value_converged(r.sol.value) > 1e-3)
+    check_fail_fn=lambda r: not r.sol.converged)
 
 ex = Experiment("eq1", ingredients=[base_ingredient])
 

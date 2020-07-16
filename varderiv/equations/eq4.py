@@ -3,7 +3,7 @@
 import functools
 
 import jax.numpy as np
-from jax import jacfwd
+from jax import jacfwd, vmap
 
 from varderiv.solver import solve_newton
 
@@ -18,6 +18,24 @@ from varderiv.equations.eq2 import eq2_compute_pt2_W
 #########################################################
 # BEGIN eq4
 #########################################################
+
+
+@functools.partial(np.vectorize, "(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->()")
+def eq4_log_likelihood(X, delta, beta, group_labels, X_groups, delta_groups,
+                       beta_k_hat):
+  del X, delta, group_labels
+
+  @functools.partial(vmap, in_axes=(0, 0, None, 0))
+  def groupped_batch_log_likelihood_approx(X, delta, beta, beta_k):
+    bx = np.dot(X, beta)
+    bkx = np.dot(X, beta_k)
+    ebkx = np.exp(bkx)
+    log_term = np.log(np.cumsum(ebkx * (bx - bkx), 0))
+    batch_log_likelhihood = (bx - log_term) * delta
+    return batch_log_likelhihood
+
+  return groupped_batch_log_likelihood_approx(X_groups, delta_groups, beta,
+                                              beta_k_hat)
 
 
 @functools.partial(np.vectorize, signature="(K,S,p),(K,S),(K,p),(p)->(p)")

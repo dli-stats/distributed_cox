@@ -21,8 +21,18 @@ from varderiv.data import group_data_by_labels, group_by_labels
 #########################################################
 
 
-def eq2_log_likelihood(X, delta, beta, X_groups, delta_groups, beta_groups):
-  pass
+@functools.partial(np.vectorize, "(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->()")
+def eq2_log_likelihood(X, delta, beta, group_labels, X_groups, delta_groups,
+                       beta_k_hat):
+  del X_groups, delta_groups
+  beta_k_hat_grouped = np.take(beta_k_hat, group_labels, axis=0)
+  ebkx = np.exp(np.einsum("ni,ni->n", X, beta_k_hat_grouped,
+                          optimize='optimal'))
+  logterm = np.log(
+      (1. - np.einsum("ni,ni->n", X, beta - beta_k_hat, optimize="optimal")) *
+      ebkx)
+  bx = np.dot(X, beta)
+  return np.sum((bx - logterm) * delta, axis=0)
 
 
 precomputed_signature = "(N,c),(N,p),(N,p,p),(N,c),(N,p),(N,p)"
@@ -262,7 +272,7 @@ def eq2_compute_B(X, delta, X_groups, delta_groups, group_labels, beta_k_hat,
   pt1_W = pt1_W * delta_groups.reshape((K, Nk, 1))
   pt2_W = pt2_W * delta.reshape((N, 1))
   B_diag_wo_last = np.einsum("kbi,kbj->kij", pt1_W, pt1_W, optimize="optimal")
-  B_diag_last = np.einsum("ki,kj->ij", pt2_W, pt2_W, optimize="optimal")
+  B_diag_last = np.einsum("ni,nj->ij", pt2_W, pt2_W, optimize="optimal")
   pt2_W_grouped = group_by_labels(K, Nk, pt2_W, group_labels)
   B_row_wo_last = np.einsum("kbi,kbj->kij",
                             pt2_W_grouped,
