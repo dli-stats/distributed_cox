@@ -4,8 +4,6 @@ from typing import Dict, BinaryIO
 
 import sys
 import time
-import collections
-import dataclasses
 import itertools
 import pickle
 
