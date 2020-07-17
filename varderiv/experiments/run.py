@@ -126,16 +126,18 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
   else:
     X_generator = data.default_X_generator
 
+  def parse_float_tuple(s, prefix, default):
+    s = s[len(prefix):]
+    if len(s) == 0:
+      return default
+    return tuple(map(float, s.strip().split(",")))
+
   if isinstance(T_star_factors, str) and T_star_factors.startswith("gamma"):
-    # assume format gamma(*, *)
-    gamma_args = T_star_factors[len("gamma"):]
-    if len(gamma_args) == 0:
-      gamma_args = (1., 1.)
-    else:
-      args = map(float, gamma_args.strip().split(","))
-    T_star_factors = data.T_star_factors_gamma_gen(*args)
+    gamma_args = parse_float_tuple(T_star_factors, "gamma", (1., 1.))
+    T_star_factors = data.T_star_factors_gamma_gen(*gamma_args)
   elif T_star_factors == "fixed":
-    T_star_factors = tuple((k + 1) / 2 for k in range(K))
+    T_star_factors = parse_float_tuple(T_star_factors, "fixed",
+                                       tuple((k + 1) / 2 for k in range(K)))
   else:
     T_star_factors = None
 
