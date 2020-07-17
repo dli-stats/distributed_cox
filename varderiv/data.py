@@ -285,7 +285,7 @@ def group_data_by_labels(group_labels, *data, K=1, group_size=-1):
     - X_groups: array of shape (batch_size, K, group_size, P)
     - delta_groups: array of shape (batch_size, K, group_size)
   """
-  if group_size < -1:
+  if group_size < 0:
     group_size = np.max(np.vectorize(functools.partial(np.bincount, length=K),
                                      signature="(N)->(K)")(group_labels),
                         axis=-1)

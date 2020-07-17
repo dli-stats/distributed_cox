@@ -127,10 +127,12 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
     X_generator = data.default_X_generator
 
   def parse_float_tuple(s, prefix, default):
-    s = s[len(prefix):]
+    s = s[len(prefix):].strip()
     if len(s) == 0:
       return default
-    return tuple(map(float, s.strip().split(",")))
+    assert s[0] == "(" and s[-1] == ")"
+    s = s[1:-1]
+    return tuple(map(float, s.split(",")))
 
   if isinstance(T_star_factors, str) and T_star_factors.startswith("gamma"):
     gamma_args = parse_float_tuple(T_star_factors, "gamma", (1., 1.))
