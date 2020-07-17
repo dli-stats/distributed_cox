@@ -48,7 +48,7 @@ def cov_experiment_eq3_init(params):
 
   params["solve_eq3_fn"] = solve_eq3_fn
   params["eq3_cov_fn"] = eq3_cov_fn
-  params["eq3_cov_robust_fn"] = eq3_cov_robust_ad
+  params["eq3_cov_robust_fn"] = jit(eq3_cov_robust_ad)
 
   del params["eq1_ll_grad_use_ad"]
 

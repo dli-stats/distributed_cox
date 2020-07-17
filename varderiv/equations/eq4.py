@@ -6,6 +6,7 @@ import jax.numpy as np
 from jax import jacfwd, vmap
 
 from varderiv.solver import solve_newton
+from varderiv.generic.model_solve import sum_log_likelihood
 
 from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_log_likelihood_grad_ad
 from varderiv.equations.eq1 import eq1_compute_W_manual
@@ -20,9 +21,9 @@ from varderiv.equations.eq2 import eq2_compute_pt2_W
 #########################################################
 
 
-@functools.partial(np.vectorize, "(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->()")
-def eq4_log_likelihood(X, delta, beta, group_labels, X_groups, delta_groups,
-                       beta_k_hat):
+@functools.partial(np.vectorize, "(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(K,S)")
+def batch_eq4_log_likelihood(X, delta, beta, group_labels, X_groups,
+                             delta_groups, beta_k_hat):
   del X, delta, group_labels
 
   @functools.partial(vmap, in_axes=(0, 0, None, 0))
@@ -31,11 +32,16 @@ def eq4_log_likelihood(X, delta, beta, group_labels, X_groups, delta_groups,
     bkx = np.dot(X, beta_k)
     ebkx = np.exp(bkx)
     log_term = np.log(np.cumsum(ebkx * (bx - bkx), 0))
-    batch_log_likelhihood = (bx - log_term) * delta
-    return batch_log_likelhihood
+    batch_log_likelihood = (bx - log_term) * delta
+    return batch_log_likelihood
 
   return groupped_batch_log_likelihood_approx(X_groups, delta_groups, beta,
                                               beta_k_hat)
+
+
+eq4_log_likelihood = np.vectorize(
+    sum_log_likelihood(batch_eq4_log_likelihood),
+    signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(K,S)")
 
 
 @functools.partial(np.vectorize, signature="(K,S,p),(K,S),(K,p),(p)->(p)")

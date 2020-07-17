@@ -46,7 +46,6 @@ def do_work(args):
 def solve_newton(likelihood_fn, initial_guess, eps=1e-6,
                  max_num_steps=10) -> NewtonSolverResult:
   """HOF for newton's method solver."""
-
   value_jac_and_hessian_fn = value_jac_and_hessian(likelihood_fn)
 
   X_DIM = initial_guess.shape[0]
