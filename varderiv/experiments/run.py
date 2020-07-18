@@ -2,6 +2,7 @@
 
 from typing import Dict, Optional
 
+import collections
 import functools
 import tempfile
 import dataclasses
@@ -75,6 +76,7 @@ ex = Experiment("varderiv")
 @tu.register_pytree_node_class
 @dataclasses.dataclass
 class ExperimentResult:
+  """For holding experiment results."""
   data_generation_key: onp.ndarray
   pt1: Optional[NewtonSolverResult]
   pt2: NewtonSolverResult
@@ -102,6 +104,49 @@ class ExperimentResult:
   @property
   def sol(self):
     return self.pt2
+
+
+def compute_results_averaged(result: ExperimentResult):
+  """
+  Args:
+    - result: the experiment result object.
+    - A function given a result.sol, returns the beta
+    - A dict from str to function. The string represents a key
+      to plot the analytical cov. The function returns the cov
+      matrices from result.cov.
+  """
+  all_covs = collections.OrderedDict()
+
+  converged_idxs = result.sol.converged
+  if result.is_groupped:
+    pt1_converged_idxs = onp.all(result.pt1.converged, axis=1)
+    converged_idxs &= pt1_converged_idxs
+
+  beta = result.sol.guess
+
+  beta_empirical_nan_idxs = onp.any(onp.isnan(beta), axis=1)
+
+  keep_idxs = converged_idxs & ~beta_empirical_nan_idxs
+  for cov_name, cov_analyticals in result.covs.items():
+    cov_analyticals_nan_idxs = onp.any(onp.isnan(
+        cov_analyticals.reshape(-1, cov_analyticals.shape[1]**2)),
+                                       axis=1)
+    keep_idxs &= ~cov_analyticals_nan_idxs
+
+  beta = beta[keep_idxs]
+  beta_hat = onp.average(beta, axis=0)
+
+  cov_empirical = onp.cov(beta, rowvar=False)
+  if cov_empirical.shape == tuple():
+    cov_empirical = cov_empirical.reshape((1, 1))
+  all_covs["empirical"] = cov_empirical
+
+  for cov_name, cov_analyticals in result.covs.items():
+    cov_analyticals = cov_analyticals[keep_idxs]
+    cov_analytical = onp.mean(cov_analyticals, axis=0)
+    all_covs[cov_name] = cov_analytical
+
+  return beta_hat, all_covs
 
 
 @ex.capture
