@@ -338,7 +338,7 @@ def cov_experiment_core(rnd_keys, solve_and_cov=None):
 cov_experiment = functools.partial(utils.run_cov_experiment,
                                    cov_experiment_init,
                                    cov_experiment_core,
-                                   check_fail_fn=lambda r: not r.sol.converged)
+                                   check_ok_fn=lambda r: r.sol.converged)
 
 
 @ex.config

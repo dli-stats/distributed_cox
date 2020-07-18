@@ -124,8 +124,6 @@ if __name__ == '__main__':
                                                    group_sizes,
                                                    return_T=True)(k1)
   X_groups, delta_groups = group_data_by_labels(1, K, X, delta, group_labels)
-  import pdb
-  pdb.set_trace()
   sol_pt1, sol_pt2 = solve_meta_analysis(X,
                                          delta,
                                          K,
