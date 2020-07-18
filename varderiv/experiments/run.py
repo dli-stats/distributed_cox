@@ -235,13 +235,15 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
   solver_eps = solver["solver_eps"]
   num_single_args = 3
 
+  is_two_pts = eq not in ("eq1", "eq3")
   is_groupped = eq != "eq1"
+
   eq_module = importlib.import_module("varderiv.equations.{}".format(eq))
   batch_log_likelihood_fn = getattr(eq_module,
                                     "batch_{}_log_likelihood".format(eq))
   log_likelihood_fn = getattr(eq_module, "{}_log_likelihood".format(eq))
 
-  if not is_groupped:
+  if not is_two_pts:
     solve_fn = solve_single(log_likelihood_fn,
                             max_num_steps=solver_max_steps,
                             eps=solver_eps)
@@ -260,7 +262,7 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
   cov_fns["cov_robust"] = cov_robust(batch_log_likelihood_fn,
                                      num_single_args=num_single_args)
 
-  if is_groupped:
+  if is_two_pts:
     batch_single_log_likelihood_fn = eq1.batch_eq1_log_likelihood
     cov_fns["cov_group_correction"] = cov_group_correction(
         batch_single_log_likelihood_fn=batch_single_log_likelihood_fn,
@@ -288,17 +290,26 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
                                                           group_size=group_size)
       initial_beta_hat = beta
       initial_beta_k_hat = np.broadcast_to(beta, (K,) + beta.shape)
-      model_args = (X, delta, initial_beta_hat, group_labels, X_groups,
-                    delta_groups, initial_beta_k_hat)
+
+    if is_groupped:
+      if not is_two_pts:
+        model_args = (X_groups, delta_groups, initial_beta_hat)
+      else:
+        model_args = (X, delta, initial_beta_hat, group_labels, X_groups,
+                      delta_groups, initial_beta_k_hat)
     else:
-      model_args = (X, delta, beta)
+      model_args = (X, delta, initial_beta_hat)
 
     sol = solve_fn(*model_args)
 
     if is_groupped:
-      pt1_sol, pt2_sol = sol
-      model_args = (X, delta, pt2_sol.guess, group_labels, X_groups,
-                    delta_groups, pt1_sol.guess)
+      if not is_two_pts:
+        pt1_sol, pt2_sol = None, sol
+        model_args = (X_groups, delta_groups, sol.guess)
+      else:
+        pt1_sol, pt2_sol = sol
+        model_args = (X, delta, pt2_sol.guess, group_labels, X_groups,
+                      delta_groups, pt1_sol.guess)
     else:
       pt1_sol, pt2_sol = None, sol
       model_args = (X, delta, sol.guess)

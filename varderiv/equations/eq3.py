@@ -17,7 +17,7 @@ import varderiv.equations.eq1 as eq1
 #########################################################
 
 
-@functools.partial(np.vectorize, "(K,S,P),(K,S),(P)->(K,S)")
+@functools.partial(np.vectorize, signature="(K,S,P),(K,S),(P)->(K,S)")
 def batch_eq3_log_likelihood(X_groups, delta_groups, beta):
   return eq1.batch_eq1_log_likelihood(
       X_groups, delta_groups,
@@ -25,7 +25,7 @@ def batch_eq3_log_likelihood(X_groups, delta_groups, beta):
 
 
 eq3_log_likelihood = np.vectorize(sum_log_likelihood(batch_eq3_log_likelihood),
-                                  signature="(K,S,P),(K,S),(P)->(K,S)")
+                                  signature="(K,S,P),(K,S),(P)->()")
 
 
 def eq3_compute_W(X_groups, delta_groups, beta):
