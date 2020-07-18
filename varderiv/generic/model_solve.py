@@ -1,6 +1,6 @@
 """Generic distributed solvers."""
 
-from typing import Sequence, Union
+from typing import Sequence, Union, Callable, Optional
 
 import collections
 import functools
@@ -104,11 +104,17 @@ def cov_robust(batch_log_likelihood_fn, num_single_args: int = 1):
   return wrapped
 
 
-def cov_group_correction(batch_single_log_likelihood_fn,
-                         batch_distributed_log_likelihood_fn,
-                         num_single_args: int = 1,
-                         robust=False):
+def cov_group_correction(
+    batch_single_log_likelihood_fn,
+    batch_distributed_log_likelihood_fn,
+    distributed_log_likelihood_fn: Optional[Callable] = None,
+    num_single_args: int = 1,
+    robust=False):
   """Computes covariance with grouped correction."""
+
+  if distributed_log_likelihood_fn is None:
+    distributed_log_likelihood_fn = sum_log_likelihood(
+        batch_distributed_log_likelihood_fn)
 
   def wrapped(sol: DistributedModelSolverResult, *args):
     pt1_sol, pt2_sol = sol
@@ -116,8 +122,7 @@ def cov_group_correction(batch_single_log_likelihood_fn,
 
     I_diag_wo_last = pt1_sol.hessian
     I_diag_last = pt2_sol.hessian
-    distributed_log_likelihood_fn = sum_log_likelihood(
-        batch_distributed_log_likelihood_fn)
+
     I_row_wo_last = -jacfwd(
         jacrev(distributed_log_likelihood_fn, num_single_args - 1), -1)(*args)
 

@@ -265,11 +265,13 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
     cov_fns["cov_group_correction"] = cov_group_correction(
         batch_single_log_likelihood_fn=batch_single_log_likelihood_fn,
         batch_distributed_log_likelihood_fn=batch_log_likelihood_fn,
+        distributed_log_likelihood_fn=log_likelihood_fn,
         num_single_args=num_single_args,
         robust=False)
     cov_fns["cov_group_correction_robust"] = cov_group_correction(
         batch_single_log_likelihood_fn=batch_single_log_likelihood_fn,
         batch_distributed_log_likelihood_fn=batch_log_likelihood_fn,
+        distributed_log_likelihood_fn=log_likelihood_fn,
         num_single_args=num_single_args,
         robust=True)
 
