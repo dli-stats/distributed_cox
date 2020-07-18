@@ -71,14 +71,15 @@ def solve_newton(likelihood_fn, initial_guess, eps=1e-6,
     return jax.lax.cond(converged, do_converged, do_work, operand=args)
 
   def loop_cond(state):
-    return np.logical_and(state.step < max_num_steps,
-                          np.logical_not(state.converged))
+    return np.logical_or(
+        state.step == 0,
+        np.logical_and(state.step < max_num_steps,
+                       np.logical_not(state.converged)))
 
   initial_state = InternalState(initial_guess, initial_guess, np.inf,
                                 np.zeros_like(initial_guess),
                                 np.zeros((X_DIM, X_DIM)), 0, 0, False)
 
-  initial_state = newton_update(initial_state)  # do at least one iteration
   state = jax.lax.while_loop(loop_cond, newton_update, initial_state)
 
   def do_recover_last(_):
