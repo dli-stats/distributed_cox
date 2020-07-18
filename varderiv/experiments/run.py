@@ -20,7 +20,7 @@ from sacred.utils import apply_backspaces_and_linefeeds
 
 from simpleeval import EvalWithCompoundTypes
 
-import varderiv.data as data
+import varderiv.data as vdata
 import varderiv.equations.eq1 as eq1
 
 from varderiv.generic.model_solve import (solve_single, solve_distributed,
@@ -61,7 +61,7 @@ import varderiv.experiments.utils as utils
 #                                       np.array([0, 0]),
 #                                       np.array([[1, 0.25], [0.25, 0.25]]),
 #                                       shape=(N,))
-#     X1 = jrandom.bernoulli(subkeys[1], p=0.3, shape=(N,)).astype(data.floatt)
+#     X1 = jrandom.bernoulli(subkeys[1], p=0.3, shape=(N,)).astype(vdata.floatt)
 #     return np.stack(([X02[:, 0], X1, X02[:, 1]]), axis=1)
 #   else:
 #     key, *subkeys = jrandom.split(key, 3)
@@ -162,7 +162,7 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
   else:
     group_labels_generator_kind_kwargs = {}
 
-  group_sizes = data.group_sizes_generator(
+  group_sizes = vdata.group_sizes_generator(
       N,
       K,
       group_labels_generator_kind=group_labels_generator_kind,
@@ -170,11 +170,9 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
 
   if not group_X_same:
     assert K == 3, "other than 3 groups not supported"
-    import pdb
-    pdb.set_trace()
-    X_generator = data.grouping_X_generator
+    X_generator = vdata.grouping_X_generator
   else:
-    X_generator = data.default_X_generator
+    X_generator = vdata.default_X_generator
 
   evaluator = EvalWithCompoundTypes()
 
@@ -187,7 +185,7 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
 
   if isinstance(T_star_factors, str) and T_star_factors.startswith("gamma"):
     gamma_args = parse_float_tuple(T_star_factors, "gamma", (1., 1.))
-    T_star_factors = data.T_star_factors_gamma_gen(*gamma_args)
+    T_star_factors = vdata.T_star_factors_gamma_gen(*gamma_args)
   elif T_star_factors == "fixed":
     T_star_factors = parse_float_tuple(T_star_factors, "fixed",
                                        tuple((k + 1) / 2 for k in range(K)))
@@ -197,12 +195,12 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
   if exp_scale == 'inf':
     exp_scale = onp.inf
 
-  return group_sizes, data.data_generator(N,
-                                          X_DIM,
-                                          group_sizes,
-                                          exp_scale=exp_scale,
-                                          T_star_factors=T_star_factors,
-                                          X_generator=X_generator)
+  return group_sizes, vdata.data_generator(N,
+                                           X_DIM,
+                                           group_sizes,
+                                           exp_scale=exp_scale,
+                                           T_star_factors=T_star_factors,
+                                           X_generator=X_generator)
 
 
 def freezeargs(func):
@@ -281,11 +279,11 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
   def solve_and_cov(data_generation_key):
     X, delta, beta, group_labels = gen(data_generation_key)
     if is_groupped:
-      X_groups, delta_groups = data.group_data_by_labels(group_labels,
-                                                         X,
-                                                         delta,
-                                                         K=K,
-                                                         group_size=group_size)
+      X_groups, delta_groups = vdata.group_data_by_labels(group_labels,
+                                                          X,
+                                                          delta,
+                                                          K=K,
+                                                          group_size=group_size)
       initial_beta_hat = beta
       initial_beta_k_hat = np.broadcast_to(beta, (K,) + beta.shape)
       model_args = (X, delta, initial_beta_hat, group_labels, X_groups,
