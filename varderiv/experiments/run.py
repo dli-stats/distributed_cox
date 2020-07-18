@@ -151,8 +151,8 @@ def compute_results_averaged(result: ExperimentResult):
   return beta_hat, all_covs
 
 
-@functools.lru_cache(maxsize=None)
 @ex.capture(prefix="data")
+@functools.lru_cache(maxsize=None)
 def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
                      group_X_same, exp_scale):
   """Initializes data generation."""
@@ -224,9 +224,9 @@ def freezeargs(func):
   return wrapped
 
 
+@ex.capture
 @freezeargs
 @functools.lru_cache(maxsize=None)
-@ex.capture
 def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
                         **experiment_params):
   del experiment_params
