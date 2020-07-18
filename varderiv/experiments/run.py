@@ -251,7 +251,7 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
     single_log_likelihood_fn = eq1.eq1_log_likelihood
     solve_fn = solve_distributed(single_log_likelihood_fn,
                                  log_likelihood_fn,
-                                 num_single_args,
+                                 num_single_args=num_single_args,
                                  K=K,
                                  pt2_use_average_guess=pt2_use_average_guess,
                                  max_num_steps=solver_max_steps,
@@ -288,6 +288,7 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
                                                           delta,
                                                           K=K,
                                                           group_size=group_size)
+
       initial_beta_hat = beta
       initial_beta_k_hat = np.broadcast_to(beta, (K,) + beta.shape)
 

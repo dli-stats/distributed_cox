@@ -203,7 +203,7 @@ def group_sizes_generator(N, K, group_labels_generator_kind="random", **kwargs):
 
   if group_labels_generator_kind == "same":
     group_sizes = onp.repeat(N // K, K)
-    group_sizes[:N % K] += 1
+    group_sizes[-N % K:] += 1
 
   elif group_labels_generator_kind == "arithmetic_sequence":
     start_val = kwargs["start_val"]
@@ -328,15 +328,12 @@ def group_by_labels(group_labels, X, K: int = 1, group_size: int = -1):
     X_grouped: dimension (...batch_dims..., K, group_size, ...X_dims...)
   """
   batch_dim = len(group_labels.shape) - 1
-  X_dim = len(X.shape) - batch_dim - 1
 
   assert X.shape[:batch_dim + 1] == group_labels.shape
 
   fun = functools.partial(_group_by_labels, K=K, group_size=group_size)
-  for _ in range(X_dim):
-    fun = vmap(fun, in_axes=(None, batch_dim + 1), out_axes=batch_dim + 2)
-  for _ in range(batch_dim):
-    fun = vmap(fun, in_axes=0, out_axes=0)
+  # for _ in range(batch_dim):
+  #   fun = vmap(fun, in_axes=0, out_axes=0)
   return fun(group_labels, X)
 
 

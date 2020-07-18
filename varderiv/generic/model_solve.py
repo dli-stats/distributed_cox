@@ -54,8 +54,8 @@ def solve_distributed(single_log_likelihood_fn,
     singe_static_args = args[:num_single_args]
     group_labels = args[num_single_args]
     distributed_args = args[num_single_args + 1:]
-
-    pt1_sol = vmap(solve_single(single_log_likelihood_fn))(*distributed_args)
+    pt1_sol = vmap(solve_single(single_log_likelihood_fn,
+                                **kwargs))(*distributed_args)
 
     pt1_guesses = pt1_sol.guess
 

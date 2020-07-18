@@ -72,7 +72,7 @@ def solve_newton(likelihood_fn, initial_guess, eps=1e-6,
 
   def loop_cond(state):
     return np.logical_or(
-        state.step == 0,
+        state.step == 0,  # Run at least one iteration
         np.logical_and(state.step < max_num_steps,
                        np.logical_not(state.converged)))
 
