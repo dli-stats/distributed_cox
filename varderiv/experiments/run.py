@@ -290,13 +290,13 @@ def cov_experiment_main(data_generation_key, experiment_rand_key,
   # pylint: disable=missing-function-docstring
   result_file = tempfile.NamedTemporaryFile(mode="wb+")
   ex.add_artifact(result_file.name, name="result")
-  cov_experiment(data_generation_key,
-                 experiment_rand_key,
-                 num_experiments=num_experiments,
-                 num_threads=num_threads,
-                 batch_size=batch_size,
-                 save_interval=save_interval,
-                 result_file=result_file)
+  return cov_experiment(data_generation_key,
+                        experiment_rand_key,
+                        num_experiments=num_experiments,
+                        num_threads=num_threads,
+                        batch_size=batch_size,
+                        save_interval=save_interval,
+                        result_file=result_file)
 
 
 ex.captured_out_filter = apply_backspaces_and_linefeeds
