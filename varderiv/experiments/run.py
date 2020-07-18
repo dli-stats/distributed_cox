@@ -8,6 +8,8 @@ import tempfile
 import dataclasses
 import importlib
 
+from frozendict import frozendict
+
 import numpy as onp
 
 from jax import jit, vmap
@@ -211,12 +213,10 @@ def freezeargs(func):
 
   @functools.wraps(func)
   def wrapped(*args, **kwargs):
-    args = tuple([
-        collections.frozendict(arg) if isinstance(arg, dict) else arg
-        for arg in args
-    ])
+    args = tuple(
+        [frozendict(arg) if isinstance(arg, dict) else arg for arg in args])
     kwargs = {
-        k: collections.frozendict(v) if isinstance(v, dict) else v
+        k: frozendict(v) if isinstance(v, dict) else v
         for k, v in kwargs.items()
     }
     return func(*args, **kwargs)
