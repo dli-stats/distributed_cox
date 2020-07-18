@@ -36,12 +36,12 @@ def default_Xi_generator(N, dim, key, group_label=0):
 
 
 def grouping_Xi_generator(N, dim, key, group_label=0):
-  if group_label == 0:
-    bernoulli_theta, normal_variance = 0.5, 1
-  elif group_label == 1:
-    bernoulli_theta, normal_variance = 0.3, 0.5
-  elif group_label == 2:
-    bernoulli_theta, normal_variance = 0.7, 1.5
+  bernoulli_thetas = np.array([0.5, 0.3, 0.7])
+  normal_variances = np.array([1, 0.5, 1.5])
+
+  bernoulli_theta = bernoulli_thetas[group_label]
+  normal_variance = normal_variances[group_label]
+
   return jax.lax.cond(
       dim % 2 == 0,
       key, \

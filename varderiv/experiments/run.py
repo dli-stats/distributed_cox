@@ -170,6 +170,8 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
 
   if not group_X_same:
     assert K == 3, "other than 3 groups not supported"
+    import pdb
+    pdb.set_trace()
     X_generator = data.grouping_X_generator
   else:
     X_generator = data.default_X_generator
