@@ -18,6 +18,8 @@ import jax.numpy as np
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
+from simpleeval import EvalWithCompoundTypes
+
 import varderiv.data as data
 import varderiv.equations.eq1 as eq1
 
@@ -172,13 +174,13 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
   else:
     X_generator = data.default_X_generator
 
+  evaluator = EvalWithCompoundTypes()
   def parse_float_tuple(s, prefix, default):
     s = s[len(prefix):].strip()
     if len(s) == 0:
       return default
     assert s[0] == "(" and s[-1] == ")"
-    s = s[1:-1]
-    return tuple(map(float, s.split(",")))
+    return tuple(map(float, evaluator.eval(s))
 
   if isinstance(T_star_factors, str) and T_star_factors.startswith("gamma"):
     gamma_args = parse_float_tuple(T_star_factors, "gamma", (1., 1.))
