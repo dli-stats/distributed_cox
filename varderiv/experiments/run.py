@@ -152,7 +152,7 @@ def compute_results_averaged(result: ExperimentResult):
 
 
 @functools.lru_cache(maxsize=None)
-@ex.capture
+@ex.capture(prefix="data")
 def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
                      group_X_same, exp_scale):
   """Initializes data generation."""
@@ -203,11 +203,36 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
                                           X_generator=X_generator)
 
 
+def freezeargs(func):
+  """Transform mutable dictionnary
+    Into immutable
+    Useful to be compatible with cache
+    """
+
+  @functools.wraps(func)
+  def wrapped(*args, **kwargs):
+    args = tuple([
+        collections.frozendict(arg) if isinstance(arg, dict) else arg
+        for arg in args
+    ])
+    kwargs = {
+        k: collections.frozendict(v) if isinstance(v, dict) else v
+        for k, v in kwargs.items()
+    }
+    return func(*args, **kwargs)
+
+  return wrapped
+
+
+@freezeargs
 @functools.lru_cache(maxsize=None)
 @ex.capture
-def cov_experiment_init(eq, K, pt2_use_average_guess, solver_max_steps,
-                        solver_eps, **experiment_params):
+def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
+                        **experiment_params):
   del experiment_params
+  K = data["N"]
+  solver_max_steps = solver["solver_max_steps"]
+  solver_eps = solver["solver_eps"]
   num_single_args = 3
 
   is_groupped = eq != "eq1"
@@ -309,16 +334,16 @@ def config():
   batch_size = 256
   save_interval = 50
 
-  N = 500
-  X_DIM = 3
-  K = 3
-  group_labels_generator_kind = "same"
-  group_X_same = True
-  T_star_factors = None
-  exp_scale = 3.5
-
-  solver_max_steps = 80
-  solver_eps = 1e-5
+  data = dict(
+      N=500,
+      X_DIM=3,
+      K=3,
+      group_labels_generator_kind="same",
+      group_X_same=True,
+      T_star_factors=None,
+      exp_scale=3.5,
+  )
+  solver = dict(solver_max_steps=80, solver_eps=1e-5)
 
   seed = 0
   key = jrandom.PRNGKey(seed)
