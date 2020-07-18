@@ -230,7 +230,7 @@ def freezeargs(func):
 def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
                         **experiment_params):
   del experiment_params
-  K = data["N"]
+  K = data["K"]
   solver_max_steps = solver["solver_max_steps"]
   solver_eps = solver["solver_eps"]
   num_single_args = 3
