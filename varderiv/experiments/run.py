@@ -149,6 +149,7 @@ def compute_results_averaged(result: ExperimentResult):
   return beta_hat, all_covs
 
 
+@functools.lru_cache(maxsize=None)
 @ex.capture
 def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
                      group_X_same, exp_scale):
@@ -199,9 +200,11 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
                                           X_generator=X_generator)
 
 
+@functools.lru_cache(maxsize=None)
 @ex.capture
 def cov_experiment_init(eq, K, pt2_use_average_guess, solver_max_steps,
                         solver_eps, **experiment_params):
+  del experiment_params
   num_single_args = 3
 
   is_groupped = eq != "eq1"
