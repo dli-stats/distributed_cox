@@ -163,13 +163,13 @@ def cov_group_correction(batch_single_log_likelihood_or_score_fn: Callable,
     pt1_sol, pt2_sol = sol
     distributed_args = args[num_single_args + 1:-1] + (pt1_sol.guess,)
 
-    I_diag_wo_last = pt1_sol.hessian
-    I_diag_last = pt2_sol.hessian
+    I_diag_wo_last = -pt1_sol.hessian
+    I_diag_last = -pt2_sol.hessian
 
     I_row_wo_last = -distributed_cross_hessian_fn(*args)
 
-    I_diag_inv_wo_last = np.linalg.inv(-I_diag_wo_last)
-    I_diag_inv_last = np.linalg.inv(-I_diag_last)
+    I_diag_inv_wo_last = np.linalg.inv(I_diag_wo_last)
+    I_diag_inv_last = np.linalg.inv(I_diag_last)
 
     if robust:
       pt1_batch_scores = vmap(batch_single_score_fn)(*distributed_args)

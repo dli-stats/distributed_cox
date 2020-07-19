@@ -239,6 +239,8 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
   eq_mod = importlib.import_module("varderiv.equations.{}".format(eq))
 
   if eq in ("eq1", "eq3"):
+    batch_log_likelihood_or_score_fn = getattr(
+        eq_mod, "batch_{}_log_likelihood".format(eq))
     log_likelihood_or_score_fn = getattr(eq_mod, "{}_log_likelihood".format(eq))
     use_likelihood = True
     solve_fn = functools.partial(solve_single,
@@ -252,6 +254,8 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
                                  pt2_use_average_guess=pt2_use_average_guess,
                                  single_use_likelihood=True)
     if eq in ("eq2", "eq4"):
+      batch_log_likelihood_or_score_fn = getattr(eq_mod,
+                                                 "batch_{}_score".format(eq))
       log_likelihood_or_score_fn = getattr(eq_mod, "{}_score".format(eq))
       use_likelihood = False
     else:
@@ -266,7 +270,7 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
 
   cov_fns = {}
   cov_fns["cov_H"] = cov_H()
-  cov_fns["cov_robust"] = cov_robust(log_likelihood_or_score_fn,
+  cov_fns["cov_robust"] = cov_robust(batch_log_likelihood_or_score_fn,
                                      use_likelihood=use_likelihood,
                                      num_single_args=num_single_args)
 
