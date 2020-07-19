@@ -12,15 +12,15 @@ from frozendict import frozendict
 
 import numpy as onp
 
-from jax import jit, vmap
+from jax import jit, vmap, jacrev
 import jax.random as jrandom
 import jax.tree_util as tu
 import jax.numpy as np
 
+from simpleeval import EvalWithCompoundTypes
+
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
-
-from simpleeval import EvalWithCompoundTypes
 
 import varderiv.data as vdata
 import varderiv.equations.eq1 as eq1
@@ -232,49 +232,56 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
   del experiment_params
   K = data["K"]
   solver_max_steps = solver["solver_max_steps"]
-  solver_eps = solver["solver_eps"]
+  solver_score_norm_eps = solver["solver_score_norm_eps"]
+  solver_loglik_eps = solver["solver_loglik_eps"]
   num_single_args = 3
 
-  is_two_pts = eq not in ("eq1", "eq3")
-  is_groupped = eq != "eq1"
+  eq_mod = importlib.import_module("varderiv.equations.{}".format(eq))
 
-  eq_module = importlib.import_module("varderiv.equations.{}".format(eq))
-  batch_log_likelihood_fn = getattr(eq_module,
-                                    "batch_{}_log_likelihood".format(eq))
-  log_likelihood_fn = getattr(eq_module, "{}_log_likelihood".format(eq))
-
-  if not is_two_pts:
-    solve_fn = solve_single(log_likelihood_fn,
-                            max_num_steps=solver_max_steps,
-                            eps=solver_eps)
+  if eq in ("eq1", "eq3"):
+    log_likelihood_or_score_fn = getattr(eq_mod, "{}_log_likelihood".format(eq))
+    use_likelihood = True
+    solve_fn = functools.partial(solve_single,
+                                 log_likelihood_or_score_fn,
+                                 use_likelihood=use_likelihood)
   else:
-    single_log_likelihood_fn = eq1.eq1_log_likelihood
-    solve_fn = solve_distributed(single_log_likelihood_fn,
-                                 log_likelihood_fn,
+    solve_fn = functools.partial(solve_distributed,
+                                 eq1.eq1_log_likelihood,
                                  num_single_args=num_single_args,
                                  K=K,
                                  pt2_use_average_guess=pt2_use_average_guess,
-                                 max_num_steps=solver_max_steps,
-                                 eps=solver_eps)
+                                 single_use_likelihood=True)
+    if eq in ("eq2", "eq4"):
+      log_likelihood_or_score_fn = getattr(eq_mod, "{}_score".format(eq))
+      use_likelihood = False
+    else:
+      assert False
+    solve_fn = functools.partial(solve_fn,
+                                 log_likelihood_or_score_fn,
+                                 distributed_use_likelihood=use_likelihood)
+
+  solve_fn = solve_fn(max_num_steps=solver_max_steps,
+                      loglik_eps=solver_loglik_eps,
+                      score_norm_eps=solver_score_norm_eps)
 
   cov_fns = {}
   cov_fns["cov_H"] = cov_H()
-  cov_fns["cov_robust"] = cov_robust(batch_log_likelihood_fn,
+  cov_fns["cov_robust"] = cov_robust(log_likelihood_or_score_fn,
+                                     use_likelihood=use_likelihood,
                                      num_single_args=num_single_args)
 
-  if is_two_pts:
+  if eq in ("eq2", "eq4"):
     batch_single_log_likelihood_fn = eq1.batch_eq1_log_likelihood
-    cov_fns["cov_group_correction"] = cov_group_correction(
-        batch_single_log_likelihood_fn=batch_single_log_likelihood_fn,
-        batch_distributed_log_likelihood_fn=batch_log_likelihood_fn,
-        distributed_log_likelihood_fn=log_likelihood_fn,
-        num_single_args=num_single_args,
-        robust=False)
-    cov_fns["cov_group_correction_robust"] = cov_group_correction(
-        batch_single_log_likelihood_fn=batch_single_log_likelihood_fn,
-        batch_distributed_log_likelihood_fn=batch_log_likelihood_fn,
-        distributed_log_likelihood_fn=log_likelihood_fn,
-        num_single_args=num_single_args,
+    cov_group_correction_fn = functools.partial(
+        cov_group_correction,
+        batch_single_log_likelihood_fn,
+        getattr(eq_mod, "batch_{}_score".format(eq)),
+        jacrev(getattr(eq_mod, "{}_score".format(eq)), -1),
+        batch_single_use_likelihood=True,
+        batch_distributed_use_likelihood=False,
+        num_single_args=num_single_args)
+    cov_fns["cov_group_correction"] = cov_group_correction_fn(robust=False)
+    cov_fns["cov_group_correction_robust"] = cov_group_correction_fn(
         robust=True)
 
   group_sizes, gen = init_data_gen_fn()  # pylint: disable=no-value-for-parameter
@@ -282,38 +289,30 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
 
   def solve_and_cov(data_generation_key):
     X, delta, beta, group_labels = gen(data_generation_key)
-    if is_groupped:
+    initial_beta_hat = beta
+    if eq != "eq1":
       X_groups, delta_groups = vdata.group_data_by_labels(group_labels,
                                                           X,
                                                           delta,
                                                           K=K,
                                                           group_size=group_size)
 
-      initial_beta_hat = beta
       initial_beta_k_hat = np.broadcast_to(beta, (K,) + beta.shape)
 
-    if is_groupped:
-      if not is_two_pts:
-        model_args = (X_groups, delta_groups, initial_beta_hat)
-      else:
-        model_args = (X, delta, initial_beta_hat, group_labels, X_groups,
-                      delta_groups, initial_beta_k_hat)
-    else:
-      model_args = (X, delta, initial_beta_hat)
-
-    sol = solve_fn(*model_args)
-
-    if is_groupped:
-      if not is_two_pts:
-        pt1_sol, pt2_sol = None, sol
-        model_args = (X_groups, delta_groups, sol.guess)
-      else:
-        pt1_sol, pt2_sol = sol
-        model_args = (X, delta, pt2_sol.guess, group_labels, X_groups,
-                      delta_groups, pt1_sol.guess)
-    else:
-      pt1_sol, pt2_sol = None, sol
+    if eq == "eq1":
+      pt1_sol = None
+      pt2_sol = sol = solve_fn(X, delta, initial_beta_hat)
       model_args = (X, delta, sol.guess)
+    elif eq in ("eq3", "meta_analysis"):
+      pt1_sol = None
+      pt2_sol = sol = solve_fn(X_groups, delta_groups, initial_beta_hat)
+      model_args = (X_groups, delta_groups, sol.guess)
+    elif eq in ("eq2", "eq4"):
+      pt1_sol, pt2_sol = sol = solve_fn(X, delta, initial_beta_hat,
+                                        group_labels, X_groups, delta_groups,
+                                        initial_beta_k_hat)
+      model_args = (X, delta, pt2_sol.guess, group_labels, X_groups,
+                    delta_groups, pt1_sol.guess)
 
     cov_results = {}
     for cov_name, cov_fn in cov_fns.items():
@@ -357,7 +356,9 @@ def config():
       T_star_factors=None,
       exp_scale=3.5,
   )
-  solver = dict(solver_max_steps=80, solver_eps=1e-5)
+  solver = dict(solver_max_steps=80,
+                solver_loglik_eps=1e-5,
+                solver_score_norm_eps=1e-3)
 
   seed = 0
   key = jrandom.PRNGKey(seed)
@@ -392,7 +393,7 @@ def cov_experiment_main(data_generation_key, experiment_rand_key,
 ex.captured_out_filter = apply_backspaces_and_linefeeds
 
 if __name__ == '__main__':
-  ex.run_commandline()
+  result = ex.run_commandline()
 
   # import cProfile, pstats, io
   # from pstats import SortKey

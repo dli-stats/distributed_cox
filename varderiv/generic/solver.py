@@ -1,12 +1,13 @@
 """Newton solver."""
 
 import collections
+import functools
 
 import jax.lax
 import jax.numpy as np
 import jax.scipy as scipy
 
-from varderiv.generic.hess import value_jac_and_hessian
+from varderiv.generic.hess import value_jac_and_hessian, value_and_jacfwd
 
 NewtonSolverResult = collections.namedtuple(
     "NewtonSolverResult", "guess loglik score hessian step converged")
@@ -19,56 +20,88 @@ def do_halving(args):
   return state._replace(new_guess=new_guess_, halving=halving_)
 
 
-def do_normal_update(args):
-  state, (new_loglik, new_score, _, cho_factor, _) = args
+def do_normal_update(use_likelihood, args):
+  if use_likelihood:
+    state, (new_loglik, new_score, _, cho_factor, _) = args
+    state = state._replace(loglik=new_loglik)
+  else:
+    state, (new_score, _, cho_factor, _) = args
+
   u = scipy.linalg.cho_solve((cho_factor, False), new_score)
   new_guess_ = state.new_guess + u
-  return state._replace(guess=state.new_guess,
-                        new_guess=new_guess_,
-                        loglik=new_loglik,
-                        halving=0)
+  return state._replace(guess=state.new_guess, new_guess=new_guess_, halving=0)
 
 
-def do_converged(args):
-  state, (new_loglik, new_score, new_hessian, _, _) = args
-  return state._replace(loglik=new_loglik,
-                        score=new_score,
-                        hessian=new_hessian,
-                        converged=True)
+def do_converged(use_likelihood, args):
+  if use_likelihood:
+    state, (new_loglik, new_score, new_hessian, _, _) = args
+    state = state._replace(loglik=new_loglik)
+  else:
+    state, (new_score, new_hessian, _, _) = args
+  return state._replace(score=new_score, hessian=new_hessian, converged=True)
 
 
-def do_work(args):
+def do_work(use_likelihood, args):
   is_finite = args[1][-1]
-  state = jax.lax.cond(is_finite, do_normal_update, do_halving, operand=args)
+  state = jax.lax.cond(is_finite,
+                       functools.partial(do_normal_update, use_likelihood),
+                       do_halving,
+                       operand=args)
   return state._replace(step=state.step + 1)
 
 
-def solve_newton(likelihood_fn, initial_guess, eps=1e-6,
+def solve_newton(likelihood_or_score_fn,
+                 initial_guess,
+                 use_likelihood=True,
+                 loglik_eps=1e-6,
+                 score_norm_eps=1e-3,
                  max_num_steps=10) -> NewtonSolverResult:
   """HOF for newton's method solver."""
-  value_jac_and_hessian_fn = value_jac_and_hessian(likelihood_fn)
+
+  if use_likelihood:
+    value_jac_and_hessian_fn = value_jac_and_hessian(likelihood_or_score_fn)
+    InternalState = collections.namedtuple(
+        "InternalState",
+        "guess new_guess loglik score hessian step halving converged")
+  else:
+    jac_and_hessian_fn = value_and_jacfwd(likelihood_or_score_fn)
+    InternalState = collections.namedtuple(
+        "InternalState", "guess new_guess score hessian step halving converged")
 
   X_DIM = initial_guess.shape[0]
 
-  InternalState = collections.namedtuple(
-      "InternalState",
-      "guess new_guess loglik score hessian step halving converged")
-
   def newton_update(state: InternalState):
-    _, new_guess, loglik, _, _, _, _, _ = state
-    new_loglik, new_score, new_hessian = value_jac_and_hessian_fn(new_guess)
+    new_guess = state.new_guess
+    if use_likelihood:
+      loglik = state.loglik
+      new_loglik, new_score, new_hessian = value_jac_and_hessian_fn(new_guess)
+    else:
+      new_score, new_hessian = jac_and_hessian_fn(new_guess)
     cho_factor = scipy.linalg.cholesky(-new_hessian, lower=False)
 
-    is_finite = np.logical_and(
-        np.all(np.isfinite(new_loglik)),
-        np.logical_and(np.all(np.isfinite(new_score)),
-                       np.all(np.isfinite(cho_factor))))
-    converged = np.logical_and(is_finite,
-                               np.allclose(new_loglik, loglik, rtol=eps))
+    is_finite = np.logical_and(np.all(np.isfinite(new_score)),
+                               np.all(np.isfinite(cho_factor)))
+    if use_likelihood:
+      is_finite = np.logical_and(np.all(np.isfinite(new_loglik)), is_finite)
+      converged = np.logical_and(
+          is_finite, np.allclose(new_loglik, loglik, rtol=loglik_eps))
+    else:
+      converged = np.logical_and(
+          is_finite,
+          np.linalg.norm(new_score, ord=np.inf) < score_norm_eps)
 
     state = state._replace(converged=converged)
-    args = (state, (new_loglik, new_score, new_hessian, cho_factor, is_finite))
-    return jax.lax.cond(converged, do_converged, do_work, operand=args)
+
+    if use_likelihood:
+      args = (state, (new_loglik, new_score, new_hessian, cho_factor,
+                      is_finite))
+    else:
+      args = (state, (new_score, new_hessian, cho_factor, is_finite))
+
+    return jax.lax.cond(converged,
+                        functools.partial(do_converged, use_likelihood),
+                        functools.partial(do_work, use_likelihood),
+                        operand=args)
 
   def loop_cond(state):
     return np.logical_or(
@@ -76,23 +109,34 @@ def solve_newton(likelihood_fn, initial_guess, eps=1e-6,
         np.logical_and(state.step < max_num_steps,
                        np.logical_not(state.converged)))
 
-  initial_state = InternalState(initial_guess, initial_guess, np.inf,
-                                np.zeros_like(initial_guess),
-                                np.zeros((X_DIM, X_DIM)), 0, 0, False)
+  if use_likelihood:
+    initial_state = InternalState(initial_guess, initial_guess, np.inf,
+                                  np.zeros_like(initial_guess),
+                                  np.zeros((X_DIM, X_DIM)), 0, 0, False)
+  else:
+    initial_state = InternalState(initial_guess, initial_guess,
+                                  np.zeros_like(initial_guess),
+                                  np.zeros((X_DIM, X_DIM)), 0, 0, False)
 
   state = jax.lax.while_loop(loop_cond, newton_update, initial_state)
 
   def do_recover_last(_):
-    loglik, score, hessian = value_jac_and_hessian_fn(state.guess)
-    return state._replace(loglik=loglik, score=score, hessian=hessian)
+    if use_likelihood:
+      loglik, score, hessian = value_jac_and_hessian_fn(state.guess)
+      return state._replace(loglik=loglik, score=score, hessian=hessian)
+    else:
+      score, hessian = jac_and_hessian_fn(state.guess)
+      return state._replace(score=score, hessian=hessian)
 
   state = jax.lax.cond(state.converged,
                        lambda _: state,
                        do_recover_last,
                        operand=None)
 
-  return NewtonSolverResult(state.guess, state.loglik, state.score,
-                            state.hessian, state.step, state.converged)
+  return NewtonSolverResult(state.guess,
+                            state.loglik if use_likelihood else None,
+                            state.score, state.hessian, state.step,
+                            state.converged)
 
 
 if __name__ == "__main__":

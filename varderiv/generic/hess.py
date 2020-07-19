@@ -20,7 +20,7 @@ from jax.interpreters import ad
 # pylint: disable=no-else-return, missing-function-docstring
 
 
-def jac_and_value_rev(fun, argnums=0, holomorphic=False):
+def jacrev_and_value(fun, argnums=0, holomorphic=False):
   _check_callable(fun)
 
   def jacfun(*args, **kwargs):
@@ -114,7 +114,7 @@ def value_and_jacfwd(fun: Callable,
 def value_jac_and_hessian(fun, argnums=0, holomorphic=False):
 
   def wrapped(*args, **kwargs):
-    jac, hessian, value = value_and_jacfwd(jac_and_value_rev(
+    jac, hessian, value = value_and_jacfwd(jacrev_and_value(
         fun, argnums=argnums, holomorphic=holomorphic),
                                            argnums=argnums,
                                            holomorphic=holomorphic,
