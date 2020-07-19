@@ -203,7 +203,7 @@ def group_sizes_generator(N, K, group_labels_generator_kind="random", **kwargs):
 
   if group_labels_generator_kind == "same":
     group_sizes = onp.repeat(N // K, K)
-    group_sizes[-N % K:] += 1
+    group_sizes[K - N % K:] += 1
 
   elif group_labels_generator_kind == "arithmetic_sequence":
     start_val = kwargs["start_val"]
