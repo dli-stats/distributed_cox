@@ -1,7 +1,5 @@
 """Equation 3."""
 
-import functools
-
 import jax.numpy as np
 from jax import vmap
 
