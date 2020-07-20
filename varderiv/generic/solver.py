@@ -38,7 +38,10 @@ def do_converged(use_likelihood, args):
     state = state._replace(loglik=new_loglik)
   else:
     state, (new_score, new_hessian, _, _) = args
-  return state._replace(score=new_score, hessian=new_hessian, converged=True)
+  return state._replace(guess=state.new_guess,
+                        score=new_score,
+                        hessian=new_hessian,
+                        converged=True)
 
 
 def do_work(use_likelihood, args):
@@ -120,7 +123,7 @@ def solve_newton(likelihood_or_score_fn,
 
   state = jax.lax.while_loop(loop_cond, newton_update, initial_state)
 
-  def do_recover_last(_):
+  def do_recover_last(state):
     if use_likelihood:
       loglik, score, hessian = value_jac_and_hessian_fn(state.guess)
       return state._replace(loglik=loglik, score=score, hessian=hessian)
@@ -129,10 +132,9 @@ def solve_newton(likelihood_or_score_fn,
       return state._replace(score=score, hessian=hessian)
 
   state = jax.lax.cond(state.converged,
-                       lambda _: state,
+                       lambda state: state,
                        do_recover_last,
-                       operand=None)
-
+                       operand=state)
   return NewtonSolverResult(state.guess,
                             state.loglik if use_likelihood else None,
                             state.score, state.hessian, state.step,

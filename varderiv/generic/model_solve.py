@@ -67,6 +67,7 @@ def solve_distributed(single_log_likelihood_or_score_fn,
   assert num_single_args >= 0
 
   def solve_fun(*args):
+
     # only support one single parameter argument for now
     singe_static_args = args[:num_single_args]
     group_labels = args[num_single_args]

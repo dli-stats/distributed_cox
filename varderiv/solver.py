@@ -18,7 +18,6 @@ def solve_newton(fn,
                  jac_mode='forward',
                  max_num_steps=10):
   """HOF for newton's method solver."""
-  breakpoint()
   if jac_mode == 'forward':
     jac_fn = jacfwd(fn, 0)
   else:

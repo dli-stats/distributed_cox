@@ -90,6 +90,8 @@ def data_generator(N,
 
   The function is cached so that we avoid potential repeating jits'.
   """
+  assert (sorted(group_sizes) == list(group_sizes)
+         ), "Group sizes must be increasing"
 
   ret_signature = "(N,p),(N),(p),(N)"
   if return_T:
