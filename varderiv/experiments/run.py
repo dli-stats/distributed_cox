@@ -1,6 +1,6 @@
 """Basic Common configs for experiments."""
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import collections
 import functools
@@ -26,9 +26,7 @@ from sacred.utils import apply_backspaces_and_linefeeds
 import varderiv.data as vdata
 import varderiv.equations.eq1 as eq1
 
-from varderiv.generic.model_solve import (solve_single, solve_distributed,
-                                          cov_H, cov_robust,
-                                          cov_group_correction)
+import varderiv.generic.modeling as modeling
 from varderiv.generic.solver import NewtonSolverResult
 
 import varderiv.experiments.utils as utils
@@ -84,7 +82,7 @@ class ExperimentResult:
   """For holding experiment results."""
   data_generation_key: onp.ndarray
   pt1: Optional[NewtonSolverResult]
-  pt2: NewtonSolverResult
+  pt2: Union[NewtonSolverResult, modeling.MetaAnalysisResult]
   covs: Dict[str, onp.ndarray]
 
   def tree_flatten(self):
@@ -109,6 +107,10 @@ class ExperimentResult:
   @property
   def sol(self):
     return self.pt2
+
+  @property
+  def guess(self):
+    return self.sol.guess
 
 
 def compute_results_averaged(result: ExperimentResult):
@@ -228,84 +230,89 @@ def freezeargs(func):
 @ex.capture
 @freezeargs
 @functools.lru_cache(maxsize=None)
-def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
+def cov_experiment_init(eq, data, pt2_use_average_guess, solver, meta_analysis,
                         **experiment_params):
   del experiment_params
   K = data["K"]
-  solver_max_steps = solver["solver_max_steps"]
-  solver_score_norm_eps = solver["solver_score_norm_eps"]
-  solver_loglik_eps = solver["solver_loglik_eps"]
   num_single_args = 3
 
-  eq_mod = importlib.import_module("varderiv.equations.{}".format(eq))
-
-  if eq in ("eq1", "eq3"):
-    batch_log_likelihood_or_score_fn = getattr(
-        eq_mod, "batch_{}_log_likelihood".format(eq))
-    log_likelihood_or_score_fn = getattr(eq_mod, "{}_log_likelihood".format(eq))
-    use_likelihood = True
-    solve_fn = functools.partial(solve_single,
-                                 log_likelihood_or_score_fn,
-                                 use_likelihood=use_likelihood)
-  elif eq in ("eq2", "eq4"):
-    solve_fn = functools.partial(solve_distributed,
+  if eq == "meta_analysis":
+    solve_fn = functools.partial(modeling.solve_meta_analysis,
                                  eq1.eq1_log_likelihood,
-                                 num_single_args=num_single_args,
-                                 K=K,
-                                 pt2_use_average_guess=pt2_use_average_guess,
-                                 single_use_likelihood=True)
-    batch_log_likelihood_or_score_fn = getattr(eq_mod,
-                                               "batch_{}_score".format(eq))
-    log_likelihood_or_score_fn = getattr(eq_mod, "{}_score".format(eq))
-    use_likelihood = False
-    solve_fn = functools.partial(solve_fn,
-                                 log_likelihood_or_score_fn,
-                                 distributed_use_likelihood=use_likelihood)
+                                 use_likelihood=True,
+                                 **meta_analysis)
+  else:
+    eq_mod = importlib.import_module("varderiv.equations.{}".format(eq))
+    if eq in ("eq1", "eq3"):
+      batch_log_likelihood_or_score_fn = getattr(
+          eq_mod, "batch_{}_log_likelihood".format(eq))
+      log_likelihood_or_score_fn = getattr(eq_mod,
+                                           "{}_log_likelihood".format(eq))
+      use_likelihood = True
+      solve_fn = functools.partial(modeling.solve_single,
+                                   log_likelihood_or_score_fn,
+                                   use_likelihood=use_likelihood)
+    elif eq in ("eq2", "eq4"):
+      solve_fn = functools.partial(modeling.solve_distributed,
+                                   eq1.eq1_log_likelihood,
+                                   num_single_args=num_single_args,
+                                   K=K,
+                                   pt2_use_average_guess=pt2_use_average_guess,
+                                   single_use_likelihood=True)
+      batch_log_likelihood_or_score_fn = getattr(eq_mod,
+                                                 "batch_{}_score".format(eq))
+      log_likelihood_or_score_fn = getattr(eq_mod, "{}_score".format(eq))
+      use_likelihood = False
+      solve_fn = functools.partial(solve_fn,
+                                   log_likelihood_or_score_fn,
+                                   distributed_use_likelihood=use_likelihood)
 
-  solve_fn = solve_fn(max_num_steps=solver_max_steps,
-                      loglik_eps=solver_loglik_eps,
-                      score_norm_eps=solver_score_norm_eps)
+  solve_fn = solve_fn(**solver)
 
   cov_fns = {}
 
-  for group_correction, sandwich_robust, cox_correction in itertools.product(
-      *[(True, False)] * 3):
-    # Some non-sensical situations
-    if not sandwich_robust and cox_correction:
-      continue
-    if group_correction and eq in ("eq1", "eq3"):
-      continue
+  if eq == "meta_analysis":
+    cov_fns["cov:meta_analysis"] = modeling.cov_meta_analysis(**meta_analysis)
+  else:
+    for group_correction, sandwich_robust, cox_correction in itertools.product(
+        *[(True, False)] * 3):
+      # Some non-sensical situations
+      if not sandwich_robust and cox_correction:
+        continue
+      if group_correction and eq in ("eq1", "eq3"):
+        continue
 
-    batch_robust_cox_correction_score = getattr(
-        eq_mod, "batch_{}_robust_cox_correction_score".format(eq))
-    if group_correction:
-      batch_score = getattr(eq_mod, "batch_{}_score".format(eq))
-      cov_fn = cov_group_correction(
-          (eq1.batch_eq1_robust_cox_correction_score \
-          if cox_correction else eq1.batch_eq1_log_likelihood),
-          (batch_robust_cox_correction_score \
-          if cox_correction else batch_score),
-          distributed_cross_hessian_fn=jacrev(
-              getattr(eq_mod, "{}_score".format(eq)), -1),
-          batch_single_use_likelihood=not cox_correction,
-          batch_distributed_use_likelihood=False,
-          num_single_args=num_single_args,
-          robust=sandwich_robust)
-    elif sandwich_robust:
-      cov_batch_log_likelihood_or_score_fn = (batch_robust_cox_correction_score
-                                              if cox_correction else
-                                              batch_log_likelihood_or_score_fn)
-      cov_fn = cov_robust(
-          batch_log_likelihood_or_score_fn=cov_batch_log_likelihood_or_score_fn,
-          use_likelihood=use_likelihood and not cox_correction,
-          num_single_args=num_single_args)
-    else:
-      cov_fn = cov_H()
-    cov_name = "cov:{}group_correction|{}sandwich|{}cox_correction".format(*[
-        "" if v else "no_"
-        for v in (group_correction, sandwich_robust, cox_correction)
-    ])
-    cov_fns[cov_name] = cov_fn
+      batch_robust_cox_correction_score = getattr(
+          eq_mod, "batch_{}_robust_cox_correction_score".format(eq))
+      if group_correction:
+        batch_score = getattr(eq_mod, "batch_{}_score".format(eq))
+        cov_fn = modeling.cov_group_correction(
+            (eq1.batch_eq1_robust_cox_correction_score \
+            if cox_correction else eq1.batch_eq1_log_likelihood),
+            (batch_robust_cox_correction_score \
+            if cox_correction else batch_score),
+            distributed_cross_hessian_fn=jacrev(
+                getattr(eq_mod, "{}_score".format(eq)), -1),
+            batch_single_use_likelihood=not cox_correction,
+            batch_distributed_use_likelihood=False,
+            num_single_args=num_single_args,
+            robust=sandwich_robust)
+      elif sandwich_robust:
+        cov_batch_log_likelihood_or_score_fn = (
+            batch_robust_cox_correction_score
+            if cox_correction else batch_log_likelihood_or_score_fn)
+        cov_fn = modeling.cov_robust(batch_log_likelihood_or_score_fn=
+                                     cov_batch_log_likelihood_or_score_fn,
+                                     use_likelihood=use_likelihood and
+                                     not cox_correction,
+                                     num_single_args=num_single_args)
+      else:
+        cov_fn = modeling.cov_H()
+      cov_name = "cov:{}group_correction|{}sandwich|{}cox_correction".format(*[
+          "" if v else "no_"
+          for v in (group_correction, sandwich_robust, cox_correction)
+      ])
+      cov_fns[cov_name] = cov_fn
 
   group_sizes, gen = init_data_gen_fn()  # pylint: disable=no-value-for-parameter
   group_size = max(group_sizes)
@@ -326,7 +333,7 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
       pt1_sol = None
       pt2_sol = sol = solve_fn(X, delta, initial_beta_hat)
       model_args = (X, delta, sol.guess)
-    elif eq in ("eq3", "meta_analysis"):
+    elif eq in ("eq3"):
       pt1_sol = None
       pt2_sol = sol = solve_fn(X_groups, delta_groups, initial_beta_hat)
       model_args = (X_groups, delta_groups, sol.guess)
@@ -336,6 +343,10 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
                                         initial_beta_k_hat)
       model_args = (X, delta, pt2_sol.guess, group_labels, X_groups,
                     delta_groups, pt1_sol.guess)
+    elif eq == "meta_analysis":
+      sol = solve_fn(X_groups, delta_groups, initial_beta_k_hat)
+      pt1_sol, pt2_sol = sol.pt1, sol.pt2
+      model_args = tuple()
 
     cov_results = {}
     for cov_name, cov_fn in cov_fns.items():
@@ -379,9 +390,7 @@ def config():
       T_star_factors=None,
       exp_scale=3.5,
   )
-  solver = dict(solver_max_steps=80,
-                solver_loglik_eps=1e-5,
-                solver_score_norm_eps=1e-3)
+  solver = dict(max_num_steps=40, loglik_eps=1e-5, score_norm_eps=1e-3)
 
   seed = 0
   key = jrandom.PRNGKey(seed)
@@ -394,7 +403,7 @@ def config():
   pt2_use_average_guess = False
 
   # meta_analysis
-  univariate = False
+  meta_analysis = dict(univariate=False, use_only_dims=None)
 
 
 @ex.main

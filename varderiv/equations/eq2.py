@@ -5,7 +5,7 @@ import functools
 import jax.numpy as np
 
 import varderiv.data as data
-from varderiv.generic.model_solve import sum_score
+from varderiv.generic.modeling import sum_score
 
 # pylint: disable=redefined-outer-name
 

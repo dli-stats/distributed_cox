@@ -93,17 +93,21 @@ def run_cov_experiment(init_fn,
   time.sleep(1)
 
   result = None
-  num_failed = 0
+  num_total, num_failed = 0, 0
+  i = 0
   for i, (_, batch_sols) in enumerate(
       parallel_map(experiment_fn_wrapper, data_iterator)):
     oks = check_ok_fn(batch_sols)
-    num_failed += len(oks) - onp.sum(oks)
+    num_total += batch_size
+    num_failed += batch_size - onp.sum(oks)
     pbar.set_description("{} (failed {})".format(desc, num_failed))
     if result is None:
       result = tu.tree_map(onp.array, batch_sols)
     else:
       result = tu.tree_multimap(lambda x, y: onp.concatenate([x, y]), result,
                                 batch_sols)
+    if num_total > num_experiments:
+      result = tu.tree_map(lambda x: x[:num_experiments], result)
     if i > 0 and i % save_interval == 0:
       save(result)
     pbar.update(batch_size)

@@ -5,7 +5,7 @@ import functools
 from jax import jacrev
 import jax.numpy as np
 
-from varderiv.generic.model_solve import sum_log_likelihood
+from varderiv.generic.modeling import sum_log_likelihood
 
 #########################################################
 # BEGIN eq1

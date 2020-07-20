@@ -16,7 +16,7 @@ from sacred.utils import apply_backspaces_and_linefeeds
 from varderiv.equations.eq1 import (eq1_log_likelihood, eq1_cov_ad,
                                     eq1_cov_manual, eq1_cov_robust_ad,
                                     eq1_cov_robust2_ad, eq1_cov_robust3_ad)
-from varderiv.generic.model_solve import solve_single
+from varderiv.generic.modeling import solve_single
 
 from varderiv.experiments.utils import run_cov_experiment
 
@@ -32,9 +32,9 @@ def cov_experiment_eq1_init(params):
 
   params["solve_eq1_fn"] = jit(
       vmap(
-          solve_single(eq1_log_likelihood,
-                       max_num_steps=solver_max_steps,
-                       eps=solver_eps)))
+          modeling.solve_single(eq1_log_likelihood,
+                                max_num_steps=solver_max_steps,
+                                eps=solver_eps)))
 
   del params["solve_eq1_use_ad"]
 

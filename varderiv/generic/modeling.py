@@ -5,6 +5,7 @@ from typing import Sequence, Union, Callable, Optional
 import collections
 import functools
 
+import jax
 from jax import jacrev, vmap, hessian
 import jax.numpy as np
 import jax.scipy as scipy
@@ -13,6 +14,9 @@ from varderiv.generic.solver import solve_newton, NewtonSolverResult
 
 DistributedModelSolverResult = collections.namedtuple(
     "DistributedModelSolverResult", "pt1 pt2")
+
+MetaAnalysisResult = collections.namedtuple("MetaAnalysisResult",
+                                            "guess converged")
 
 
 def sum_fn(fun, ndims=0):
@@ -35,7 +39,7 @@ sum_score = functools.partial(sum_fn, ndims=1)
 
 def solve_single(single_log_likelihood_or_score_fn,
                  use_likelihood=True,
-                 **kwargs):
+                 **kwargs) -> NewtonSolverResult:
   """Solves for single site."""
 
   def solve_fun(*args):
@@ -54,6 +58,13 @@ def solve_single(single_log_likelihood_or_score_fn,
   return solve_fun
 
 
+def _split_args(args, num_single_args):
+  singe_static_args = args[:num_single_args]
+  group_labels = args[num_single_args]
+  distributed_args = args[num_single_args + 1:]
+  return singe_static_args, group_labels, distributed_args
+
+
 def solve_distributed(single_log_likelihood_or_score_fn,
                       distributed_log_likelihood_or_score_fn,
                       single_use_likelihood=True,
@@ -61,23 +72,21 @@ def solve_distributed(single_log_likelihood_or_score_fn,
                       num_single_args: int = 1,
                       pt2_use_average_guess: bool = False,
                       K=1,
-                      **kwargs):
+                      **kwargs) -> DistributedModelSolverResult:
   """Solves for distributed site."""
 
   assert num_single_args >= 0
 
   def solve_fun(*args):
-
-    # only support one single parameter argument for now
-    singe_static_args = args[:num_single_args]
-    group_labels = args[num_single_args]
-    distributed_args = args[num_single_args + 1:]
+    singe_static_args, group_labels, distributed_args = _split_args(
+        args, num_single_args)
     pt1_sol = vmap(
         solve_single(single_log_likelihood_or_score_fn,
                      use_likelihood=single_use_likelihood,
                      **kwargs))(*distributed_args)
 
     pt1_guesses = pt1_sol.guess
+    pt1_converged = np.all(pt1_sol.converged, axis=1)
 
     def pt2_loglik_or_score(initial_guess):
       return distributed_log_likelihood_or_score_fn(*singe_static_args[:-1],
@@ -94,10 +103,72 @@ def solve_distributed(single_log_likelihood_or_score_fn,
                            pt2_initial_guess,
                            use_likelihood=distributed_use_likelihood,
                            **kwargs)
-
+    pt2_sol = pt2_sol._replace(converged=pt1_converged & pt2_sol.converged)
     return DistributedModelSolverResult(pt1=pt1_sol, pt2=pt2_sol)
 
   return solve_fun
+
+
+def solve_meta_analysis(single_log_likelihood_or_score_fn,
+                        use_likelihood: bool = True,
+                        use_only_dims: Optional[Sequence] = None,
+                        univariate: bool = False,
+                        **kwargs) -> DistributedModelSolverResult:
+
+  def solve_fun(*args):
+    sol = vmap(
+        solve_single(single_log_likelihood_or_score_fn,
+                     use_likelihood=use_likelihood,
+                     **kwargs))(*args)
+    converged = np.all(sol.converged, axis=0)
+    I_diag_wo_last = -sol.hessian
+
+    if use_only_dims is not None:
+      I_diag_wo_last = np.take(np.take(I_diag_wo_last, use_only_dims, axis=1),
+                               use_only_dims,
+                               axis=2)
+      pt1_guesses = np.take(sol.guess, use_only_dims, axis=-1)
+    else:
+      pt1_guesses = sol.guess
+
+    if univariate:
+      wk = 1. / np.diagonal(np.linalg.inv(I_diag_wo_last), axis1=-2, axis2=-1)
+      guess = np.einsum("kp,kp->p", wk, pt1_guesses,
+                        optimize="optimal") / np.sum(wk, axis=0)
+    else:
+      guess = np.linalg.solve(
+          np.sum(I_diag_wo_last, axis=0),
+          np.einsum("Kab,Kb->a",
+                    I_diag_wo_last,
+                    pt1_guesses,
+                    optimize='optimal'))
+    return DistributedModelSolverResult(pt1=sol,
+                                        pt2=MetaAnalysisResult(
+                                            guess=guess, converged=converged))
+
+  return solve_fun
+
+
+def cov_meta_analysis(use_only_dims: Optional[Sequence] = None,
+                      univariate=False):
+
+  def wrapped(sol: DistributedModelSolverResult):
+    I_diag_wo_last = -sol.pt1.hessian
+    if use_only_dims is not None:
+      I_diag_wo_last = np.take(np.take(I_diag_wo_last, use_only_dims, axis=1),
+                               use_only_dims,
+                               axis=2)
+    if univariate:
+      wk = 1. / np.diagonal(np.linalg.inv(I_diag_wo_last), axis1=-2, axis2=-1)
+      X_DIM = sol.pt2.guess.shape[0]
+      cov = np.zeros((X_DIM, X_DIM), dtype=sol.pt2.guess.dtype)
+      cov = jax.ops.index_update(cov, np.diag_indices(X_DIM),
+                                 1. / np.sum(wk, axis=0))
+    else:
+      cov = np.linalg.inv(np.sum(I_diag_wo_last, axis=0))
+    return cov
+
+  return wrapped
 
 
 def cov_H():

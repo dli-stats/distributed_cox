@@ -5,7 +5,7 @@ import functools
 import jax.numpy as np
 from jax import vmap
 
-from varderiv.generic.model_solve import sum_log_likelihood
+from varderiv.generic.modeling import sum_log_likelihood
 
 import varderiv.equations.eq1 as eq1
 
