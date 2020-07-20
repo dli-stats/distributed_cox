@@ -5,7 +5,7 @@ from typing import Sequence, Union, Callable, Optional
 import collections
 import functools
 
-from jax import jacrev, jacfwd, vmap, hessian
+from jax import jacrev, vmap, hessian
 import jax.numpy as np
 import jax.scipy as scipy
 
@@ -134,13 +134,14 @@ def cov_robust(batch_log_likelihood_or_score_fn,
   return wrapped
 
 
-def cov_group_correction(batch_single_log_likelihood_or_score_fn: Callable,
-                         batch_distributed_log_likelihood_or_score_fn: Callable,
-                         distributed_cross_hessian_fn: Optional[Callable],
-                         num_single_args: int = 1,
-                         batch_single_use_likelihood=True,
-                         batch_distributed_use_likelihood=True,
-                         robust=False):
+def cov_group_correction(
+    batch_single_log_likelihood_or_score_fn: Callable,
+    batch_distributed_log_likelihood_or_score_fn: Callable,
+    distributed_cross_hessian_fn: Optional[Callable] = None,
+    num_single_args: int = 1,
+    batch_single_use_likelihood=True,
+    batch_distributed_use_likelihood=True,
+    robust=False):
   """Computes covariance with grouped correction."""
 
   if batch_single_use_likelihood:
@@ -173,7 +174,7 @@ def cov_group_correction(batch_single_log_likelihood_or_score_fn: Callable,
 
     if robust:
       pt1_batch_scores = vmap(batch_single_score_fn)(*distributed_args)
-      pt2_batch_scores = batch_distributed_score_fn(*args)  # K x S x X_dim
+      pt2_batch_scores = batch_distributed_score_fn(*args)  # batch_dims x X_dim
 
       B_diag_wo_last = np.einsum("kbi,kbj->kij",
                                  pt1_batch_scores,

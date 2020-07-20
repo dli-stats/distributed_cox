@@ -2,14 +2,11 @@
 
 import functools
 
-import jax.numpy as np
-# from jax import jacfwd
 from jax import jacrev
-from jax import hessian
-# from jax import random as jrandom
+import jax.numpy as np
 
-from varderiv.solver import solve_newton
 from varderiv.generic.model_solve import sum_log_likelihood
+
 #########################################################
 # BEGIN eq1
 #########################################################
@@ -26,39 +23,25 @@ def batch_eq1_log_likelihood(X, delta, beta):
 eq1_log_likelihood = np.vectorize(sum_log_likelihood(batch_eq1_log_likelihood),
                                   signature='(N,p),(N),(p)->()')
 
-
-@functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")
-def eq1_cov_robust_ad(X, delta, beta):
-  H = eq1_compute_H_ad(X, delta, beta)
-  H1 = np.linalg.inv(H)
-  W = eq1_compute_W_manual(X, delta, beta) * delta.reshape((-1, 1))
-  J = np.einsum("bi,bj->ij", W, W, optimize='optimal')
-  return H1 @ J @ H1
+batch_eq1_score = np.vectorize(jacrev(batch_eq1_log_likelihood, -1),
+                               signature='(N,p),(N),(p)->(N,p)')
 
 
-@functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")
-def eq1_cov_robust2_ad(X, delta, beta):
-  H = eq1_compute_H_ad(X, delta, beta)
-  H1 = np.linalg.inv(H)
-  t = eq1_log_likelihood_grad_ad(X, delta, beta)
-  J = np.outer(t, t)
-  return H1 @ J @ H1
+def _right_cumsum(X, axis=0):
+  return np.cumsum(X[::-1], axis=axis)[::-1]
 
 
-@functools.partial(np.vectorize, signature="(N,p),(N),(p)->(p,p)")
-def eq1_cov_robust3_ad(X, delta, beta):
-  N = X.shape[0]
-  H = eq1_compute_H_ad(X, delta, beta)
-  H1 = np.linalg.inv(H)
-  W = eq1_compute_W_manual(X, delta, beta)
-
-  # Compute correction term
+@functools.partial(np.vectorize, signature='(N,p),(N),(p)->(N,p)')
+def batch_eq1_robust_cox_correction_score(X, delta, beta):
   bx = np.dot(X, beta)
-  ebx = np.exp(bx)
-  ebx_cs = np.cumsum(ebx, 0)
-  ebx_cs_1 = 1. / ebx_cs
-  frac_sum_term = np.cumsum(ebx_cs_1[::-1])[::-1].flatten()
-  W = (delta - frac_sum_term * ebx / N).reshape((N, 1)) * W
+  ebx = np.exp(bx).reshape((-1, 1))
+  xebx = X * ebx
+  ebx_cs = np.cumsum(ebx, axis=0)
+  xebx_cs = np.cumsum(xebx, axis=0)
 
-  J = np.einsum("bi,bj->ij", W, W, optimize='optimal')
-  return H1 @ J @ H1
+  ebx_cs_1 = (1. / ebx_cs) * delta.reshape((-1, 1))
+  term_1 = X * ebx * _right_cumsum(ebx_cs_1, axis=0)
+  term_2 = ebx * _right_cumsum(xebx_cs * (ebx_cs_1**2), axis=0)
+  score_correction_term = term_1 - term_2
+  score = batch_eq1_score(X, delta, beta)
+  return score - score_correction_term

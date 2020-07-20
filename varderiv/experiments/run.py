@@ -7,6 +7,7 @@ import functools
 import tempfile
 import dataclasses
 import importlib
+import itertools
 
 from frozendict import frozendict
 
@@ -246,20 +247,17 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
     solve_fn = functools.partial(solve_single,
                                  log_likelihood_or_score_fn,
                                  use_likelihood=use_likelihood)
-  else:
+  elif eq in ("eq2", "eq4"):
     solve_fn = functools.partial(solve_distributed,
                                  eq1.eq1_log_likelihood,
                                  num_single_args=num_single_args,
                                  K=K,
                                  pt2_use_average_guess=pt2_use_average_guess,
                                  single_use_likelihood=True)
-    if eq in ("eq2", "eq4"):
-      batch_log_likelihood_or_score_fn = getattr(eq_mod,
-                                                 "batch_{}_score".format(eq))
-      log_likelihood_or_score_fn = getattr(eq_mod, "{}_score".format(eq))
-      use_likelihood = False
-    else:
-      assert False
+    batch_log_likelihood_or_score_fn = getattr(eq_mod,
+                                               "batch_{}_score".format(eq))
+    log_likelihood_or_score_fn = getattr(eq_mod, "{}_score".format(eq))
+    use_likelihood = False
     solve_fn = functools.partial(solve_fn,
                                  log_likelihood_or_score_fn,
                                  distributed_use_likelihood=use_likelihood)
@@ -269,24 +267,45 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
                       score_norm_eps=solver_score_norm_eps)
 
   cov_fns = {}
-  cov_fns["cov_H"] = cov_H()
-  cov_fns["cov_robust"] = cov_robust(batch_log_likelihood_or_score_fn,
-                                     use_likelihood=use_likelihood,
-                                     num_single_args=num_single_args)
 
-  if eq in ("eq2", "eq4"):
-    batch_single_log_likelihood_fn = eq1.batch_eq1_log_likelihood
-    cov_group_correction_fn = functools.partial(
-        cov_group_correction,
-        batch_single_log_likelihood_fn,
-        getattr(eq_mod, "batch_{}_score".format(eq)),
-        jacrev(getattr(eq_mod, "{}_score".format(eq)), -1),
-        batch_single_use_likelihood=True,
-        batch_distributed_use_likelihood=False,
-        num_single_args=num_single_args)
-    cov_fns["cov_group_correction"] = cov_group_correction_fn(robust=False)
-    cov_fns["cov_group_correction_robust"] = cov_group_correction_fn(
-        robust=True)
+  for group_correction, sandwitch_robust, cox_correction in itertools.product(
+      *[(True, False)] * 3):
+    # Some non-sensical situations
+    if not sandwitch_robust and cox_correction:
+      continue
+    if group_correction and eq in ("eq1", "eq3"):
+      continue
+
+    batch_robust_cox_correction_score = getattr(
+        eq_mod, "batch_{}_robust_cox_correction_score".format(eq))
+    if group_correction:
+      batch_score = getattr(eq_mod, "batch_{}_score".format(eq))
+      cov_fn = cov_group_correction(
+          (eq1.batch_eq1_robust_cox_correction_score \
+          if cox_correction else eq1.batch_eq1_log_likelihood),
+          (batch_robust_cox_correction_score \
+          if cox_correction else batch_score),
+          distributed_cross_hessian_fn=jacrev(
+              getattr(eq_mod, "{}_score".format(eq)), -1),
+          batch_single_use_likelihood=not cox_correction,
+          batch_distributed_use_likelihood=False,
+          num_single_args=num_single_args,
+          robust=sandwitch_robust)
+    elif sandwitch_robust:
+      cov_batch_log_likelihood_or_score_fn = (batch_robust_cox_correction_score
+                                              if cox_correction else
+                                              batch_log_likelihood_or_score_fn)
+      cov_fn = cov_robust(
+          batch_log_likelihood_or_score_fn=cov_batch_log_likelihood_or_score_fn,
+          use_likelihood=use_likelihood and not cox_correction,
+          num_single_args=num_single_args)
+    else:
+      cov_fn = cov_H()
+    cov_name = "cov:{}group_correction|{}sandwitch|{}cox_correction".format(*[
+        "" if v else "no_"
+        for v in (group_correction, sandwitch_robust, cox_correction)
+    ])
+    cov_fns[cov_name] = cov_fn
 
   group_sizes, gen = init_data_gen_fn()  # pylint: disable=no-value-for-parameter
   group_size = max(group_sizes)
@@ -397,7 +416,7 @@ def cov_experiment_main(data_generation_key, experiment_rand_key,
 ex.captured_out_filter = apply_backspaces_and_linefeeds
 
 if __name__ == '__main__':
-  result = ex.run_commandline()
+  run = ex.run_commandline()
 
   # import cProfile, pstats, io
   # from pstats import SortKey
