@@ -268,10 +268,10 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
 
   cov_fns = {}
 
-  for group_correction, sandwitch_robust, cox_correction in itertools.product(
+  for group_correction, sandwich_robust, cox_correction in itertools.product(
       *[(True, False)] * 3):
     # Some non-sensical situations
-    if not sandwitch_robust and cox_correction:
+    if not sandwich_robust and cox_correction:
       continue
     if group_correction and eq in ("eq1", "eq3"):
       continue
@@ -290,8 +290,8 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
           batch_single_use_likelihood=not cox_correction,
           batch_distributed_use_likelihood=False,
           num_single_args=num_single_args,
-          robust=sandwitch_robust)
-    elif sandwitch_robust:
+          robust=sandwich_robust)
+    elif sandwich_robust:
       cov_batch_log_likelihood_or_score_fn = (batch_robust_cox_correction_score
                                               if cox_correction else
                                               batch_log_likelihood_or_score_fn)
@@ -301,9 +301,9 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver,
           num_single_args=num_single_args)
     else:
       cov_fn = cov_H()
-    cov_name = "cov:{}group_correction|{}sandwitch|{}cox_correction".format(*[
+    cov_name = "cov:{}group_correction|{}sandwich|{}cox_correction".format(*[
         "" if v else "no_"
-        for v in (group_correction, sandwitch_robust, cox_correction)
+        for v in (group_correction, sandwich_robust, cox_correction)
     ])
     cov_fns[cov_name] = cov_fn
 
