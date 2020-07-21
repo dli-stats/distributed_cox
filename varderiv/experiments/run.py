@@ -246,11 +246,10 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver, meta_analysis,
     if eq in ("eq1", "eq3"):
       batch_log_likelihood_or_score_fn = getattr(
           eq_mod, "batch_{}_log_likelihood".format(eq))
-      log_likelihood_or_score_fn = getattr(eq_mod,
-                                           "{}_log_likelihood".format(eq))
+      log_likelihood_fn = getattr(eq_mod, "{}_log_likelihood".format(eq))
       use_likelihood = True
       solve_fn = functools.partial(modeling.solve_single,
-                                   log_likelihood_or_score_fn,
+                                   log_likelihood_fn,
                                    use_likelihood=use_likelihood)
     elif eq in ("eq2", "eq4"):
       solve_fn = functools.partial(modeling.solve_distributed,
@@ -303,8 +302,8 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver, meta_analysis,
             if cox_correction else batch_log_likelihood_or_score_fn)
         cov_fn = modeling.cov_robust(batch_log_likelihood_or_score_fn=
                                      cov_batch_log_likelihood_or_score_fn,
-                                     use_likelihood=use_likelihood and
-                                     not cox_correction,
+                                     use_likelihood=(use_likelihood and
+                                                     not cox_correction),
                                      num_single_args=num_single_args)
       else:
         cov_fn = modeling.cov_H()

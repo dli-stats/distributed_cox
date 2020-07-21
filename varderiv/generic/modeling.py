@@ -6,7 +6,7 @@ import collections
 import functools
 
 import jax
-from jax import jacrev, vmap, hessian
+from jax import jacfwd, vmap, hessian
 import jax.numpy as np
 import jax.scipy as scipy
 
@@ -86,7 +86,7 @@ def solve_distributed(single_log_likelihood_or_score_fn,
                      **kwargs))(*distributed_args)
 
     pt1_guesses = pt1_sol.guess
-    pt1_converged = np.all(pt1_sol.converged, axis=1)
+    pt1_converged = np.all(pt1_sol.converged, axis=0)
 
     def pt2_loglik_or_score(initial_guess):
       return distributed_log_likelihood_or_score_fn(*singe_static_args[:-1],
@@ -188,7 +188,7 @@ def cov_robust(batch_log_likelihood_or_score_fn,
                use_likelihood=True):
 
   if use_likelihood:
-    batch_score_fn = jacrev(batch_log_likelihood_or_score_fn,
+    batch_score_fn = jacfwd(batch_log_likelihood_or_score_fn,
                             argnums=num_single_args - 1)
   else:
     batch_score_fn = batch_log_likelihood_or_score_fn
@@ -201,7 +201,7 @@ def cov_robust(batch_log_likelihood_or_score_fn,
     batch_score = batch_score_fn(*args)
     batch_score = batch_score.reshape((-1, batch_score.shape[-1]))
     B = np.einsum("ni,nj->ij", batch_score, batch_score, optimize="optimal")
-    return A_inv @ B @ A_inv
+    return A_inv @ B @ A_inv.T
 
   return wrapped
 
@@ -217,20 +217,22 @@ def cov_group_correction(
   """Computes covariance with grouped correction."""
 
   if batch_single_use_likelihood:
-    batch_single_score_fn = jacrev(batch_single_log_likelihood_or_score_fn,
+    batch_single_score_fn = jacfwd(batch_single_log_likelihood_or_score_fn,
                                    num_single_args - 1)
   else:
     batch_single_score_fn = batch_single_log_likelihood_or_score_fn
 
   if batch_distributed_use_likelihood:
-    batch_distributed_score_fn = jacrev(
+    batch_distributed_score_fn = jacfwd(
         batch_distributed_log_likelihood_or_score_fn, num_single_args - 1)
+    if distributed_cross_hessian_fn is None:
+      distributed_cross_hessian_fn = hessian(
+          sum_log_likelihood(batch_distributed_log_likelihood_or_score_fn), -1)
   else:
     batch_distributed_score_fn = batch_distributed_log_likelihood_or_score_fn
-
-  if distributed_cross_hessian_fn is None:
-    distributed_cross_hessian_fn = jacrev(sum_score(batch_distributed_score_fn),
-                                          -1)
+    if distributed_cross_hessian_fn is None:
+      distributed_cross_hessian_fn = jacfwd(
+          sum_score(batch_distributed_score_fn), -1)
 
   def wrapped(sol: DistributedModelSolverResult, *args):
     pt1_sol, pt2_sol = sol
@@ -277,11 +279,7 @@ def cov_group_correction(
                        B_row_wo_last,
                        S,
                        optimize="optimal")
-      sb2s = np.einsum("Bab,Bbc,dc->ad",
-                       S,
-                       B_row_wo_last,
-                       I_diag_inv_last,
-                       optimize="optimal")
+      sb2s = sb1s.T  # pylint: disable=no-member
       scs = np.einsum('ab,bc,dc->ad',
                       I_diag_inv_last,
                       B_diag_last,

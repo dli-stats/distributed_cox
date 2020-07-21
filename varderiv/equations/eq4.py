@@ -5,7 +5,7 @@ import functools
 from jax import vmap
 import jax.numpy as np
 
-from varderiv.generic.model_solve import sum_score
+from varderiv.generic.modeling import sum_score
 
 import varderiv.equations.eq2 as eq2
 

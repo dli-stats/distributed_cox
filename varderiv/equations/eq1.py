@@ -2,7 +2,7 @@
 
 import functools
 
-from jax import jacrev
+from jax import jacrev, jacfwd
 import jax.numpy as np
 
 from varderiv.generic.modeling import sum_log_likelihood
@@ -23,7 +23,7 @@ def batch_eq1_log_likelihood(X, delta, beta):
 eq1_log_likelihood = np.vectorize(sum_log_likelihood(batch_eq1_log_likelihood),
                                   signature='(N,p),(N),(p)->()')
 
-batch_eq1_score = np.vectorize(jacrev(batch_eq1_log_likelihood, -1),
+batch_eq1_score = np.vectorize(jacfwd(batch_eq1_log_likelihood, -1),
                                signature='(N,p),(N),(p)->(N,p)')
 
 
