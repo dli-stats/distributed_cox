@@ -1,11 +1,14 @@
 """Newton solver."""
 
+from typing import Optional, Callable
+
 import collections
 import functools
 
 import jax.lax
 import jax.numpy as np
 import jax.scipy as scipy
+from jax import value_and_grad
 
 from varderiv.generic.hess import value_jac_and_hessian, value_and_jacfwd
 
@@ -56,18 +59,27 @@ def do_work(use_likelihood, args):
 def solve_newton(likelihood_or_score_fn,
                  initial_guess,
                  use_likelihood=True,
+                 hessian_fn: Optional[Callable] = None,
                  loglik_eps=1e-6,
                  score_norm_eps=1e-3,
                  max_num_steps=10) -> NewtonSolverResult:
   """HOF for newton's method solver."""
 
   if use_likelihood:
-    value_jac_and_hessian_fn = value_jac_and_hessian(likelihood_or_score_fn)
+    if hessian_fn is None:
+      value_jac_and_hessian_fn = value_jac_and_hessian(likelihood_or_score_fn)
+    else:
+      value_jac_and_hessian_fn = lambda guess: (value_and_grad(
+          likelihood_or_score_fn)(guess) + (hessian_fn(guess),))
     InternalState = collections.namedtuple(
         "InternalState",
         "guess new_guess loglik score hessian step halving converged")
   else:
-    jac_and_hessian_fn = value_and_jacfwd(likelihood_or_score_fn)
+    if hessian_fn is None:
+      jac_and_hessian_fn = value_and_jacfwd(likelihood_or_score_fn)
+    else:
+      jac_and_hessian_fn = lambda guess: (likelihood_or_score_fn(guess),
+                                          hessian_fn(guess))
     InternalState = collections.namedtuple(
         "InternalState", "guess new_guess score hessian step halving converged")
 

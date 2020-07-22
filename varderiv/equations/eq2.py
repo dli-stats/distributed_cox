@@ -94,3 +94,25 @@ def ungroupped_batch_eq2_robust_cox_correction_score(X, delta, beta,
 batch_eq2_robust_cox_correction_score = np.vectorize(
     group_by(ungroupped_batch_eq2_robust_cox_correction_score),
     signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(K,S,p)")
+
+
+@functools.partial(np.vectorize,
+                   signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(p,p)")
+def hessian_taylor2(X, delta, beta, group_labels, X_groups, delta_groups,
+                    beta_k_hat):
+  """Taylor Approximation to Eq1's hessian of log likelihood function."""
+  score_numer, score_denom = _ungroupped_batch_eq2_score_frac_term(
+      X, delta, beta, group_labels, X_groups, delta_groups, beta_k_hat)
+
+  score_numer_cs = np.cumsum(score_numer, axis=0)
+  score_denom_cs = np.cumsum(score_denom, axis=0).reshape((-1, 1, 1))
+
+  term_1 = (np.cumsum(
+      np.einsum("Ni,Nj->Nij", X, score_numer, optimize="optimal"), axis=0) /
+            score_denom_cs)
+
+  term_2 = (np.einsum(
+      "Ni,Nj->Nij", score_numer_cs, score_numer_cs, optimize="optimal") /
+            score_denom_cs**2)
+
+  return np.sum((term_2 - term_1) * delta.reshape((-1, 1, 1)), axis=0)

@@ -6,9 +6,11 @@ import collections
 import functools
 
 import jax
-from jax import jacfwd, vmap, hessian
+from jax import jacfwd, vmap, jacrev
 import jax.numpy as np
 import jax.scipy as scipy
+
+import jax.scipy.optimize._bfgs as bfgs
 
 from varderiv.generic.solver import solve_newton, NewtonSolverResult
 
@@ -35,6 +37,7 @@ def sum_fn(fun, ndims=0):
 
 sum_log_likelihood = functools.partial(sum_fn, ndims=0)
 sum_score = functools.partial(sum_fn, ndims=1)
+sum_hessian = functools.partial(sum_fn, ndims=2)
 
 
 def solve_single(single_log_likelihood_or_score_fn,
@@ -65,13 +68,15 @@ def _split_args(args, num_single_args):
   return singe_static_args, group_labels, distributed_args
 
 
-def solve_distributed(single_log_likelihood_or_score_fn,
-                      distributed_log_likelihood_or_score_fn,
+def solve_distributed(single_log_likelihood_or_score_fn: Callable,
+                      distributed_log_likelihood_or_score_fn: Callable,
+                      distributed_hessian_fn: Optional[Callable] = None,
                       single_use_likelihood=True,
                       distributed_use_likelihood=True,
                       num_single_args: int = 1,
                       pt2_use_average_guess: bool = False,
                       K=1,
+                      pt2_solver: Optional[str] = "newton",
                       **kwargs) -> DistributedModelSolverResult:
   """Solves for distributed site."""
 
@@ -88,21 +93,43 @@ def solve_distributed(single_log_likelihood_or_score_fn,
     pt1_guesses = pt1_sol.guess
     pt1_converged = np.all(pt1_sol.converged, axis=0)
 
-    def pt2_loglik_or_score(initial_guess):
-      return distributed_log_likelihood_or_score_fn(*singe_static_args[:-1],
-                                                    initial_guess, group_labels,
-                                                    *distributed_args[:-1],
-                                                    pt1_guesses)
+    def wrap_fun_single_arg(fun):
+
+      def wrapped(initial_guess):
+        return fun(*singe_static_args[:-1], initial_guess, group_labels,
+                   *distributed_args[:-1], pt1_guesses)
+
+      return wrapped
 
     if pt2_use_average_guess:
       pt2_initial_guess = np.mean(pt1_guesses, axis=0)
     else:
       pt2_initial_guess = args[num_single_args - 1]
 
-    pt2_sol = solve_newton(pt2_loglik_or_score,
-                           pt2_initial_guess,
-                           use_likelihood=distributed_use_likelihood,
-                           **kwargs)
+    if pt2_solver == "newton":
+      pt2_sol = solve_newton(
+          wrap_fun_single_arg(distributed_log_likelihood_or_score_fn),
+          pt2_initial_guess,
+          hessian_fn=wrap_fun_single_arg(distributed_hessian_fn)
+          if distributed_hessian_fn is not None else None,
+          use_likelihood=distributed_use_likelihood,
+          **kwargs)
+    elif pt2_solver == "bfgs":
+      bfgs_sol = bfgs.minimize_bfgs(
+          wrap_fun_single_arg(distributed_log_likelihood_or_score_fn),
+          pt2_initial_guess,
+          maxiter=kwargs.get("max_num_steps", 40),
+          gtol=kwargs.get("loglik_eps", 1e-5),
+          line_search_maxiter=10)
+      converged = bfgs_sol.f_k < kwargs.get("loglik_eps", 1e-5)
+      pt2_sol = NewtonSolverResult(guess=bfgs_sol.x_k,
+                                   loglik=bfgs_sol.f_k,
+                                   score=bfgs_sol.g_k,
+                                   hessian=bfgs_sol.H_k,
+                                   step=bfgs_sol.k,
+                                   converged=converged)
+    else:
+      raise ValueError("Solver must be one of {}".format(["bfgs", "newton"]))
     pt2_sol = pt2_sol._replace(converged=pt1_converged & pt2_sol.converged)
     return DistributedModelSolverResult(pt1=pt1_sol, pt2=pt2_sol)
 
@@ -226,8 +253,10 @@ def cov_group_correction(
     batch_distributed_score_fn = jacfwd(
         batch_distributed_log_likelihood_or_score_fn, num_single_args - 1)
     if distributed_cross_hessian_fn is None:
-      distributed_cross_hessian_fn = hessian(
-          sum_log_likelihood(batch_distributed_log_likelihood_or_score_fn), -1)
+      distributed_cross_hessian_fn = jacfwd(
+          jacrev(
+              sum_log_likelihood(batch_distributed_log_likelihood_or_score_fn),
+              num_single_args - 1), -1)
   else:
     batch_distributed_score_fn = batch_distributed_log_likelihood_or_score_fn
     if distributed_cross_hessian_fn is None:

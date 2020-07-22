@@ -252,8 +252,10 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver, meta_analysis,
                                    log_likelihood_fn,
                                    use_likelihood=use_likelihood)
     elif eq in ("eq2", "eq4"):
+      hessian_fn = getattr(eq_mod, "hessian_taylor2")
       solve_fn = functools.partial(modeling.solve_distributed,
                                    eq1.eq1_log_likelihood,
+                                   distributed_hessian_fn=hessian_fn,
                                    num_single_args=num_single_args,
                                    K=K,
                                    pt2_use_average_guess=pt2_use_average_guess,

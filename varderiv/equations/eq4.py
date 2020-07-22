@@ -5,7 +5,7 @@ import functools
 from jax import vmap
 import jax.numpy as np
 
-from varderiv.generic.modeling import sum_score
+from varderiv.generic.modeling import sum_score, sum_hessian
 
 import varderiv.equations.eq2 as eq2
 
@@ -14,10 +14,8 @@ import varderiv.equations.eq2 as eq2
 #########################################################
 
 
-def _batch_eq4_score(ungroupped_batch_eq2_score_fun):
+def _batch_from_eq2(eq2_fun):
 
-  @functools.partial(np.vectorize,
-                     signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(K,S,p)")
   def wrapped(X, delta, beta, group_labels, X_groups, delta_groups, beta_k_hat):
     del X, delta
 
@@ -27,8 +25,7 @@ def _batch_eq4_score(ungroupped_batch_eq2_score_fun):
 
     group_labels = np.zeros((Nk,), dtype=group_labels.dtype)
 
-    fun = vmap(ungroupped_batch_eq2_score_fun,
-               in_axes=(0, 0, None, None, 0, 0, 0))
+    fun = vmap(eq2_fun, in_axes=(0, 0, None, None, 0, 0, 0))
     # yapf: disable
     ret = fun(X_groups, delta_groups, beta, group_labels,
               X_groups.reshape((K, 1, Nk, X_dim)),
@@ -40,10 +37,17 @@ def _batch_eq4_score(ungroupped_batch_eq2_score_fun):
   return wrapped
 
 
-batch_eq4_score = _batch_eq4_score(eq2.ungroupped_batch_eq2_score)
+batch_eq4_score = np.vectorize(
+    _batch_from_eq2(eq2.ungroupped_batch_eq2_score),
+    signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(K,S,p)")
 
-batch_eq4_robust_cox_correction_score = _batch_eq4_score(
-    eq2.ungroupped_batch_eq2_robust_cox_correction_score)
+batch_eq4_robust_cox_correction_score = np.vectorize(
+    _batch_from_eq2(eq2.ungroupped_batch_eq2_robust_cox_correction_score),
+    signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(K,S,p)")
 
 eq4_score = np.vectorize(sum_score(batch_eq4_score),
                          signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(p)")
+
+hessian_taylor2 = np.vectorize(
+    sum_hessian(_batch_from_eq2(eq2.hessian_taylor2)),
+    signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(p,p)")
