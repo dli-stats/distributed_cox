@@ -34,6 +34,7 @@ def group_by(fun):
     signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(N,p),(N,1)")
 def _ungroupped_batch_eq2_score_frac_term(X, delta, beta, group_labels,
                                           X_groups, delta_groups, beta_k_hat):
+  """Common function for computing the numerator and denomator used in eq2."""
   del delta, X_groups, delta_groups
   beta_k_hat_grouped = np.take(beta_k_hat, group_labels, axis=0)
   bmb = beta - beta_k_hat_grouped
@@ -72,6 +73,7 @@ eq2_score = np.vectorize(sum_score(ungroupped_batch_eq2_score),
 def ungroupped_batch_eq2_robust_cox_correction_score(X, delta, beta,
                                                      group_labels, X_groups,
                                                      delta_groups, beta_k_hat):
+  """Cox model specific correction for eq2."""
 
   def _right_cumsum(X, axis=0):
     return np.cumsum(X[::-1], axis=axis)[::-1]

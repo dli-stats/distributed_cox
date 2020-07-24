@@ -1,7 +1,5 @@
 """Equation 4."""
 
-import functools
-
 from jax import vmap
 import jax.numpy as np
 
@@ -15,6 +13,7 @@ import varderiv.equations.eq2 as eq2
 
 
 def _batch_from_eq2(eq2_fun):
+  """Computes a function in eq 4 using a function in eq2."""
 
   def wrapped(X, delta, beta, group_labels, X_groups, delta_groups, beta_k_hat):
     del X, delta

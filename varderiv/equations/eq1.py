@@ -2,7 +2,7 @@
 
 import functools
 
-from jax import jacrev, jacfwd
+from jax import jacfwd
 import jax.numpy as np
 
 from varderiv.generic.modeling import sum_log_likelihood
@@ -33,6 +33,7 @@ def _right_cumsum(X, axis=0):
 
 @functools.partial(np.vectorize, signature='(N,p),(N),(p)->(N,p)')
 def batch_eq1_robust_cox_correction_score(X, delta, beta):
+  """Cox model specific correction."""
   bx = np.dot(X, beta)
   ebx = np.exp(bx).reshape((-1, 1))
   xebx = X * ebx

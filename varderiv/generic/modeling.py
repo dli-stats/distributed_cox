@@ -146,6 +146,7 @@ def solve_meta_analysis(single_log_likelihood_or_score_fn,
                         use_only_dims: Optional[Sequence] = None,
                         univariate: bool = False,
                         **kwargs) -> DistributedModelSolverResult:
+  """Meta analysis."""
 
   def solve_fun(*args):
     sol = vmap(
@@ -183,6 +184,7 @@ def solve_meta_analysis(single_log_likelihood_or_score_fn,
 
 def cov_meta_analysis(use_only_dims: Optional[Sequence] = None,
                       univariate=False):
+  """Covariance of meta analysis."""
 
   def wrapped(sol: DistributedModelSolverResult):
     I_diag_wo_last = -sol.pt1.hessian
@@ -218,7 +220,7 @@ def cov_H():
 def cov_robust(batch_log_likelihood_or_score_fn,
                num_single_args: int = 1,
                use_likelihood=True):
-
+  """Covariance using robust sandwich estimate."""
   if use_likelihood:
     batch_score_fn = jacfwd(batch_log_likelihood_or_score_fn,
                             argnums=num_single_args - 1)

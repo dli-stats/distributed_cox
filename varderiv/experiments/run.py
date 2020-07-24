@@ -334,7 +334,7 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver, meta_analysis,
       pt1_sol = None
       pt2_sol = sol = solve_fn(X, delta, initial_beta_hat)
       model_args = (X, delta, sol.guess)
-    elif eq in ("eq3"):
+    elif eq == "eq3":
       pt1_sol = None
       pt2_sol = sol = solve_fn(X_groups, delta_groups, initial_beta_hat)
       model_args = (X_groups, delta_groups, sol.guess)
