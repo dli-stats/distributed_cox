@@ -69,6 +69,23 @@ grouping_X_generator = functools.partial(X_group_generator_indep_dim,
                                          Xi_generator=grouping_Xi_generator)
 
 
+def correlated_X_generator(N,
+                           X_dim,
+                           key,
+                           group_label=0,
+                           Xi_generator=default_Xi_generator,
+                           last_X_noise_variance=0.01):
+  """Helper utility that lifts a generator that produces independent Xi."""
+  gen_X_fn = functools.partial(Xi_generator, N, group_label=group_label)
+  dims = np.arange(X_dim - 1, dtype=np.int32)
+  subkeys = jrandom.split(key, X_dim)
+  X = vmap(gen_X_fn, (0, 0), 1)(dims, subkeys[:-1])
+  last_X = X[:, -1] + jrandom.normal(subkeys[-1],
+                                     shape=(N,)) * last_X_noise_variance
+  X = np.concatenate([X, last_X.reshape(N, 1)], axis=1)
+  return X
+
+
 def T_star_factors_gamma_gen(shape, scale):
 
   def wrapped(key, K):

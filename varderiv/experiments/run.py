@@ -159,7 +159,7 @@ def compute_results_averaged(result: ExperimentResult):
 @ex.capture(prefix="data")
 @functools.lru_cache(maxsize=None)
 def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
-                     group_X_same, exp_scale):
+                     group_X, exp_scale):
   """Initializes data generation."""
 
   if group_labels_generator_kind == "arithmetic_sequence":
@@ -173,9 +173,11 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
       group_labels_generator_kind=group_labels_generator_kind,
       **group_labels_generator_kind_kwargs)
 
-  if not group_X_same:
+  if group_X == "group":
     assert K == 3, "other than 3 groups not supported"
     X_generator = vdata.grouping_X_generator
+  elif group_X == "correlated":
+    X_generator = vdata.correlated_X_generator
   else:
     X_generator = vdata.default_X_generator
 
@@ -386,9 +388,9 @@ def config():
       N=500,
       X_DIM=3,
       K=3,
-      group_labels_generator_kind="same",
-      group_X_same=True,
-      T_star_factors=None,
+      group_labels_generator_kind="same",  # "same", "arithemetic_sequence"
+      group_X="same",  # "same", "group", "correlated"
+      T_star_factors=None,  # "None", "fixed(...)", "gamma(...)"
       exp_scale=3.5,
   )
   solver = dict(max_num_steps=40, loglik_eps=1e-5, score_norm_eps=1e-3)

@@ -10,7 +10,10 @@ from jax import jacfwd, vmap, jacrev
 import jax.numpy as np
 import jax.scipy as scipy
 
-import jax.scipy.optimize._bfgs as bfgs
+try:
+  import jax.scipy.optimize._bfgs as bfgs
+except ImportError:
+  bfgs = None
 
 from varderiv.generic.solver import solve_newton, NewtonSolverResult
 
