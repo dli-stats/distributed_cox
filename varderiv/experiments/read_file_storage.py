@@ -10,7 +10,7 @@ import collections
 import numpy as onp
 import pandas as pd
 import tqdm
-from varderiv.experiments.run import get_paper_data
+from varderiv.experiments.run import compute_results_averaged
 # pylint: disable=missing-docstring, unused-import
 
 
@@ -86,7 +86,7 @@ def main(args):
     expkey = get_expkey((run_dir, config_json, run_json))
     with open(os.path.join(run_dir, "result"), "rb") as f:
       result = pickle.load(f)
-    beta_hat, covs = get_paper_data(result)
+    beta_hat, covs = compute_results_averaged(result)
     paper_results[expkey] = {'beta_hat': beta_hat, **covs}
     cov_names = cov_names.union(covs.keys())
 
