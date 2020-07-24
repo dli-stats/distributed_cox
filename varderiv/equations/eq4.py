@@ -1,119 +1,52 @@
 """Equation 4."""
 
-import functools
-
+from jax import vmap
 import jax.numpy as np
-from jax import jacfwd
 
-from varderiv.solver import solve_newton
+from varderiv.generic.modeling import sum_score, sum_hessian
 
-from varderiv.equations.eq1 import eq1_compute_H_ad, eq1_log_likelihood_grad_ad
-from varderiv.equations.eq1 import eq1_compute_W_manual
-
-from varderiv.equations.eq2 import get_cov_beta_k_correction_fn
-from varderiv.equations.eq2 import solve_grouped_eq_batch
-from varderiv.equations.eq2 import eq2_jac_manual
-from varderiv.equations.eq2 import eq2_compute_pt2_W
+import varderiv.equations.eq2 as eq2
 
 #########################################################
 # BEGIN eq4
 #########################################################
 
 
-@functools.partial(np.vectorize, signature="(K,S,p),(K,S),(K,p),(p)->(p)")
-def eq4(X_groups, delta_groups, beta_k_hat, beta):
-  """Equation 4's ll_grad function."""
-  K = X_groups.shape[0]
-  Nk = X_groups.shape[1]
-  X_dim = X_groups.shape[2]
+def _batch_from_eq2(eq2_fun):
+  """Computes a function in eq 4 using a function in eq2."""
 
-  beta_k_hat_grouped = np.transpose(np.broadcast_to(beta_k_hat, (Nk, K, X_dim)),
-                                    (1, 0, 2))
+  def wrapped(X, delta, beta, group_labels, X_groups, delta_groups, beta_k_hat):
+    del X, delta
 
-  # All groups are now separarete, then group_labels is 0 for each sample
-  group_labels = np.zeros(delta_groups.shape, dtype=np.uint32)
+    K = X_groups.shape[0]
+    Nk = X_groups.shape[1]
+    X_dim = X_groups.shape[2]
 
-  ret = np.sum(eq2_jac_manual(X_groups, delta_groups, group_labels,
-                              beta_k_hat_grouped, beta),
-               axis=0)
+    group_labels = np.zeros((Nk,), dtype=group_labels.dtype)
 
-  return ret
+    fun = vmap(eq2_fun, in_axes=(0, 0, None, None, 0, 0, 0))
+    # yapf: disable
+    ret = fun(X_groups, delta_groups, beta, group_labels,
+              X_groups.reshape((K, 1, Nk, X_dim)),
+              delta_groups.reshape((K, 1, Nk)),
+              beta_k_hat.reshape((K, 1, X_dim)))
+    # yapf: enable
+    return ret
 
-
-def eq4_compute_B(X, delta, X_groups, delta_groups, group_labels, beta_k_hat,
-                  beta):
-  del X, delta
-  K = X_groups.shape[0]
-  Nk = X_groups.shape[1]
-  X_dim = X_groups.shape[2]
-
-  beta_k_hat_grouped = np.transpose(np.broadcast_to(beta_k_hat, (Nk, K, X_dim)),
-                                    (1, 0, 2))
-
-  # All groups are now separarete, then group_labels is 0 for each sample
-  group_labels = np.zeros(delta_groups.shape, dtype=np.uint32)
-
-  pt1_W = eq1_compute_W_manual(X_groups, delta_groups,
-                               beta_k_hat)  # K x Nk x X_DIM
-  pt2_W = eq2_compute_pt2_W(X_groups, delta_groups, group_labels,
-                            beta_k_hat_grouped, beta)  # N x Nk x X_DIM
-  delta_groups_mask = delta_groups.reshape((K, Nk, 1))
-  pt1_W = pt1_W * delta_groups_mask
-  pt2_W = pt2_W * delta_groups_mask
-  B_diag_wo_last = np.einsum("kbi,kbj->kij", pt1_W, pt1_W, optimize="optimal")
-  B_diag_last = np.einsum("kbi,kbj->ij", pt2_W, pt2_W, optimize="optimal")
-  B_row_wo_last = np.einsum("kbi,kbj->kij", pt2_W, pt1_W, optimize="optimal")
-  return B_diag_wo_last, B_diag_last, B_row_wo_last
+  return wrapped
 
 
-@functools.lru_cache(maxsize=None)
-def get_eq4_rest_solver(solver_max_steps=10):
-  """HOF for getting Eq 2's solve rest function."""
+batch_eq4_score = np.vectorize(
+    _batch_from_eq2(eq2.ungroupped_batch_eq2_score),
+    signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(K,S,p)")
 
-  def eq4_solve_rest(X, delta, K, group_labels, X_groups, delta_groups,
-                     beta_k_hat, beta_guess):
-    """Function used by `solve_grouped_eq_batch`, customized for Eq 4."""
-    del K, X, delta, group_labels
+batch_eq4_robust_cox_correction_score = np.vectorize(
+    _batch_from_eq2(eq2.ungroupped_batch_eq2_robust_cox_correction_score),
+    signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(K,S,p)")
 
-    @functools.partial(np.vectorize,
-                       signature=f"(K,N,p),(K,N),(K,p),(p)->(p),(p),()")
-    def _solve(X_groups, delta_groups, beta_k_hat, beta_guess):
-      sol = solve_newton(functools.partial(eq4, X_groups, delta_groups,
-                                           beta_k_hat),
-                         beta_guess,
-                         max_num_steps=solver_max_steps)
-      return sol
+eq4_score = np.vectorize(sum_score(batch_eq4_score),
+                         signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(p)")
 
-    return _solve(X_groups, delta_groups, beta_k_hat, beta_guess)
-
-  return eq4_solve_rest
-
-
-solve_eq4 = functools.partial(solve_grouped_eq_batch,
-                              solve_rest_fn=get_eq4_rest_solver())
-
-#########################################################
-# BEGIN eq4 cov
-#########################################################
-
-# Take gradient with respect to beta and beta_k_hat
-eq4_compute_I_row = jacfwd(eq4, (-2, -1))
-
-
-def eq4_compute_I_row_wrapped(X, delta, X_groups, delta_groups, group_labels,
-                              beta_k_hat, beta):
-  del X, delta, group_labels
-  return eq4_compute_I_row(X_groups, delta_groups, beta_k_hat, beta)
-
-
-get_eq4_cov_beta_k_correction_fn = functools.partial(
-    get_cov_beta_k_correction_fn, eq4_compute_I_row_wrapped, eq4_compute_B)
-
-# Default
-eq4_cov_beta_k_correction = get_eq4_cov_beta_k_correction_fn(
-    eq1_compute_H_fn=eq1_compute_H_ad)
-eq4_cov_beta_k_correction_robust = get_eq4_cov_beta_k_correction_fn(
-    robust=True,
-    eq1_ll_grad_fn=eq1_log_likelihood_grad_ad,
-    eq1_compute_H_fn=eq1_compute_H_ad)
-eq4_cov = eq4_cov_beta_k_correction
+hessian_taylor2 = np.vectorize(
+    sum_hessian(_batch_from_eq2(eq2.hessian_taylor2)),
+    signature="(N,p),(N),(p),(N),(K,S,p),(K,S),(K,p)->(p,p)")

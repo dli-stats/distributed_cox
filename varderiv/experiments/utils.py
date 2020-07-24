@@ -1,9 +1,12 @@
 """Variance Experiment Utilities."""
 
+from typing import Dict, BinaryIO
+
 import sys
 import time
-import collections
 import itertools
+import pickle
+import collections
 
 from multiprocessing.dummy import Pool as ThreadPool
 
@@ -11,11 +14,9 @@ import numpy as onp
 
 import tqdm
 
+import jax.tree_util as tu
 from jax import random as jrandom
-from jax import jit
-
-from varderiv.data import (key, data_generation_key, group_sizes_generator,
-                           data_generator)
+from jax import jit, vmap
 
 
 def in_notebook():
@@ -41,56 +42,17 @@ def grouper(iterable, n, fillvalue=None):
   return itertools.zip_longest(*[iter(iterable)] * n, fillvalue=fillvalue)
 
 
-# Common experiment result namedtuples
-CovExperimentResultItem = collections.namedtuple("CovExperimentResultItem",
-                                                 "sol cov")
-
-ExperimentResult = collections.namedtuple("ExperimentResult",
-                                          "data_generation_key results")
-
-
-def expand_namedtuples(tup):
-  tup_t = type(tup)
-  tup_d = tup._asdict()
-  num_items = len(tup_d[tup._fields[0]])
-  ret = []
-  for i in range(num_items):
-    ret.append(tup_t(**{field: values[i] for field, values in tup_d.items()}))
-  return ret
-
-
-def init_data_gen_fn(params, **extra_data_gen_params):
-  """Initializes data generation."""
-  group_sizes = group_sizes_generator(
-      params["N"],
-      params["K"],
-      group_labels_generator_kind=params["group_labels_generator_kind"],
-      **params["group_labels_generator_kind_kwargs"])
-  del params["group_labels_generator_kind"]
-  del params["group_labels_generator_kind_kwargs"]
-
-  X_generator = params.pop("X_generator", None)
-  gen = jit(
-      data_generator(params["N"],
-                     params["X_DIM"],
-                     group_sizes,
-                     exp_scale=params.pop('exp_scale', 3.5),
-                     T_star_factors=params.pop('T_star_factors', None),
-                     X_generator=X_generator,
-                     **extra_data_gen_params))
-  params["gen"] = gen
-
-
-def run_cov_experiment(
-    init_fn,
-    experiment_fn,
-    check_fail_fn=lambda x: False,
-    data_generation_key=data_generation_key,  # pylint: disable=redefined-outer-name
-    num_experiments=1000,
-    num_threads=8,
-    batch_size=32,
-    experiment_rand_key=key,
-    **experiment_params):
+def run_cov_experiment(init_fn,
+                       experiment_fn,
+                       data_generation_key,
+                       experiment_rand_key,
+                       check_ok_fn=lambda x: True,
+                       num_experiments=1000,
+                       num_threads=8,
+                       batch_size=32,
+                       save_interval=1,
+                       result_file: BinaryIO = None,
+                       **experiment_params):
   """Helper function to run experiment in parallel."""
 
   assert batch_size >= 1, "Invalid batch_size"
@@ -104,8 +66,12 @@ def run_cov_experiment(
                           batch_size,
                           fillvalue=(-1, subkeys[0], subkeys[0]))
 
-  init_data_gen_fn(experiment_params)
-  init_fn(experiment_params)
+  experiment_params = init_fn(**experiment_params)
+  check_ok_fn = jit(vmap(check_ok_fn))
+
+  def save(result):
+    if result_file is not None:
+      pickle.dump(result, result_file)
 
   if num_threads > 1:
     pool = ThreadPool(num_threads)
@@ -126,37 +92,44 @@ def run_cov_experiment(
   pbar.update(0)
   time.sleep(1)
 
-  num_processed = 0
-  results, failed = [], []
-  for batch_idxs, batch_sols in parallel_map(experiment_fn_wrapper,
-                                             data_iterator):
-    num_succeed = 0
-    for idx, sol in zip(batch_idxs, batch_sols):
-      if num_processed >= num_experiments:
-        continue
-      if check_fail_fn(sol):
-        failed.append(idx)
-      else:
-        results.append(sol)
-        num_succeed += 1
-      num_processed += 1
-    pbar.update(len(batch_sols))
+  result = None
+  num_total, num_failed = 0, 0
+  i = 0
+  for i, (_, batch_sols) in enumerate(
+      parallel_map(experiment_fn_wrapper, data_iterator)):
+    oks = check_ok_fn(batch_sols)
+    num_total += batch_size
+    num_failed += batch_size - onp.sum(oks)
+    pbar.set_description("{} (failed {})".format(desc, num_failed))
+    if result is None:
+      result = tu.tree_map(onp.array, batch_sols)
+    else:
+      result = tu.tree_multimap(lambda x, y: onp.concatenate([x, y]), result,
+                                batch_sols)
+    if num_total > num_experiments:
+      result = tu.tree_map(lambda x: x[:num_experiments], result)
+    if i > 0 and i % save_interval == 0:
+      save(result)
+    pbar.update(batch_size)
   pbar.close()
 
-  print("Failed {}".format(len(failed)))
+  if i % save_interval != 0:
+    # Save final result
+    save(result)
 
-  failed_data = [(fi, all_data[fi]) for fi in failed]
-  if len(failed_data) > 0:
-    pass  # TODO(camyang) need to further process failed data
+  print("Total failed: {}".format(num_failed))
 
   if num_threads > 1:
     pool.close()
     pool.join()
 
-  return ExperimentResult(data_generation_key=data_generation_key,
-                          results=results)
+  return result
 
 
 def check_value_converged(value, tol=1e-3):
   return onp.all(
       onp.isfinite(value)) and onp.linalg.norm(value, ord=onp.inf) > tol
+
+
+def check_solver_converged(sol):
+  return sol.converged

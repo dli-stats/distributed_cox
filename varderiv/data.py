@@ -36,12 +36,12 @@ def default_Xi_generator(N, dim, key, group_label=0):
 
 
 def grouping_Xi_generator(N, dim, key, group_label=0):
-  if group_label == 0:
-    bernoulli_theta, normal_variance = 0.5, 1
-  elif group_label == 1:
-    bernoulli_theta, normal_variance = 0.3, 0.5
-  elif group_label == 2:
-    bernoulli_theta, normal_variance = 0.7, 1.5
+  bernoulli_thetas = np.array([0.5, 0.3, 0.7])
+  normal_variances = np.array([1, 0.5, 1.5])
+
+  bernoulli_theta = bernoulli_thetas[group_label]
+  normal_variance = normal_variances[group_label]
+
   return jax.lax.cond(
       dim % 2 == 0,
       key, \
@@ -72,7 +72,7 @@ grouping_X_generator = functools.partial(X_group_generator_indep_dim,
 def T_star_factors_gamma_gen(shape, scale):
 
   def wrapped(key, K):
-    return 1. / (jrandom.gamma(key, a=shape, shape=(K,)) / scale)
+    return 1. / (jrandom.gamma(key, a=shape, shape=(K,)) * scale)
 
   return wrapped
 
@@ -90,6 +90,8 @@ def data_generator(N,
 
   The function is cached so that we avoid potential repeating jits'.
   """
+  assert (sorted(group_sizes) == list(group_sizes)
+         ), "Group sizes must be increasing"
 
   ret_signature = "(N,p),(N),(p),(N)"
   if return_T:
@@ -132,16 +134,20 @@ def data_generator(N,
     key, *subkeys = jrandom.split(key, K + 1)
     subkeys = np.stack(subkeys)
 
-    Xs = []
-    idx = 0
-    for group_label, group_size in enumerate(group_sizes):
-      Xs.append(
-          X_generator(group_size,
-                      X_dim,
-                      subkeys[group_label],
-                      group_label=group_label))
-      idx += group_size
-    X = np.concatenate(Xs)
+    X = np.zeros((N, X_dim), dtype=floatt)
+    max_group_size = max(group_sizes)
+
+    def gen_X(carry, group_size):
+      X, group_label, cur_idx = carry
+      X_group = X_generator(max_group_size,
+                            X_dim,
+                            subkeys[group_label],
+                            group_label=group_label)
+      X = jax.lax.dynamic_update_slice(X, X_group,
+                                       np.array([cur_idx, 0], dtype=np.int32))
+      return (X, group_label + 1, cur_idx + group_size), 0
+
+    (X, _, _), _ = jax.lax.scan(gen_X, (X, 0, 0), np.array(group_sizes))
 
     group_labels = np.repeat(np.arange(K), group_sizes)
 
@@ -199,7 +205,7 @@ def group_sizes_generator(N, K, group_labels_generator_kind="random", **kwargs):
 
   if group_labels_generator_kind == "same":
     group_sizes = onp.repeat(N // K, K)
-    group_sizes[:N % K] += 1
+    group_sizes[K - N % K:] += 1
 
   elif group_labels_generator_kind == "arithmetic_sequence":
     start_val = kwargs["start_val"]
@@ -266,9 +272,9 @@ def _pad_X_delta(X, delta, indices, padded_group_size):
   return X_group, delta_group
 
 
-def group_data_by_labels(batch_size, K, X, delta, group_labels):
+def group_data_by_labels(group_labels, *data, K=1, group_size=-1):
   """Given data group indices, compute groupped data by padding.
-
+  #TODO update docs
   Args:
     - batch_size: length of a batch of X
     - K: number of groups
@@ -281,57 +287,17 @@ def group_data_by_labels(batch_size, K, X, delta, group_labels):
     - X_groups: array of shape (batch_size, K, group_size, P)
     - delta_groups: array of shape (batch_size, K, group_size)
   """
-  X = onp.array(X)
-  delta = onp.array(delta)
-  group_labels = onp.array(group_labels)
+  if group_size < 0:
+    group_size = np.max(np.vectorize(functools.partial(np.bincount, length=K),
+                                     signature="(N)->(K)")(group_labels),
+                        axis=-1)
 
-  batch_mode = True
-  if batch_size <= 1 and len(X.shape) == 2:
-    batch_mode = False
-    X = X.reshape((1,) + X.shape)
-    delta = delta.reshape((1,) + delta.shape)
-    group_labels = group_labels.reshape((1,) + group_labels.shape)
-
-  batch_size = X.shape[0]
-  # X_dim = X.shape[-1]
-
-  group_mask = onp.array(
-      [[group_labels[i] == k for k in range(K)] for i in range(batch_size)])
-
-  padded_group_size = onp.max(onp.sum(group_mask, axis=(-1,)))
-  padded_group_size = int(math.ceil(padded_group_size / 10)) * 10
-
-  all_X_groups = [None] * batch_size
-  all_delta_groups = [None] * batch_size
-  for i in range(batch_size):
-    X_groups = [None] * K
-    delta_groups = [None] * K
-    for k in range(K):
-      mask = group_mask[i][k]
-      X_group = X[i, mask]
-      X_group = onp.pad(X_group, [(0, padded_group_size - X_group.shape[0]),
-                                  (0, 0)])
-      delta_group = delta[i, mask]
-      delta_group = onp.pad(delta_group, (
-          0,
-          padded_group_size - delta_group.shape[0],
-      ))
-      X_groups[k] = X_group
-      delta_groups[k] = delta_group
-    all_X_groups[i] = X_groups
-    all_delta_groups[i] = delta_groups
-
-  all_X_groups = np.array(all_X_groups)
-  all_delta_groups = np.array(all_delta_groups)
-
-  if not batch_mode:
-    all_X_groups = all_X_groups.reshape(all_X_groups.shape[1:])
-    all_delta_groups = all_delta_groups.reshape(all_delta_groups.shape[1:])
-
-  return all_X_groups, all_delta_groups
+  return tuple(
+      group_by_labels(group_labels, d, K=K, group_size=group_size)
+      for d in data)
 
 
-def group_by_labels(K, group_size, X, group_labels):
+def _group_by_labels(group_labels, X, K=1, group_size=-1):
   """A convenience function for groupping X by labels in Jax."""
   X_grouped = np.zeros((K, group_size) + X.shape[1:], dtype=X.dtype)
   group_cnts = np.zeros((K,), np.int32)
@@ -340,7 +306,7 @@ def group_by_labels(K, group_size, X, group_labels):
     x, g = var
     x_grouped, group_cnts = data
     # append entries into specified group
-    x_grouped = jax.ops.index_add(x_grouped, (g, group_cnts[g]), x)
+    x_grouped = jax.ops.index_update(x_grouped, (g, group_cnts[g]), x)
     # track how many entries appended into each group
     group_cnts = jax.ops.index_add(group_cnts, g, 1)
     return (x_grouped, group_cnts), 0  # '0' is just a dummy value
@@ -351,6 +317,26 @@ def group_by_labels(K, group_size, X, group_labels):
       (X, group_labels))  # data to loop over
 
   return X_grouped
+
+
+def group_by_labels(group_labels, X, K: int = 1, group_size: int = -1):
+  """Group data by labels.
+
+  Args:
+    X: array of dimension (...batch_dims... , N, ...X_dims...)
+    group_labels: array of dimension (...batch_dims..., N)
+
+  Returns:
+    X_grouped: dimension (...batch_dims..., K, group_size, ...X_dims...)
+  """
+  batch_dim = len(group_labels.shape) - 1
+
+  assert X.shape[:batch_dim + 1] == group_labels.shape
+
+  fun = functools.partial(_group_by_labels, K=K, group_size=group_size)
+  # for _ in range(batch_dim):
+  #   fun = vmap(fun, in_axes=0, out_axes=0)
+  return fun(group_labels, X)
 
 
 key = jrandom.PRNGKey(0)
