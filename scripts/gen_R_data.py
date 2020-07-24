@@ -38,7 +38,7 @@ if __name__ == "__main__":
   parser.add_argument("--X_DIM", type=int)
   parser.add_argument("--K", type=int)
   parser.add_argument("--group_labels_generator_kind",
-                      choices=['same', 'arithemetic_sequence'])
+                      choices=['same', 'arithmetic_sequence'])
   parser.add_argument("--group_X_same", type=bool)
   parser.add_argument("--T_star_factors",
                       type=str,

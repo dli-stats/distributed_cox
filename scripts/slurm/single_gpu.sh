@@ -2,9 +2,9 @@
 #SBATCH -c 8                               # Request one core
 #SBATCH -N 1                               # Request one node (if you request more than one core with -c, also using
                                            # -N 1 means all cores will be on the same node)
-#SBATCH -t 0-00:25                         # Runtime in D-HH:MM format
+#SBATCH -t 0-04:00                         # Runtime in D-HH:MM format
 #SBATCH -p gpu                             # Partition to run in
-#SBATCH --mem=1500M                          # Memory total in MB (for all cores)
+#SBATCH --mem=32000M                          # Memory total in MB (for all cores)
 #SBATCH -o hostname_%j.out                 # File to which STDOUT will be written, including job ID
 #SBATCH -e hostname_%j.err                 # File to which STDERR will be written, including job ID
 #SBATCH --mail-type=FAIL                    # Type of email notification- BEGIN,END,FAIL,ALL
@@ -21,4 +21,5 @@ ROOT_DIR=/home/dl263/varderiv/
 source activate varderiv_gpu
 cd $ROOT_DIR
 
-python -m "varderiv.experiments.${EXP}" -p --sql=sqlite:///$ROOT_DIR/results.db $EXTRA_ARGS
+python -m "varderiv.experiments.${EXP}" -F /n/scratch3/users/d/dl263/varderiv_experiments  -p $EXTRA_ARGS
+
