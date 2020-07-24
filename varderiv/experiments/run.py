@@ -379,6 +379,8 @@ cov_experiment = functools.partial(utils.run_cov_experiment,
 
 @ex.config
 def config():
+  return_result = False
+
   num_experiments = 10000
   num_threads = 1
   batch_size = 256
@@ -411,18 +413,23 @@ def config():
 
 @ex.main
 def cov_experiment_main(data_generation_key, experiment_rand_key,
-                        num_experiments, num_threads, batch_size,
-                        save_interval):
+                        num_experiments, num_threads, batch_size, save_interval,
+                        return_result):
   # pylint: disable=missing-function-docstring
   result_file = tempfile.NamedTemporaryFile(mode="wb+")
+  print(result_file.name)
+  res = cov_experiment(data_generation_key,
+                       experiment_rand_key,
+                       num_experiments=num_experiments,
+                       num_threads=num_threads,
+                       batch_size=batch_size,
+                       save_interval=save_interval,
+                       result_file=result_file)
   ex.add_artifact(result_file.name, name="result")
-  return cov_experiment(data_generation_key,
-                        experiment_rand_key,
-                        num_experiments=num_experiments,
-                        num_threads=num_threads,
-                        batch_size=batch_size,
-                        save_interval=save_interval,
-                        result_file=result_file)
+  if return_result:
+    return res
+  else:
+    return None
 
 
 ex.captured_out_filter = apply_backspaces_and_linefeeds

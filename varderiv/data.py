@@ -74,7 +74,7 @@ def correlated_X_generator(N,
                            key,
                            group_label=0,
                            Xi_generator=default_Xi_generator,
-                           last_X_noise_variance=0.01):
+                           last_X_noise_variance=0.1):
   """Helper utility that lifts a generator that produces independent Xi."""
   gen_X_fn = functools.partial(Xi_generator, N, group_label=group_label)
   dims = np.arange(X_dim - 1, dtype=np.int32)
