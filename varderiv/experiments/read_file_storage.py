@@ -10,14 +10,8 @@ import collections
 import numpy as onp
 import pandas as pd
 import tqdm
-
+from varderiv.experiments.run import get_paper_data
 # pylint: disable=missing-docstring, unused-import
-
-from varderiv.experiments.eq1 import Experiment1CovResult
-from varderiv.experiments.eq2 import Experiment2SolResult, Experiment2CovResult
-from varderiv.experiments.eq3 import Experiment3CovResult
-from varderiv.experiments.eq4 import Experiment4SolResult, Experiment4CovResult
-from varderiv.experiments.meta_analysis import ExperimentMetaAnalysisSolResult
 
 
 def iterate_experiments(runs_dir):
