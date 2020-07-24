@@ -2,6 +2,8 @@
 
 import functools
 
+import numpy as onp
+
 import jax.random as jrandom
 from sacred import Ingredient
 
@@ -28,6 +30,7 @@ def config():
   group_labels_generator_kind_kwargs = {}
   group_X_same = True
   T_star_factors = None
+  exp_scale = 3.5
 
   seed = 0
   key = jrandom.PRNGKey(seed)
@@ -102,5 +105,8 @@ def process_params(**params):
     group_labels_generator_kind_kwargs = {}
   params[
       "group_labels_generator_kind_kwargs"] = group_labels_generator_kind_kwargs
+
+  if params.get('exp_scale', 3.5) == 'inf':
+    params['exp_scale'] = onp.inf
 
   return params
