@@ -28,17 +28,26 @@ def iterate_experiments(runs_dir):
       pass
 
 
+def recursive_dict_subset(d1, d2):
+  """Recursively compare two dicts.
+
+  Assuming d1 and d2 has the same structure, with d2 having less keys than d1.
+  This function compares if all key value pairs in d2 are exactly the same
+  in d1.
+  """
+  if isinstance(d1, dict) and isinstance(d2, dict):
+    for k in d2:
+      if k not in d1:
+        return False
+      if not recursive_dict_subset(d1[k], d2[k]):
+        return False
+    return True
+  return d1 == d2
+
+
 def find_experiment(runs_dir, **kwargs):
   for run_dir, config_json, run_json in iterate_experiments(runs_dir):
-    ok = True
-    for k, v in kwargs.items():
-      if k == "eq":
-        ok &= run_json["experiment"]["name"] == v
-      else:
-        ok &= config_json["base"][k] == v
-      if not ok:
-        break
-    if ok:
+    if recursive_dict_subset(config_json, kwargs):
       yield (run_dir, config_json, run_json)
 
 
