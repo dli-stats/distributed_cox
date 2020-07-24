@@ -75,6 +75,7 @@ def solve_distributed(single_log_likelihood_or_score_fn: Callable,
                       distributed_use_likelihood=True,
                       num_single_args: int = 1,
                       pt2_use_average_guess: bool = False,
+                      pt2_use_pt1_average_guess: bool = False,
                       K=1,
                       pt2_solver: Optional[str] = "newton",
                       **kwargs) -> DistributedModelSolverResult:
@@ -83,26 +84,30 @@ def solve_distributed(single_log_likelihood_or_score_fn: Callable,
   assert num_single_args >= 0
 
   def solve_fun(*args):
-    singe_static_args, group_labels, distributed_args = _split_args(
+    single_static_args, group_labels, distributed_args = _split_args(
         args, num_single_args)
     pt1_sol = vmap(
         solve_single(single_log_likelihood_or_score_fn,
                      use_likelihood=single_use_likelihood,
                      **kwargs))(*distributed_args)
 
-    pt1_guesses = pt1_sol.guess
     pt1_converged = np.all(pt1_sol.converged, axis=0)
 
     def wrap_fun_single_arg(fun):
 
       def wrapped(initial_guess):
-        return fun(*singe_static_args[:-1], initial_guess, group_labels,
+        if pt2_use_pt1_average_guess:
+          ss = np.mean(pt1_sol.guess, axis=0)
+          pt1_guesses = np.broadcast_to(ss, (K,) + ss.shape)
+        else:
+          pt1_guesses = pt1_sol.guess
+        return fun(*single_static_args[:-1], initial_guess, group_labels,
                    *distributed_args[:-1], pt1_guesses)
 
       return wrapped
 
     if pt2_use_average_guess:
-      pt2_initial_guess = np.mean(pt1_guesses, axis=0)
+      pt2_initial_guess = np.mean(pt1_sol.guess, axis=0)
     else:
       pt2_initial_guess = args[num_single_args - 1]
 
