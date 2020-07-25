@@ -178,8 +178,10 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
     X_generator = vdata.grouping_X_generator
   elif group_X == "correlated":
     X_generator = vdata.correlated_X_generator
-  else:
+  elif group_X == "same":
     X_generator = vdata.default_X_generator
+  else:
+    raise ValueError("Invalid group_X")
 
   evaluator = EvalWithCompoundTypes()
 

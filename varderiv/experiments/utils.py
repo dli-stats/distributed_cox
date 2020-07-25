@@ -71,6 +71,7 @@ def run_cov_experiment(init_fn,
 
   def save(result):
     if result_file is not None:
+      result_file.truncate(0)
       result_file.seek(0, 0)
       pickle.dump(result, result_file)
 
