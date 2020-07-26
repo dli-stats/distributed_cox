@@ -13,7 +13,7 @@ from frozendict import frozendict
 
 import numpy as onp
 
-from jax import jit, vmap, jacrev
+from jax import jit, vmap, jacrev, jacfwd
 import jax.random as jrandom
 import jax.tree_util as tu
 import jax.numpy as np
@@ -234,7 +234,7 @@ def freezeargs(func):
 @ex.capture
 @freezeargs
 @functools.lru_cache(maxsize=None)
-def cov_experiment_init(eq, data, pt2_use_average_guess, solver, meta_analysis,
+def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
                         **experiment_params):
   del experiment_params
   K = data["K"]
@@ -256,18 +256,22 @@ def cov_experiment_init(eq, data, pt2_use_average_guess, solver, meta_analysis,
                                    log_likelihood_fn,
                                    use_likelihood=use_likelihood)
     elif eq in ("eq2", "eq4"):
-      hessian_fn = getattr(eq_mod, "hessian_taylor2")
-      solve_fn = functools.partial(modeling.solve_distributed,
-                                   eq1.eq1_log_likelihood,
-                                   distributed_hessian_fn=hessian_fn,
-                                   num_single_args=num_single_args,
-                                   K=K,
-                                   pt2_use_average_guess=pt2_use_average_guess,
-                                   single_use_likelihood=True)
       batch_log_likelihood_or_score_fn = getattr(eq_mod,
                                                  "batch_{}_score".format(eq))
       log_likelihood_or_score_fn = getattr(eq_mod, "{}_score".format(eq))
       use_likelihood = False
+      if distributed["hessian_use_taylor2"]:
+        hessian_fn = getattr(eq_mod, "hessian_taylor2")
+      else:
+        hessian_fn = jacfwd(log_likelihood_or_score_fn, num_single_args - 1)
+      solve_fn = functools.partial(
+          modeling.solve_distributed,
+          eq1.eq1_log_likelihood,
+          distributed_hessian_fn=hessian_fn,
+          num_single_args=num_single_args,
+          K=K,
+          pt2_use_average_guess=distributed["pt2_use_average_guess"],
+          single_use_likelihood=True)
       solve_fn = functools.partial(solve_fn,
                                    log_likelihood_or_score_fn,
                                    distributed_use_likelihood=use_likelihood)
@@ -407,7 +411,7 @@ def config():
   eq = "eq1"
 
   # groupped_configs
-  pt2_use_average_guess = False
+  distributed = dict(pt2_use_average_guess=False, hessian_use_taylor2=True)
 
   # meta_analysis
   meta_analysis = dict(univariate=False, use_only_dims=None)
