@@ -428,6 +428,7 @@ def cov_experiment_main(data_generation_key, experiment_rand_key,
                        save_interval=save_interval,
                        result_file=result_file)
   ex.add_artifact(result_file.name, name="result")
+  result_file.close()
   if return_result:
     return res
   else:
