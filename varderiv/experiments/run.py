@@ -418,17 +418,16 @@ def cov_experiment_main(data_generation_key, experiment_rand_key,
                         num_experiments, num_threads, batch_size, save_interval,
                         return_result):
   # pylint: disable=missing-function-docstring
-  result_file = tempfile.NamedTemporaryFile(mode="wb+")
-  print(result_file.name)
-  res = cov_experiment(data_generation_key,
-                       experiment_rand_key,
-                       num_experiments=num_experiments,
-                       num_threads=num_threads,
-                       batch_size=batch_size,
-                       save_interval=save_interval,
-                       result_file=result_file)
-  ex.add_artifact(result_file.name, name="result")
-  result_file.close()
+  with tempfile.NamedTemporaryFile(mode="wb+") as result_file:
+    res = cov_experiment(data_generation_key,
+                         experiment_rand_key,
+                         num_experiments=num_experiments,
+                         num_threads=num_threads,
+                         batch_size=batch_size,
+                         save_interval=save_interval,
+                         result_file=result_file)
+    result_file.flush()
+    ex.add_artifact(result_file.name, name="result")
   if return_result:
     return res
   else:
