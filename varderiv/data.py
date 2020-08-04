@@ -66,7 +66,7 @@ def make_X_generator(N,
                      g_dists=None,
                      correlated_dims: Optional[Sequence[Tuple]] = None,
                      correlated_weights: Optional[Sequence[float]] = None):
-  """Helper utility that lifts a generator that produces independent Xi."""
+  """Helper utility that lifts a generator that produces Xi."""
   gen_X_fn = functools.partial(grouping_Xi_generator_any_K,
                                N,
                                group_label=group_label,
@@ -77,8 +77,8 @@ def make_X_generator(N,
   if correlated_dims is None:
     return X
 
-  correlated_dims = np.array(correlated_dims, dtype=int)
-  correlated_weights = np.array(correlated_weights, dtype=float)
+  correlated_dims = np.array(correlated_dims, dtype=np.int32)
+  correlated_weights = np.array(correlated_weights, dtype=floatt)
   correlated_from, correlated_to = correlated_dims[group_label %
                                                    correlated_dims.shape[0]]
   weight = correlated_weights[group_label % correlated_weights.shape[0]]
