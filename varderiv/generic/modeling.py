@@ -222,7 +222,8 @@ def cov_H():
 
 def cov_robust(batch_log_likelihood_or_score_fn,
                num_single_args: int = 1,
-               use_likelihood=True):
+               use_likelihood=True,
+               sum_group_first=False):
   """Covariance using robust sandwich estimate."""
   if use_likelihood:
     batch_score_fn = jacfwd(batch_log_likelihood_or_score_fn,
@@ -236,6 +237,8 @@ def cov_robust(batch_log_likelihood_or_score_fn,
       sol = sol.pt2
     A_inv = scipy.linalg.inv(-sol.hessian)
     batch_score = batch_score_fn(*args)
+    if sum_group_first:
+      batch_score = np.sum(batch_score, axis=1)
     batch_score = batch_score.reshape((-1, batch_score.shape[-1]))
     B = np.einsum("ni,nj->ij", batch_score, batch_score, optimize="optimal")
     return A_inv @ B @ A_inv.T
@@ -250,8 +253,10 @@ def cov_group_correction(
     num_single_args: int = 1,
     batch_single_use_likelihood=True,
     batch_distributed_use_likelihood=True,
-    robust=False):
+    robust=False,
+    robust_sum_group_first=False):
   """Computes covariance with grouped correction."""
+  del robust_sum_group_first  # doesn't work right now
 
   if batch_single_use_likelihood:
     batch_single_score_fn = jacfwd(batch_single_log_likelihood_or_score_fn,

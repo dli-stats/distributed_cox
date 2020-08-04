@@ -156,6 +156,28 @@ def compute_results_averaged(result: ExperimentResult):
   return beta_hat, all_covs
 
 
+def eval_get_group_X_generator(group_X: str):
+  evaluator = EvalWithCompoundTypes(
+      functions={
+          'normal':
+              vdata.normal,
+          'bernoulli':
+              vdata.bernoulli,
+          'custom':
+              lambda gdists, dims, weights: functools.partial(
+                  vdata.make_X_generator,
+                  g_dists=gdists,
+                  correlated_dims=dims,
+                  correlated_weights=weights),
+      },
+      names={
+          'group': vdata.grouping_X_generator_K3,
+          'same': vdata.default_X_generator,
+          'correlated': vdata.correlated_X_generator
+      })
+  return evaluator.eval(group_X)
+
+
 @ex.capture(prefix="data")
 @functools.lru_cache(maxsize=None)
 def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
@@ -173,15 +195,7 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
       group_labels_generator_kind=group_labels_generator_kind,
       **group_labels_generator_kind_kwargs)
 
-  if group_X == "group":
-    assert K == 3, "other than 3 groups not supported"
-    X_generator = vdata.grouping_X_generator
-  elif group_X == "correlated":
-    X_generator = vdata.correlated_X_generator
-  elif group_X == "same":
-    X_generator = vdata.default_X_generator
-  else:
-    raise ValueError("Invalid group_X")
+  X_generator = eval_get_group_X_generator(group_X)
 
   evaluator = EvalWithCompoundTypes()
 
@@ -283,14 +297,19 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
   if eq == "meta_analysis":
     cov_fns["cov:meta_analysis"] = modeling.cov_meta_analysis(**meta_analysis)
   else:
-    for group_correction, sandwich_robust, cox_correction in itertools.product(
-        *[(True, False)] * 3):
+    for (group_correction, sandwich_robust, sandwich_robust_sum_group_first,
+         cox_correction) in itertools.product(*[(True, False)] * 4):
       # Some non-sensical situations
       if not sandwich_robust and cox_correction:
         continue
+      if not sandwich_robust and sandwich_robust_sum_group_first:
+        continue
       if group_correction and eq in ("eq1", "eq3"):
         continue
-
+      if sandwich_robust_sum_group_first and eq in ("eq1", "eq2"):
+        continue
+      if sandwich_robust_sum_group_first:  # disabled because it's too bad
+        continue
       batch_robust_cox_correction_score = getattr(
           eq_mod, "batch_{}_robust_cox_correction_score".format(eq))
       if group_correction:
@@ -305,22 +324,26 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
             batch_single_use_likelihood=not cox_correction,
             batch_distributed_use_likelihood=False,
             num_single_args=num_single_args,
-            robust=sandwich_robust)
+            robust=sandwich_robust,
+            robust_sum_group_first=sandwich_robust_sum_group_first)
       elif sandwich_robust:
         cov_batch_log_likelihood_or_score_fn = (
             batch_robust_cox_correction_score
             if cox_correction else batch_log_likelihood_or_score_fn)
-        cov_fn = modeling.cov_robust(batch_log_likelihood_or_score_fn=
-                                     cov_batch_log_likelihood_or_score_fn,
-                                     use_likelihood=(use_likelihood and
-                                                     not cox_correction),
-                                     num_single_args=num_single_args)
+        cov_fn = modeling.cov_robust(
+            batch_log_likelihood_or_score_fn=
+            cov_batch_log_likelihood_or_score_fn,
+            use_likelihood=(use_likelihood and not cox_correction),
+            num_single_args=num_single_args,
+            sum_group_first=sandwich_robust_sum_group_first)
       else:
         cov_fn = modeling.cov_H()
-      cov_name = "cov:{}group_correction|{}sandwich|{}cox_correction".format(*[
-          "" if v else "no_"
-          for v in (group_correction, sandwich_robust, cox_correction)
-      ])
+      cov_name = ("cov:{}group_correction|{}sandwich"
+                  "|{}cox_correction|{}sum_first").format(*[
+                      "" if v else "no_"
+                      for v in (group_correction, sandwich_robust,
+                                cox_correction, sandwich_robust_sum_group_first)
+                  ])
       cov_fns[cov_name] = cov_fn
 
   group_sizes, gen = init_data_gen_fn()  # pylint: disable=no-value-for-parameter
@@ -397,7 +420,7 @@ def config():
       X_DIM=3,
       K=3,
       group_labels_generator_kind="same",  # "same", "arithemetic_sequence"
-      group_X="same",  # "same", "group", "correlated"
+      group_X="same",  # "same", "group", "correlated", "custom(...)"
       T_star_factors=None,  # "None", "fixed(...)", "gamma(...)"
       exp_scale=3.5,
   )
