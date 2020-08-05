@@ -66,7 +66,14 @@ def make_X_generator(N,
                      g_dists=None,
                      correlated_dims: Optional[Sequence[Tuple]] = None,
                      correlated_weights: Optional[Sequence[float]] = None):
-  """Helper utility that lifts a generator that produces Xi."""
+  """Helper utility that lifts a generator that produces Xi.
+
+  Args:
+    N, X_dim, key, group_label: data parameters
+    g_dists: a nested list of distributions
+    correlated_dims: sequence of tuple of pairs of correlated indices
+    correlated_weights: weights for the correlations.
+  """
   gen_X_fn = functools.partial(grouping_Xi_generator_any_K,
                                N,
                                group_label=group_label,
