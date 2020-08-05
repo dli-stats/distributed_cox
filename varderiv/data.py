@@ -1,5 +1,7 @@
 """Data generation."""
 
+from typing import Sequence, Tuple, Union, Optional
+
 import math
 import functools
 
@@ -25,65 +27,99 @@ else:
 # pylint: disable=redefined-outer-name
 
 
-def default_Xi_generator(N, dim, key, group_label=0):
-  del group_label
-  return jax.lax.cond(
-      dim % 2 == 0,
-      key, \
-      lambda key: jrandom.bernoulli(key, p=0.5, shape=(N,)).astype(floatt),
-      key, \
-      lambda key: jrandom.normal(key, shape=(N,)))
+def bernoulli(theta):
+
+  def wrapped(key, shape=None):
+    return jrandom.bernoulli(key, p=theta, shape=shape).astype(floatt)
+
+  return wrapped
 
 
-def grouping_Xi_generator(N, dim, key, group_label=0):
-  bernoulli_thetas = np.array([0.5, 0.3, 0.7])
-  normal_variances = np.array([1, 0.5, 1.5])
+def normal(mean, var):
 
-  bernoulli_theta = bernoulli_thetas[group_label]
-  normal_variance = normal_variances[group_label]
+  def wrapped(key, shape=None):
+    std = math.sqrt(var)
+    return jrandom.normal(key, shape=shape) * std + mean
 
-  return jax.lax.cond(
-      dim % 2 == 0,
-      key, \
-      lambda key: jrandom.bernoulli(key, p=bernoulli_theta,
-                                    shape=(N,)).astype(floatt),
-      key, \
-      lambda key: jrandom.normal(key, shape=(N,))) * normal_variance
+  return wrapped
 
 
-def X_group_generator_indep_dim(N,
-                                X_dim,
-                                key,
-                                group_label=0,
-                                Xi_generator=default_Xi_generator):
-  """Helper utility that lifts a generator that produces independent Xi."""
-  gen_X_fn = functools.partial(Xi_generator, N, group_label=group_label)
+def grouping_Xi_generator_any_K(N, dim, key, group_label=0, g_dists=None):
+
+  def group_fun(dists):
+
+    def wrapped(key):
+      return jax.lax.switch(dim % len(dists),
+                            [functools.partial(d, shape=(N,)) for d in dists],
+                            key)
+
+    return wrapped
+
+  return jax.lax.switch(group_label % len(g_dists),
+                        [group_fun(gd) for gd in g_dists], key)
+
+
+def make_X_generator(N,
+                     X_dim,
+                     key,
+                     group_label=0,
+                     g_dists=None,
+                     correlated_dims: Optional[Sequence[Tuple]] = None,
+                     correlated_weights: Optional[Sequence[float]] = None):
+  """Helper utility that lifts a generator that produces Xi.
+
+  Args:
+    N, X_dim, key, group_label: data parameters
+    g_dists: a nested list of distributions
+    correlated_dims: sequence of tuple of pairs of correlated indices
+    correlated_weights: weights for the correlations.
+  """
+  gen_X_fn = functools.partial(grouping_Xi_generator_any_K,
+                               N,
+                               group_label=group_label,
+                               g_dists=g_dists)
   dims = np.arange(X_dim, dtype=np.int32)
   subkeys = jrandom.split(key, X_dim)
-  return vmap(gen_X_fn, (0, 0), 1)(dims, subkeys)
+  X = vmap(gen_X_fn, (0, 0), 1)(dims, subkeys)
+  if correlated_dims is None:
+    return X
 
-
-default_X_generator = functools.partial(X_group_generator_indep_dim,
-                                        Xi_generator=default_Xi_generator)
-grouping_X_generator = functools.partial(X_group_generator_indep_dim,
-                                         Xi_generator=grouping_Xi_generator)
-
-
-def correlated_X_generator(N,
-                           X_dim,
-                           key,
-                           group_label=0,
-                           Xi_generator=default_Xi_generator,
-                           last_X_noise_variance=0.1):
-  """Helper utility that lifts a generator that produces independent Xi."""
-  gen_X_fn = functools.partial(Xi_generator, N, group_label=group_label)
-  dims = np.arange(X_dim - 1, dtype=np.int32)
-  subkeys = jrandom.split(key, X_dim)
-  X = vmap(gen_X_fn, (0, 0), 1)(dims, subkeys[:-1])
-  last_X = X[:, -1] + jrandom.normal(subkeys[-1],
-                                     shape=(N,)) * last_X_noise_variance
-  X = np.concatenate([X, last_X.reshape(N, 1)], axis=1)
+  correlated_dims = np.array(correlated_dims, dtype=np.int32)
+  correlated_weights = np.array(correlated_weights, dtype=floatt)
+  correlated_from, correlated_to = correlated_dims[group_label %
+                                                   correlated_dims.shape[0]]
+  weight = correlated_weights[group_label % correlated_weights.shape[0]]
+  X = jax.ops.index_add(X, jax.ops.index[:, correlated_to],
+                        weight * X[:, correlated_from])
   return X
+
+
+default_g_dists = [[bernoulli(0.5), normal(0, 1.)]]
+
+default_g_dists2 = [[bernoulli(0.5), normal(0, 1.)],
+                    [bernoulli(0.3), normal(0, 0.25)],
+                    [bernoulli(0.7), normal(0, 2.25)]]
+
+default_g_dists3 = [[normal(0, 1.),
+                     normal(0, 0.04),
+                     bernoulli(0.5)],
+                    [bernoulli(0.1),
+                     normal(0, 0.5),
+                     normal(2, 0.5)],
+                    [bernoulli(0.9),
+                     normal(0, 0.04),
+                     normal(-1, 1.5)]]
+
+default_X_generator = functools.partial(make_X_generator,
+                                        g_dists=default_g_dists)
+grouping_X_generator_K3 = functools.partial(make_X_generator,
+                                            g_dists=default_g_dists2)
+correlated_X_generator = functools.partial(
+    make_X_generator,
+    g_dists=[[bernoulli(0.5), normal(0, 1.),
+              normal(0, 0.01)]],
+    correlated_dims=[[-1, -2]],
+    correlated_weights=[1.])
 
 
 def T_star_factors_gamma_gen(shape, scale):

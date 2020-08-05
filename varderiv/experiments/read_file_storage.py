@@ -52,12 +52,12 @@ def find_experiment(runs_dir, **kwargs):
 
 
 expkey_names = ("eq K N T_star_factors X_DIM "
-                "group_X_same group_labels_generator_kind").split()
+                "group_X group_labels_generator_kind").split()
 
 
 def get_eq_name(experiment):
-  _, config_json, run_json = experiment
-  eq = run_json["experiment"]["name"]
+  _, config_json, _ = experiment
+  eq = config_json['eq']
   if eq == "meta_analysis":
     if config_json.get("univariate", False):
       eq = "meta_analysis_univariate"
