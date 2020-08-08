@@ -145,7 +145,7 @@ def _eval_jaxpr_taylor_expand(jaxpr: core.Jaxpr,
         def eval_call(*args):
           return core.eval_jaxpr(call_jaxpr, (), *args)
 
-        diff = diff = safe_map(np.subtract, original_in_vals, taylor_in_vals)
+        diff = safe_map(np.subtract, original_in_vals, taylor_in_vals)
         series = [([d] + [np.zeros_like(d)] * (order - 1)) for d in diff]
         f0, taylor_terms = jet.jet(eval_call, taylor_in_vals, series)
         ans = [

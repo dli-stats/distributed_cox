@@ -4,7 +4,8 @@ import functools
 
 import jax.numpy as np
 
-import varderiv.data as data
+import varderiv.utils as vutils
+
 from varderiv.generic.modeling import sum_score
 
 # pylint: disable=redefined-outer-name
@@ -21,10 +22,10 @@ def group_by(fun):
     K, group_size, _ = X_groups.shape
     batch_score = fun(X, delta, beta, group_labels, X_groups, delta_groups,
                       beta_k_hat)
-    return data.group_by_labels(group_labels,
-                                batch_score,
-                                K=K,
-                                group_size=group_size)
+    return vutils.group_by_labels(group_labels,
+                                  batch_score,
+                                  K=K,
+                                  group_size=group_size)
 
   return wrapped
 
