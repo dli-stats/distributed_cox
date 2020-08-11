@@ -52,6 +52,13 @@ def model_temporaries(tag):
     return sow(e, tag=tag, name=name, mode="clobber")
 
   def collect(fun, names: Union[Sequence[str]]):
+    """Collect marked intermediates.
+
+    Args:
+      - names: Either a sequence of or a single string name(s). If a single name,
+      return the function that returns the sole marked intermediate. Otherwise,
+      return all the intermediates (in the order of the names).
+    """
     if isinstance(names, str):
       names = [names]
       ret_single = True
@@ -62,8 +69,7 @@ def model_temporaries(tag):
       temps = reap(fun, tag=tag, allowlist=names)(*args, **kwargs)
       if ret_single:
         return temps[names[0]]
-      else:
-        return [temps[name] for name in names]
+      return [temps[name] for name in names]
 
     return wrapped
 
