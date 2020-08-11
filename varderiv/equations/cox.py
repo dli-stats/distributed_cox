@@ -113,7 +113,7 @@ def get_cox_fun(eq: str, kind: str, batch: bool = False, order: int = 1):
 
   if eq == "eq1":
     fn = eq1_fn
-    if batch:
+    if batch and not is_robust:
       fn = collect(fn, "batch_{}".format(kind))
   elif eq == "eq2":
     fn = _distribute(eq1_fn, reduction_kind="cumsum", orders={'ebx': order})
