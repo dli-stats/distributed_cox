@@ -37,6 +37,10 @@ def _group_by(fun):
   return wrapped
 
 
+####################
+# Ordinary Cox model
+####################
+
 mark, collect = modeling.model_temporaries("cox")
 
 
@@ -91,6 +95,10 @@ def eq1_batch_robust_cox_correction_score(X, delta, beta):
   return batch_score - score_correction_term
 
 
+####################
+# END
+####################
+
 # convenience used by eq2 and eq4
 _distribute = functools.partial(taylor_distribute, argnums=2)
 
@@ -139,7 +147,9 @@ def get_cox_fun(eq: str, kind: str, batch: bool = False, order: int = 1):
   return fn
 
 
-# eq1 (together with root modeling)
+## Some pre-built cox functions
+
+# Eq1 (together with root modeling)
 eq1_batch_loglik = collect(eq1_loglik, "batch_loglik")
 eq1_batch_score = collect(eq1_score, "batch_score")
 
@@ -151,20 +161,14 @@ eq2_batch_robust_cox_correction_score = get_cox_fun(
 eq2_hessian_taylor = get_cox_fun("eq2", "hessian", False, 1)
 
 # Eq 3
-eq3_batch_loglik = vmap(eq1_batch_loglik, in_axes=(0, 0, None))
-eq3_loglik = modeling.sum_loglik(eq3_batch_loglik)
-eq3_batch_robust_cox_correction_score = vmap(
-    eq1_batch_robust_cox_correction_score, in_axes=(0, 0, None))
+eq3_batch_loglik = get_cox_fun("eq3", "loglik", True)
+eq3_loglik = get_cox_fun("eq3", "loglik", False)
+eq3_batch_robust_cox_correction_score = get_cox_fun(
+    "eq3", "robust_cox_correction_score", True)
 
 # Eq 4
-eq4_score = _distribute(eq1_score, reduction_kind="sum", orders={'ebx': 1})
-eq4_batch_score = _distribute(eq1_batch_score,
-                              reduction_kind=None,
-                              orders={'ebx': 1})
-eq4_batch_robust_cox_correction_score = _distribute(
-    eq1_batch_robust_cox_correction_score,
-    reduction_kind=None,
-    orders={'ebx': 1})
-eq4_hessian_taylor = _distribute(eq1_hessian,
-                                 reduction_kind="sum",
-                                 orders={'ebx': 1})
+eq4_score = get_cox_fun("eq4", "score", False, 1)
+eq4_batch_score = get_cox_fun("eq4", "score", True, 1)
+eq4_batch_robust_cox_correction_score = get_cox_fun(
+    "eq4", "robust_cox_correction_score", True, 1)
+eq4_hessian_taylor = get_cox_fun("eq4", "hessian", False, 1)
