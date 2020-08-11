@@ -6,7 +6,6 @@ import collections
 import functools
 import tempfile
 import dataclasses
-import importlib
 import itertools
 
 from frozendict import frozendict
@@ -25,6 +24,7 @@ from sacred.utils import apply_backspaces_and_linefeeds
 
 import varderiv.data as vdata
 import varderiv.equations.eq1 as eq1
+import varderiv.equations.cox as cox
 
 import varderiv.generic.modeling as modeling
 from varderiv.generic.solver import NewtonSolverResult
@@ -254,30 +254,30 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
   K = data["K"]
   num_single_args = 3
 
+  get_cox_fun = functools.partial(cox.get_cox_fun,
+                                  order=distributed['taylor_order'])
+
   if eq == "meta_analysis":
     solve_fn = functools.partial(modeling.solve_meta_analysis,
                                  eq1.eq1_log_likelihood,
                                  use_likelihood=True,
                                  **meta_analysis)
   else:
-    eq_mod = importlib.import_module("varderiv.equations.{}".format(eq))
     if eq in ("eq1", "eq3"):
-      batch_log_likelihood_or_score_fn = getattr(
-          eq_mod, "batch_{}_log_likelihood".format(eq))
-      log_likelihood_fn = getattr(eq_mod, "{}_log_likelihood".format(eq))
+      batch_loglik_or_score_fn = get_cox_fun(eq, "loglik", batch=True)
+      log_likelihood_fn = get_cox_fun(eq, "loglik", batch=False)
       use_likelihood = True
       solve_fn = functools.partial(modeling.solve_single,
                                    log_likelihood_fn,
                                    use_likelihood=use_likelihood)
     elif eq in ("eq2", "eq4"):
-      batch_log_likelihood_or_score_fn = getattr(eq_mod,
-                                                 "batch_{}_score".format(eq))
-      log_likelihood_or_score_fn = getattr(eq_mod, "{}_score".format(eq))
+      batch_loglik_or_score_fn = get_cox_fun(eq, "score", batch=True)
+      loglik_or_score_fn = get_cox_fun(eq, "score", batch=False)
       use_likelihood = False
-      if distributed["hessian_use_taylor2"]:
-        hessian_fn = getattr(eq_mod, "hessian_taylor2")
+      if distributed["hessian_use_taylor"]:
+        hessian_fn = get_cox_fun(eq, "hessian", batch=False)
       else:
-        hessian_fn = jacfwd(log_likelihood_or_score_fn, num_single_args - 1)
+        hessian_fn = jacfwd(loglik_or_score_fn, num_single_args - 1)
       solve_fn = functools.partial(
           modeling.solve_distributed,
           eq1.eq1_log_likelihood,
@@ -287,7 +287,7 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
           pt2_use_average_guess=distributed["pt2_use_average_guess"],
           single_use_likelihood=True)
       solve_fn = functools.partial(solve_fn,
-                                   log_likelihood_or_score_fn,
+                                   loglik_or_score_fn,
                                    distributed_use_likelihood=use_likelihood)
 
   solve_fn = solve_fn(**solver)
@@ -310,17 +310,17 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
         continue
       if sandwich_robust_sum_group_first:  # disabled because it's too bad
         continue
-      batch_robust_cox_correction_score = getattr(
-          eq_mod, "batch_{}_robust_cox_correction_score".format(eq))
+      batch_robust_cox_correction_score = get_cox_fun(
+          eq, "robust_cox_correction_score", True)
       if group_correction:
-        batch_score = getattr(eq_mod, "batch_{}_score".format(eq))
+        batch_score = get_cox_fun(eq, "score", batch=True)
         cov_fn = modeling.cov_group_correction(
             (eq1.batch_eq1_robust_cox_correction_score \
             if cox_correction else eq1.batch_eq1_log_likelihood),
             (batch_robust_cox_correction_score \
             if cox_correction else batch_score),
             distributed_cross_hessian_fn=jacrev(
-                getattr(eq_mod, "{}_score".format(eq)), -1),
+                get_cox_fun(eq, "score", batch=False), -1),
             batch_single_use_likelihood=not cox_correction,
             batch_distributed_use_likelihood=False,
             num_single_args=num_single_args,
@@ -329,7 +329,7 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
       elif sandwich_robust:
         cov_batch_log_likelihood_or_score_fn = (
             batch_robust_cox_correction_score
-            if cox_correction else batch_log_likelihood_or_score_fn)
+            if cox_correction else batch_loglik_or_score_fn)
         cov_fn = modeling.cov_robust(
             batch_log_likelihood_or_score_fn=
             cov_batch_log_likelihood_or_score_fn,
@@ -434,7 +434,11 @@ def config():
   eq = "eq1"
 
   # groupped_configs
-  distributed = dict(pt2_use_average_guess=False, hessian_use_taylor2=True)
+  distributed = dict(
+      pt2_use_average_guess=False,
+      hessian_use_taylor=False,
+      taylor_order=1,
+  )
 
   # meta_analysis
   meta_analysis = dict(univariate=False, use_only_dims=None)
@@ -457,8 +461,7 @@ def cov_experiment_main(data_generation_key, experiment_rand_key,
     ex.add_artifact(result_file.name, name="result")
   if return_result:
     return res
-  else:
-    return None
+  return None
 
 
 ex.captured_out_filter = apply_backspaces_and_linefeeds

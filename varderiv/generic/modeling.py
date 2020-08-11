@@ -15,6 +15,8 @@ try:
 except ImportError:
   bfgs = None
 
+from oryx.core import sow, reap
+
 from varderiv.generic.solver import solve_newton, NewtonSolverResult
 
 DistributedModelSolverResult = collections.namedtuple(
@@ -38,9 +40,34 @@ def sum_fn(fun, ndims=0):
   return wrapped
 
 
-sum_log_likelihood = functools.partial(sum_fn, ndims=0)
+sum_loglik = functools.partial(sum_fn, ndims=0)
 sum_score = functools.partial(sum_fn, ndims=1)
 sum_hessian = functools.partial(sum_fn, ndims=2)
+
+
+def model_temporaries(tag):
+  """Utility for marking/collecting model's intermediates."""
+
+  def mark(e, name):
+    return sow(e, tag=tag, name=name, mode="clobber")
+
+  def collect(fun, names: Union[Sequence[str]]):
+    if isinstance(names, str):
+      names = [names]
+      ret_single = True
+    else:
+      ret_single = False
+
+    def wrapped(*args, **kwargs):
+      temps = reap(fun, tag=tag, allowlist=names)(*args, **kwargs)
+      if ret_single:
+        return temps[names[0]]
+      else:
+        return [temps[name] for name in names]
+
+    return wrapped
+
+  return mark, collect
 
 
 def solve_single(single_log_likelihood_or_score_fn,
@@ -269,9 +296,8 @@ def cov_group_correction(
         batch_distributed_log_likelihood_or_score_fn, num_single_args - 1)
     if distributed_cross_hessian_fn is None:
       distributed_cross_hessian_fn = jacfwd(
-          jacrev(
-              sum_log_likelihood(batch_distributed_log_likelihood_or_score_fn),
-              num_single_args - 1), -1)
+          jacrev(sum_loglik(batch_distributed_log_likelihood_or_score_fn),
+                 num_single_args - 1), -1)
   else:
     batch_distributed_score_fn = batch_distributed_log_likelihood_or_score_fn
     if distributed_cross_hessian_fn is None:

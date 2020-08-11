@@ -1,6 +1,6 @@
 """Data generation."""
 
-from typing import Sequence, Tuple, Union, Optional
+from typing import Sequence, Tuple, Optional
 
 import math
 import functools

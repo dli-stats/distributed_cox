@@ -5,7 +5,7 @@ import functools
 from jax import jacfwd
 import jax.numpy as np
 
-from varderiv.generic.modeling import sum_log_likelihood
+from varderiv.generic.modeling import sum_loglik
 
 #########################################################
 # BEGIN eq1
@@ -20,7 +20,7 @@ def batch_eq1_log_likelihood(X, delta, beta):
   return (bx - log_term) * delta
 
 
-eq1_log_likelihood = np.vectorize(sum_log_likelihood(batch_eq1_log_likelihood),
+eq1_log_likelihood = np.vectorize(sum_loglik(batch_eq1_log_likelihood),
                                   signature='(N,p),(N),(p)->()')
 
 batch_eq1_score = np.vectorize(jacfwd(batch_eq1_log_likelihood, -1),

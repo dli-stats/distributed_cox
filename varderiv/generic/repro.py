@@ -1,25 +1,18 @@
-from jax import custom_vjp, custom_jvp, jacfwd, jacrev
+from oryx.core import reap, plant, sow
+
+
+def remove_tag(fun, *, name: str):
+
+  def wrapped(*args, **kwargs):
+    intermediates = reap(fun, tag="tag1")(*args, **kwargs)
+    print("=======")
+    return plant(fun, tag="tag1")(intermediates, *args, **kwargs)
+
+  return wrapped
 
 
 def f(x):
-  return x
+  return sow(x, tag="tag2", name="b", mode='clobber')
 
 
-f = custom_jvp(f)
-f.defjvp(lambda *args: args)
-
-f = custom_vjp(f)
-
-
-def fwd(*primals):
-  return (primals, 0.)
-
-
-def bwd(res, ct):
-  return ct
-
-
-f.defvjp(fwd, bwd)
-
-print(jacfwd(f)(1.))
-print(jacrev(f)(1.))
+print(reap(remove_tag(f, name="a"), tag="tag2")(1.))
