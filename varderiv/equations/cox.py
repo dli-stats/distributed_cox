@@ -68,12 +68,11 @@ def eq1_hessian(X, delta, beta):
   """Eq1's hessian."""
   score_numer, score_denom = collect(eq1_score, ["xebx", "ebx"])(X, delta, beta)
 
-  score_numer_cs = cumsum(score_numer, name="numer_cs")
-  score_denom_cs = cumsum(score_denom, name="denom_cs").reshape((-1, 1, 1))
+  score_numer_cs = cumsum(score_numer, name="xebx_cs")
+  score_denom_cs = cumsum(score_denom, name="ebx_cs").reshape((-1, 1, 1))
 
-  term_1 = (np.cumsum(
-      np.einsum("Ni,Nj->Nij", X, score_numer, optimize="optimal"), axis=0) /
-            score_denom_cs)
+  term_1 = (cumsum(np.einsum("Ni,Nj->Nij", X, score_numer, optimize="optimal"),
+                   name="xxebx_cs") / score_denom_cs)
 
   term_2 = (np.einsum(
       "Ni,Nj->Nij", score_numer_cs, score_numer_cs, optimize="optimal") /
@@ -81,7 +80,7 @@ def eq1_hessian(X, delta, beta):
 
   batch_hessian = mark((term_2 - term_1) * delta.reshape((-1, 1, 1)),
                        "batch_hessian")
-  return np.sum(batch_hessian, axis=0)
+  return sum(batch_hessian, name="sum_hessian")
 
 
 def eq1_batch_robust_cox_correction_score(X, delta, beta):
@@ -172,3 +171,21 @@ eq4_batch_score = get_cox_fun("eq4", "score", True, 1)
 eq4_batch_robust_cox_correction_score = get_cox_fun(
     "eq4", "robust_cox_correction_score", True, 1)
 eq4_hessian_taylor = get_cox_fun("eq4", "hessian", False, 1)
+
+if __name__ == "__main__":
+  import varderiv.data as vdata
+  import varderiv.equations.eq2 as eq4
+  gen = vdata.data_generator(500, 3, (166, 167, 167))
+  X, delta, beta, group_labels = gen(vdata.data_generation_key)
+  X_groups, delta_groups = vdata.group_data_by_labels(group_labels,
+                                                      X,
+                                                      delta,
+                                                      K=3,
+                                                      group_size=167)
+  beta_k_hat = np.array([beta] * 3)
+  h = eq2_hessian_taylor(X, delta, beta, group_labels, X_groups, delta_groups,
+                         beta_k_hat)
+  print(h)
+  print(
+      eq4.hessian_taylor2(X, delta, beta, group_labels, X_groups, delta_groups,
+                          beta_k_hat))
