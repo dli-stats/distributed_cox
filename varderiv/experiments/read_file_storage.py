@@ -113,11 +113,11 @@ def main(args):
     for k2, v in r.items():
       df[k2].loc[k1] = v
 
-  return df
+  df.to_csv(args.out_csv)
 
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--runs_dir', type=str, default="runs/")
-  df = main(parser.parse_args())
-  df.to_csv("paper_results.csv")
+  parser.add_argument('--out_csv', type=str, default="paper_results.csv")
+  main(parser.parse_args())
