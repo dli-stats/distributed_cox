@@ -51,8 +51,8 @@ def find_experiment(runs_dir, **kwargs):
       yield (run_dir, config_json, run_json)
 
 
-expkey_names = ("eq K N T_star_factors X_DIM "
-                "group_X group_labels_generator_kind").split()
+expkey_names = ("eq data.K data.N data.T_star_factors data.X_DIM "
+                "data.group_X data.group_labels_generator_kind").split()
 
 
 def get_eq_name(experiment):
@@ -66,10 +66,16 @@ def get_eq_name(experiment):
 
 def get_expkey(experiment):
   _, config_json, _ = experiment
-  expkey = tuple(
-      config_json["base"][n] if n != "eq" else get_eq_name(experiment)
-      for n in expkey_names)
-  return expkey
+  expkey = []
+  for n in expkey_names:
+    if n == "eq":
+      k = get_eq_name(experiment)
+    else:
+      k = config_json
+      for part in n.split("."):
+        k = k[part]
+    expkey.append(k)
+  return tuple(expkey)
 
 
 def merge_experiments_same_setting(runs_dir, **kwargs):
