@@ -153,7 +153,7 @@ def compute_results_averaged(result: ExperimentResult):
     cov_analytical = onp.mean(cov_analyticals, axis=0)
     all_covs[cov_name] = cov_analytical
 
-  return beta_hat, all_covs
+  return beta_hat, all_covs, onp.sum(keep_idxs)
 
 
 def eval_get_group_X_generator(group_X: str):

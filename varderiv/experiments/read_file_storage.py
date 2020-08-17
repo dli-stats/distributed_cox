@@ -7,7 +7,7 @@ import argparse
 import pickle
 import collections
 
-# import numpy as onp
+import numpy as onp
 import pandas as pd
 import tqdm
 from varderiv.experiments.run import compute_results_averaged
@@ -95,11 +95,18 @@ def main(args):
     expkey = get_expkey((run_dir, config_json, run_json))
     with open(os.path.join(run_dir, "result"), "rb") as f:
       result = pickle.load(f)
-    beta_hat, covs = compute_results_averaged(result)
-    paper_results[expkey] = {'beta_hat': beta_hat, **covs}
+    beta_hat, covs, n_kept = compute_results_averaged(result)
+    n_converged = onp.sum(result.sol.converged)
+    paper_results[expkey] = {
+        'beta_hat': beta_hat,
+        'n_converged': n_converged,
+        'n_kept': n_kept,
+        **covs
+    }
     cov_names = cov_names.union(covs.keys())
 
-  df = pd.DataFrame(columns=["beta_hat"] + list(sorted(cov_names)),
+  df = pd.DataFrame(columns=["beta_hat", "n_converged", "n_kept"] +
+                    list(sorted(cov_names)),
                     index=pd.MultiIndex.from_tuples(paper_results.keys(),
                                                     names=expkey_names))
   for k1, r in paper_results.items():
