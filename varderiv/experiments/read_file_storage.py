@@ -11,6 +11,9 @@ import numpy as onp
 import pandas as pd
 import tqdm
 from varderiv.experiments.run import compute_results_averaged
+
+from varderiv.experiments.run import ExperimentResult
+
 # pylint: disable=missing-docstring, unused-import
 
 
@@ -52,28 +55,17 @@ def find_experiment(runs_dir, **kwargs):
 
 
 expkey_names = ("eq data.K data.N data.T_star_factors data.X_DIM "
-                "data.group_X data.group_labels_generator_kind").split()
-
-
-def get_eq_name(experiment):
-  _, config_json, _ = experiment
-  eq = config_json['eq']
-  if eq == "meta_analysis":
-    if config_json.get("univariate", False):
-      eq = "meta_analysis_univariate"
-  return eq
+                "data.group_X data.group_labels_generator_kind "
+                "distributed.taylor_order meta_analysis.univariate").split()
 
 
 def get_expkey(experiment):
   _, config_json, _ = experiment
   expkey = []
   for n in expkey_names:
-    if n == "eq":
-      k = get_eq_name(experiment)
-    else:
-      k = config_json
-      for part in n.split("."):
-        k = k[part]
+    k = config_json
+    for part in n.split("."):
+      k = k[part]
     expkey.append(k)
   return tuple(expkey)
 
