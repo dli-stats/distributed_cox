@@ -48,11 +48,12 @@ def do_converged(use_likelihood, args):
 
 
 def do_work(use_likelihood, args):
-  is_finite = args[1][-2]
   if use_likelihood:
+    is_finite = args[1][-2]
     loglik_increased = args[1][-1]
     should_do_normal_update = np.logical_and(is_finite, loglik_increased)
   else:
+    is_finite = args[1][-1]
     should_do_normal_update = is_finite
   state = jax.lax.cond(should_do_normal_update,
                        functools.partial(do_normal_update, use_likelihood),
