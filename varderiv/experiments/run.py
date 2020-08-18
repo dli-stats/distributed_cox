@@ -7,6 +7,8 @@ import functools
 import tempfile
 import dataclasses
 import itertools
+import os
+import json
 
 from frozendict import frozendict
 
@@ -23,7 +25,6 @@ from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
 import varderiv.data as vdata
-import varderiv.equations.eq1 as eq1
 import varderiv.equations.cox as cox
 
 import varderiv.generic.modeling as modeling
@@ -223,14 +224,17 @@ def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
                                            group_sizes,
                                            exp_scale=exp_scale,
                                            T_star_factors=T_star_factors,
-                                           X_generator=X_generator)
+                                           X_generator=X_generator,
+                                           return_T=True,
+                                           return_T_star=True)
 
 
 def freezeargs(func):
-  """Transform mutable dictionnary
-    Into immutable
-    Useful to be compatible with cache
-    """
+  """
+  Transform mutable dictionnary
+  Into immutable
+  Useful to be compatible with cache
+  """
 
   @functools.wraps(func)
   def wrapped(*args, **kwargs):
@@ -259,7 +263,7 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
 
   if eq == "meta_analysis":
     solve_fn = functools.partial(modeling.solve_meta_analysis,
-                                 eq1.eq1_log_likelihood,
+                                 get_cox_fun("eq1", "loglik", batch=False),
                                  use_likelihood=True,
                                  **meta_analysis)
   else:
@@ -280,7 +284,7 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
         hessian_fn = jacfwd(loglik_or_score_fn, num_single_args - 1)
       solve_fn = functools.partial(
           modeling.solve_distributed,
-          eq1.eq1_log_likelihood,
+          get_cox_fun("eq1", "loglik", batch=False),
           distributed_hessian_fn=hessian_fn,
           num_single_args=num_single_args,
           K=K,
@@ -315,10 +319,10 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
       if group_correction:
         batch_score = get_cox_fun(eq, "score", batch=True)
         cov_fn = modeling.cov_group_correction(
-            (eq1.batch_eq1_robust_cox_correction_score \
-            if cox_correction else eq1.batch_eq1_log_likelihood),
-            (batch_robust_cox_correction_score \
-            if cox_correction else batch_score),
+            (get_cox_fun("eq1", "robust_cox_correction_score", True)
+             if cox_correction else get_cox_fun("eq1", "loglik", True)),
+            (batch_robust_cox_correction_score
+             if cox_correction else batch_score),
             distributed_cross_hessian_fn=jacrev(
                 get_cox_fun(eq, "score", batch=False), -1),
             batch_single_use_likelihood=not cox_correction,
@@ -350,7 +354,8 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
   group_size = max(group_sizes)
 
   def solve_and_cov(data_generation_key):
-    X, delta, beta, group_labels = gen(data_generation_key)
+    T_star, T, X, delta, beta, group_labels = gen(data_generation_key)
+    del T_star, T  # not used by solver
     initial_beta_hat = beta
     if eq != "eq1":
       X_groups, delta_groups = vdata.group_data_by_labels(group_labels,
@@ -389,14 +394,33 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
                             pt2=pt2_sol,
                             covs=cov_results)
 
-  return {"solve_and_cov": jit(vmap(solve_and_cov))}
+  return {"solve_and_cov": jit(vmap(solve_and_cov)), "gen": jit(vmap(gen))}
+
+
+class EndExperimentException(Exception):
+  pass
 
 
 @ex.capture
-def cov_experiment_core(rnd_keys, solve_and_cov=None):
+def cov_experiment_core(rnd_keys,
+                        solve_and_cov=None,
+                        gen=None,
+                        save_data_csv=None,
+                        data=None):
   assert solve_and_cov is not None
-  key, data_generation_key = map(np.array, zip(*rnd_keys))
-  experiment_result = solve_and_cov(data_generation_key)
+  key, data_generation_keys = map(np.array, zip(*rnd_keys))
+  if save_data_csv is not None:
+    T_star, T, X, delta, beta, group_labels = gen(data_generation_keys)
+    os.makedirs(save_data_csv, exist_ok=True)
+    for vname in ["T_star", "T", "X", "delta", "beta", "group_labels"]:
+      a = eval(vname)  # pylint: disable=eval-used
+      a = a.reshape((-1, a.shape[-1]))
+      onp.savetxt(os.path.join(save_data_csv, vname), a, delimiter=",")
+    with open(os.path.join(save_data_csv, "data.json"), "w+") as f:
+      json.dump(data, f)
+    raise EndExperimentException()
+  del gen
+  experiment_result = solve_and_cov(data_generation_keys)
   return experiment_result
 
 
@@ -408,7 +432,9 @@ cov_experiment = functools.partial(utils.run_cov_experiment,
 
 @ex.config
 def config():
+
   return_result = False
+  save_data_csv = None
 
   num_experiments = 10000
   num_threads = 1
@@ -449,19 +475,22 @@ def cov_experiment_main(data_generation_key, experiment_rand_key,
                         num_experiments, num_threads, batch_size, save_interval,
                         return_result):
   # pylint: disable=missing-function-docstring
-  with tempfile.NamedTemporaryFile(mode="wb+") as result_file:
-    res = cov_experiment(data_generation_key,
-                         experiment_rand_key,
-                         num_experiments=num_experiments,
-                         num_threads=num_threads,
-                         batch_size=batch_size,
-                         save_interval=save_interval,
-                         result_file=result_file)
-    result_file.flush()
-    ex.add_artifact(result_file.name, name="result")
-  if return_result:
-    return res
-  return None
+  try:
+    with tempfile.NamedTemporaryFile(mode="wb+") as result_file:
+      res = cov_experiment(data_generation_key,
+                           experiment_rand_key,
+                           num_experiments=num_experiments,
+                           num_threads=num_threads,
+                           batch_size=batch_size,
+                           save_interval=save_interval,
+                           result_file=result_file)
+      result_file.flush()
+      ex.add_artifact(result_file.name, name="result")
+    if return_result:
+      return res
+    return None
+  except EndExperimentException:
+    return None
 
 
 ex.captured_out_filter = apply_backspaces_and_linefeeds
