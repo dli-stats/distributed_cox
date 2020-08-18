@@ -37,10 +37,9 @@ def bernoulli(theta):
   return wrapped
 
 
-def normal(mean, var):
+def normal(mean, std):
 
   def wrapped(key, shape=None):
-    std = math.sqrt(var)
     return jrandom.normal(key, shape=shape) * std + mean
 
   return wrapped
