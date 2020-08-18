@@ -93,7 +93,7 @@ def main(args):
     expkey = get_expkey((run_dir, config_json, run_json))
     with open(os.path.join(run_dir, "result"), "rb") as f:
       result = pickle.load(f)
-    beta_hat, covs, n_kept = compute_results_averaged(result)
+    beta_hat, covs, n_kept = compute_results_averaged(result, std=args.std)
     n_converged = onp.sum(result.sol.converged)
     paper_results[expkey] = {
         'beta_hat': beta_hat,
@@ -118,4 +118,5 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--runs_dir', type=str, default="runs/")
   parser.add_argument('--out_csv', type=str, default="paper_results.csv")
+  parser.add_argument('--std', type=bool, action="store_true", default=False)
   main(parser.parse_args())

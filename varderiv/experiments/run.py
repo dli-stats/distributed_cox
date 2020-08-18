@@ -114,7 +114,7 @@ class ExperimentResult:
     return self.sol.guess
 
 
-def compute_results_averaged(result: ExperimentResult):
+def compute_results_averaged(result: ExperimentResult, std=False):
   """
   Args:
     - result: the experiment result object.
@@ -147,10 +147,15 @@ def compute_results_averaged(result: ExperimentResult):
   cov_empirical = onp.cov(beta, rowvar=False)
   if cov_empirical.shape == tuple():
     cov_empirical = cov_empirical.reshape((1, 1))
+  if std:
+    cov_empirical = onp.sqrt(np.diagonal(cov_empirical, axis1=-2, axis2=-1))
   all_covs["empirical"] = cov_empirical
 
   for cov_name, cov_analyticals in result.covs.items():
     cov_analyticals = cov_analyticals[keep_idxs]
+    if std:
+      cov_analyticals = np.sqrt(np.diagonal(cov_analyticals, axis1=-2,
+                                            axis2=-1))
     cov_analytical = onp.mean(cov_analyticals, axis=0)
     all_covs[cov_name] = cov_analytical
 
