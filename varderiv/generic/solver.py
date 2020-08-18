@@ -25,7 +25,7 @@ def do_halving(args):
 
 def do_normal_update(use_likelihood, args):
   if use_likelihood:
-    state, (new_loglik, new_score, _, cho_factor, _) = args
+    state, (new_loglik, new_score, _, cho_factor, _, _) = args
     state = state._replace(loglik=new_loglik)
   else:
     state, (new_score, _, cho_factor, _) = args
@@ -37,7 +37,7 @@ def do_normal_update(use_likelihood, args):
 
 def do_converged(use_likelihood, args):
   if use_likelihood:
-    state, (new_loglik, new_score, new_hessian, _, _) = args
+    state, (new_loglik, new_score, new_hessian, _, _, _) = args
     state = state._replace(loglik=new_loglik)
   else:
     state, (new_score, new_hessian, _, _) = args
@@ -48,8 +48,13 @@ def do_converged(use_likelihood, args):
 
 
 def do_work(use_likelihood, args):
-  is_finite = args[1][-1]
-  state = jax.lax.cond(is_finite,
+  is_finite = args[1][-2]
+  if use_likelihood:
+    loglik_increased = args[1][-1]
+    should_do_normal_update = np.logical_and(is_finite, loglik_increased)
+  else:
+    should_do_normal_update = is_finite
+  state = jax.lax.cond(should_do_normal_update,
                        functools.partial(do_normal_update, use_likelihood),
                        do_halving,
                        operand=args)
@@ -98,6 +103,7 @@ def solve_newton(likelihood_or_score_fn,
                                np.all(np.isfinite(cho_factor)))
     if use_likelihood:
       is_finite = np.logical_and(np.all(np.isfinite(new_loglik)), is_finite)
+      loglik_increased = new_loglik > loglik
       converged = np.logical_and(
           is_finite, np.allclose(new_loglik, loglik, rtol=loglik_eps))
     else:
@@ -108,8 +114,8 @@ def solve_newton(likelihood_or_score_fn,
     state = state._replace(converged=converged)
 
     if use_likelihood:
-      args = (state, (new_loglik, new_score, new_hessian, cho_factor,
-                      is_finite))
+      args = (state, (new_loglik, new_score, new_hessian, cho_factor, is_finite,
+                      loglik_increased))
     else:
       args = (state, (new_score, new_hessian, cho_factor, is_finite))
 
@@ -125,7 +131,7 @@ def solve_newton(likelihood_or_score_fn,
                        np.logical_not(state.converged)))
 
   if use_likelihood:
-    initial_state = InternalState(initial_guess, initial_guess, np.inf,
+    initial_state = InternalState(initial_guess, initial_guess, -np.inf,
                                   np.zeros_like(initial_guess),
                                   np.zeros((X_DIM, X_DIM)), 0, 0, False)
   else:
