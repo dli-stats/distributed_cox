@@ -12,9 +12,9 @@ import pandas as pd
 import tqdm
 from varderiv.experiments.run import compute_results_averaged
 
-from varderiv.experiments.run import ExperimentResult
-
 # pylint: disable=missing-docstring, unused-import
+
+from varderiv.experiments.run import ExperimentResult
 
 
 def iterate_experiments(runs_dir):
@@ -118,5 +118,5 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--runs_dir', type=str, default="runs/")
   parser.add_argument('--out_csv', type=str, default="paper_results.csv")
-  parser.add_argument('--std', type=bool, action="store_true", default=False)
+  parser.add_argument('--std', action="store_true", default=False)
   main(parser.parse_args())
