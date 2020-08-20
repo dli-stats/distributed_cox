@@ -105,8 +105,8 @@ def solve_newton(likelihood_or_score_fn,
     if use_likelihood:
       is_finite = np.logical_and(np.all(np.isfinite(new_loglik)), is_finite)
       loglik_increased = new_loglik > loglik
-      converged = np.logical_and(
-          is_finite, np.allclose(new_loglik, loglik, rtol=loglik_eps))
+      converged = np.logical_and(is_finite,
+                                 np.abs(1 - loglik / new_loglik) < loglik_eps)
     else:
       converged = np.logical_and(
           is_finite,

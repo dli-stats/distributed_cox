@@ -84,11 +84,12 @@ def eq1_hessian(X, delta, beta):
 
 
 def eq1_batch_robust_cox_correction_score(X, delta, beta):
-  ebx, ebx_cs, xebx_cs, batch_score = collect(
-      eq1_score, ["ebx", "ebx_cs", "xebx_cs", "batch_score"])(X, delta, beta)
+  ebx, xebx, ebx_cs, xebx_cs, batch_score = collect(
+      eq1_score, ["ebx", "xebx", "ebx_cs", "xebx_cs", "batch_score"])(X, delta,
+                                                                      beta)
 
   ebx_cs_1 = (1. / ebx_cs) * delta.reshape((-1, 1))
-  term_1 = X * ebx * _right_cumsum(ebx_cs_1, axis=0)
+  term_1 = xebx * _right_cumsum(ebx_cs_1, axis=0)
   term_2 = ebx * _right_cumsum(xebx_cs * (ebx_cs_1**2), axis=0)
   score_correction_term = term_1 - term_2
   return batch_score - score_correction_term
