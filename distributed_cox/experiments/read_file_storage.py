@@ -10,11 +10,11 @@ import collections
 import numpy as onp
 import pandas as pd
 import tqdm
-from varderiv.experiments.run import compute_results_averaged
+from distributed_cox.experiments.run import compute_results_averaged
 
 # pylint: disable=missing-docstring, unused-import
 
-from varderiv.experiments.run import ExperimentResult
+from distributed_cox.experiments.run import ExperimentResult
 
 
 def iterate_experiments(runs_dir):

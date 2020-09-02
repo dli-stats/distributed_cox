@@ -5,7 +5,7 @@ import functools
 from jax import jacfwd
 import jax.numpy as np
 
-from varderiv.generic.modeling import sum_loglik
+from distributed_cox.generic.modeling import sum_loglik
 
 #########################################################
 # BEGIN eq1

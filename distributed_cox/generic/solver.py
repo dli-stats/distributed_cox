@@ -10,7 +10,7 @@ import jax.numpy as np
 import jax.scipy as scipy
 from jax import value_and_grad
 
-from varderiv.generic.hess import value_jac_and_hessian, value_and_jacfwd
+from distributed_cox.generic.hess import value_jac_and_hessian, value_and_jacfwd
 
 NewtonSolverResult = collections.namedtuple(
     "NewtonSolverResult", "guess loglik score hessian step converged")

@@ -7,8 +7,8 @@ import jax
 from jax import jit
 import jax.numpy as np
 
-import varderiv.equations.eq1 as eq1
-import varderiv.data
+import distributed_cox.equations.eq1 as eq1
+import distributed_cox.data
 
 
 def data_from_csv(csv_file: str):

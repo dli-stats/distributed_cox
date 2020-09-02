@@ -3,9 +3,9 @@
 import jax.numpy as np
 from jax import vmap
 
-from varderiv.generic.modeling import sum_loglik
+from distributed_cox.generic.modeling import sum_loglik
 
-import varderiv.equations.eq1 as eq1
+import distributed_cox.equations.eq1 as eq1
 
 #########################################################
 # BEGIN eq3

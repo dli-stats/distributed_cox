@@ -14,7 +14,7 @@ import jax.config
 
 from jax import random as jrandom
 
-import varderiv.utils as vutils
+import distributed_cox.utils as vutils
 
 if hasattr(jrandom, "permutation"):
   jrandom_shuffle = jrandom.permutation

@@ -6,9 +6,9 @@ import os
 import numpy as onp
 import jax.random as jrandom
 
-import varderiv.data as data
-import varderiv.experiments.common as experiment_common
-import varderiv.experiments.utils as experiment_utils
+import distributed_cox.data as data
+import distributed_cox.experiments.common as experiment_common
+import distributed_cox.experiments.utils as experiment_utils
 
 # pylint: disable=missing-function-docstring
 

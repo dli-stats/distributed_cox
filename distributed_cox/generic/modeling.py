@@ -17,7 +17,7 @@ except ImportError:
 
 from oryx.core import sow, reap
 
-from varderiv.generic.solver import solve_newton, NewtonSolverResult
+from distributed_cox.generic.solver import solve_newton, NewtonSolverResult
 
 DistributedModelSolverResult = collections.namedtuple(
     "DistributedModelSolverResult", "pt1 pt2")

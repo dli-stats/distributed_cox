@@ -8,11 +8,11 @@ import jax.numpy as np
 from jax import jacfwd
 from jax import random as jrandom
 
-from varderiv.solver import solve_newton
+from distributed_cox.solver import solve_newton
 
-from varderiv.equations.eq1 import solve_eq1_ad
-from varderiv.equations.eq1 import eq1_compute_H_ad
-from varderiv.equations.eq2 import cov_pure_analytical_from_I
+from distributed_cox.equations.eq1 import solve_eq1_ad
+from distributed_cox.equations.eq1 import eq1_compute_H_ad
+from distributed_cox.equations.eq2 import cov_pure_analytical_from_I
 # pylint: disable=redefined-outer-name
 
 #########################################################
@@ -142,8 +142,8 @@ if __name__ == '__main__':
   N = 1000
   K = 3
   X_DIM = 4
-  from varderiv.data import (data_generator, key, data_generation_key,
-                             group_sizes_generator)
+  from distributed_cox.data import (data_generator, key, data_generation_key,
+                                    group_sizes_generator)
   key, subkey = jrandom.split(key)
   group_sizes = group_sizes_generator(N, K, "same")
   T, X, delta, beta, group_labels = data_generator(
@@ -165,7 +165,7 @@ if __name__ == '__main__':
 
   beta_k_hat = local_data[-1]
   # print(beta_k_hat)
-  from varderiv.equations.eq1 import eq1_log_likelihood_grad_ad
+  from distributed_cox.equations.eq1 import eq1_log_likelihood_grad_ad
   print(eq1_log_likelihood_grad_ad(X, delta, beta_k_hat))
   print(distributed_eq2_jac_master(*local_data[1:], beta_k_hat))
 

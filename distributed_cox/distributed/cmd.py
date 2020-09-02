@@ -28,19 +28,19 @@ import pandas as pd
 
 import jax.random as jrandom
 
-from varderiv.data import data_generator
-from varderiv.data import group_sizes_generator
-from varderiv.data import group_data_by_labels
+from distributed_cox.data import data_generator
+from distributed_cox.data import group_sizes_generator
+from distributed_cox.data import group_data_by_labels
 
-from varderiv.equations.eq1 import (get_eq1_solver, eq1_cov,
-                                    eq1_log_likelihood_grad_ad)
-from varderiv.equations.eq3 import get_eq3_solver, get_eq3_cov_fn
+from distributed_cox.equations.eq1 import (get_eq1_solver, eq1_cov,
+                                           eq1_log_likelihood_grad_ad)
+from distributed_cox.equations.eq3 import get_eq3_solver, get_eq3_cov_fn
 
-from varderiv.distributed.eq2 import distributed_compute_eq2_local
-from varderiv.distributed.eq2 import distributed_compute_eq2_master
+from distributed_cox.distributed.eq2 import distributed_compute_eq2_local
+from distributed_cox.distributed.eq2 import distributed_compute_eq2_master
 
-from varderiv.distributed.eq4 import distributed_compute_eq4_local
-from varderiv.distributed.eq4 import distributed_compute_eq4_master
+from distributed_cox.distributed.eq4 import distributed_compute_eq4_local
+from distributed_cox.distributed.eq4 import distributed_compute_eq4_master
 
 
 def run_dummy_gen(args):

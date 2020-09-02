@@ -10,7 +10,7 @@ import jax.ops
 
 import oryx
 
-import varderiv.generic.taylor as taylor
+import distributed_cox.generic.taylor as taylor
 
 sow = oryx.core.sow
 reap = oryx.core.reap

@@ -7,11 +7,11 @@ import jax.numpy as np
 
 import oryx
 
-import varderiv.utils as vutils
+import distributed_cox.utils as vutils
 
-import varderiv.generic.modeling as modeling
-from varderiv.generic.taylor import taylor_approx
-from varderiv.generic.distribute import (taylor_distribute, sum, cumsum)  # pylint: disable=redefined-builtin
+import distributed_cox.generic.modeling as modeling
+from distributed_cox.generic.taylor import taylor_approx
+from distributed_cox.generic.distribute import (taylor_distribute, sum, cumsum)  # pylint: disable=redefined-builtin
 
 sow = oryx.core.sow
 reap = oryx.core.reap
@@ -174,8 +174,8 @@ eq4_batch_robust_cox_correction_score = get_cox_fun(
 eq4_hessian_taylor = get_cox_fun("eq4", "hessian", False, 1)
 
 if __name__ == "__main__":
-  import varderiv.data as vdata
-  import varderiv.equations.eq2 as eq4
+  import distributed_cox.data as vdata
+  import distributed_cox.equations.eq2 as eq4
   gen = vdata.data_generator(500, 3, (166, 167, 167))
   X, delta, beta, group_labels = gen(vdata.data_generation_key)
   X_groups, delta_groups = vdata.group_data_by_labels(group_labels,

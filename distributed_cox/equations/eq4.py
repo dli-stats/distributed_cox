@@ -3,9 +3,9 @@
 from jax import vmap
 import jax.numpy as np
 
-from varderiv.generic.modeling import sum_score, sum_hessian
+from distributed_cox.generic.modeling import sum_score, sum_hessian
 
-import varderiv.equations.eq2 as eq2
+import distributed_cox.equations.eq2 as eq2
 
 #########################################################
 # BEGIN eq4

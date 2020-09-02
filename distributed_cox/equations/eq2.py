@@ -4,9 +4,9 @@ import functools
 
 import jax.numpy as np
 
-import varderiv.utils as vutils
+import distributed_cox.utils as vutils
 
-from varderiv.generic.modeling import sum_score
+from distributed_cox.generic.modeling import sum_score
 
 # pylint: disable=redefined-outer-name
 

@@ -24,13 +24,13 @@ from simpleeval import EvalWithCompoundTypes
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
-import varderiv.data as vdata
-import varderiv.equations.cox as cox
+import distributed_cox.data as vdata
+import distributed_cox.equations.cox as cox
 
-import varderiv.generic.modeling as modeling
-from varderiv.generic.solver import NewtonSolverResult
+import distributed_cox.generic.modeling as modeling
+from distributed_cox.generic.solver import NewtonSolverResult
 
-import varderiv.experiments.utils as utils
+import distributed_cox.experiments.utils as utils
 
 # pylint: disable=unused-variable
 # pylint: disable=missing-function-docstring
