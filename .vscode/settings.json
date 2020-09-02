@@ -1,11 +1,3 @@
 {
-    "python.linting.pylintEnabled": true,
-    "python.linting.enabled": true,
-    "python.formatting.provider": "yapf",
-    "python.formatting.yapfArgs": [
-        "--style",
-        "{based_on_style: google, indent_width: 2}"
-    ],
-    "editor.formatOnSave": true,
-    "files.trimTrailingWhitespace": true
+    "python.pythonPath": "/Users/cyang/anaconda3/envs/kaggle/bin/python"
 }
