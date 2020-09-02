@@ -14,6 +14,6 @@
 			"{based_on_style: google, indent_width: 2}"
 		],
 		"editor.formatOnSave": true,
-		"files.trimTrailingWhitespace": true
+		"files.trimTrailingWhitespace": true,
 	}
 }

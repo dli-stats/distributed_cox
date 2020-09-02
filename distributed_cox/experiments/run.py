@@ -25,7 +25,7 @@ from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
 import distributed_cox.data as vdata
-import distributed_cox.equations.cox as cox
+import distributed_cox.cox as cox
 
 import distributed_cox.generic.modeling as modeling
 from distributed_cox.generic.solver import NewtonSolverResult

@@ -173,20 +173,20 @@ eq4_batch_robust_cox_correction_score = get_cox_fun(
     "eq4", "robust_cox_correction_score", True, 1)
 eq4_hessian_taylor = get_cox_fun("eq4", "hessian", False, 1)
 
-if __name__ == "__main__":
-  import distributed_cox.data as vdata
-  import distributed_cox.equations.eq2 as eq4
-  gen = vdata.data_generator(500, 3, (166, 167, 167))
-  X, delta, beta, group_labels = gen(vdata.data_generation_key)
-  X_groups, delta_groups = vdata.group_data_by_labels(group_labels,
-                                                      X,
-                                                      delta,
-                                                      K=3,
-                                                      group_size=167)
-  beta_k_hat = np.array([beta] * 3)
-  h = eq2_hessian_taylor(X, delta, beta, group_labels, X_groups, delta_groups,
-                         beta_k_hat)
-  print(h)
-  print(
-      eq4.hessian_taylor2(X, delta, beta, group_labels, X_groups, delta_groups,
-                          beta_k_hat))
+# if __name__ == "__main__":
+#   import distributed_cox.data as vdata
+#   import distributed_cox.equations.eq2 as eq4
+#   gen = vdata.data_generator(500, 3, (166, 167, 167))
+#   X, delta, beta, group_labels = gen(vdata.data_generation_key)
+#   X_groups, delta_groups = vdata.group_data_by_labels(group_labels,
+#                                                       X,
+#                                                       delta,
+#                                                       K=3,
+#                                                       group_size=167)
+#   beta_k_hat = np.array([beta] * 3)
+#   h = eq2_hessian_taylor(X, delta, beta, group_labels, X_groups, delta_groups,
+#                          beta_k_hat)
+#   print(h)
+#   print(
+#       eq4.hessian_taylor2(X, delta, beta, group_labels, X_groups, delta_groups,
+#                           beta_k_hat))
