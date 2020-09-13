@@ -55,9 +55,10 @@ def model_temporaries(tag):
     """Collect marked intermediates.
 
     Args:
-      - names: Either a sequence of or a single string name(s). If a single name,
-      return the function that returns the sole marked intermediate. Otherwise,
-      return all the intermediates (in the order of the names).
+      - names: Either a sequence of or a single string name(s).
+      If a single name, return the function that returns the sole marked
+      intermediate.
+      Otherwise, return all the intermediates (in the order of the names).
     """
     if isinstance(names, str):
       names = [names]
@@ -78,10 +79,10 @@ def model_temporaries(tag):
 
 def solve_single(single_log_likelihood_or_score_fn,
                  use_likelihood=True,
-                 **kwargs) -> NewtonSolverResult:
+                 **kwargs):
   """Solves for single site."""
 
-  def solve_fun(*args):
+  def solve_fun(*args) -> NewtonSolverResult:
     singe_static_args = args[:-1]
     initial_guess = args[-1]
     log_likelihood_or_score_fn = functools.partial(
