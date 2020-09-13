@@ -71,6 +71,7 @@ def get_expkey(experiment):
 
 
 def merge_experiments_same_setting(runs_dir, **kwargs):
+  del kwargs
   experiments = list(iterate_experiments(runs_dir))
   same_experiments = collections.defaultdict(list)
   for exp in experiments:

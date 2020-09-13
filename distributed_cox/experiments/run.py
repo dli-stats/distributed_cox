@@ -48,10 +48,12 @@ import distributed_cox.experiments.utils as utils
 #       lambda key: jrandom.bernoulli(key, p=bernoulli_theta,
 #                                     shape=(N,)).astype(np.float32),
 #       key, \
-#       lambda key: jrandom.normal(key, shape=(N,))) * normal_variance + normal_mean
+#       lambda key: (jrandom.normal(key, shape=(N,))) * normal_variance +
+#                   normal_mean)
 
-# grouping_X_generator_2 = functools.partial(X_group_generator_indep_dim,
-#                                            Xi_generator=grouping_Xi_generator_2)
+# grouping_X_generator_2 = functools.partial(
+# X_group_generator_indep_dim,
+# Xi_generator=grouping_Xi_generator_2)
 
 # def X_group_generator_joint(N, X_dim, key, group_label=0):
 #   assert X_dim == 3
@@ -298,6 +300,8 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
       solve_fn = functools.partial(solve_fn,
                                    loglik_or_score_fn,
                                    distributed_use_likelihood=use_likelihood)
+    else:
+      raise ValueError("invalid equation")
 
   solve_fn = solve_fn(**solver)
 

@@ -188,5 +188,6 @@ eq4_hessian_taylor = get_cox_fun("eq4", "hessian", False, 1)
 #                          beta_k_hat)
 #   print(h)
 #   print(
-#       eq4.hessian_taylor2(X, delta, beta, group_labels, X_groups, delta_groups,
+#       eq4.hessian_taylor2(X, delta, beta, group_labels, X_groups,
+#        delta_groups,
 #                           beta_k_hat))
