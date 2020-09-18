@@ -13,7 +13,7 @@ from distributed_cox.solver import solve_newton
 from distributed_cox.equations.eq1 import solve_eq1_ad
 from distributed_cox.equations.eq1 import eq1_compute_H_ad
 from distributed_cox.equations.eq2 import cov_pure_analytical_from_I
-from distributed_cox.distributed.eq2 import distributed_compute_eq2_local
+from distributed_cox.distributed.eq2 import eq2_local
 
 # pylint: disable=redefined-outer-name
 
@@ -39,13 +39,13 @@ def distributed_compute_eq4_local(T_group,
     array of shape (D, ), where D is #(delta_group == 1)
   """
   T_delta = T_group[delta_group == 1]
-  return distributed_compute_eq2_local(T_group,
-                                       X_group,
-                                       delta_group,
-                                       T_delta,
-                                       initial_guess=initial_guess,
-                                       solve_eq1_fn=solve_eq1_fn,
-                                       eq1_compute_H_fn=eq1_compute_H_fn)
+  return eq2_local(T_group,
+                   X_group,
+                   delta_group,
+                   T_delta,
+                   initial_guess=initial_guess,
+                   solve_eq1_fn=solve_eq1_fn,
+                   eq1_compute_H_fn=eq1_compute_H_fn)
 
 
 def distributed_eq4_precompute_1_group(ebkx_cs_d, xebkx_cs_d, xxebkx_cs_d, bmb):

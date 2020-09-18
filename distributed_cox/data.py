@@ -5,6 +5,8 @@ from typing import Sequence, Tuple, Optional
 import math
 import functools
 
+import simpleeval as se
+
 import numpy as onp
 
 import jax.numpy as np
@@ -289,6 +291,77 @@ def group_sizes_generator(N, K, group_labels_generator_kind="random", **kwargs):
     raise TypeError("Invalid group_label_generator_kind")
 
   return tuple(group_sizes)
+
+
+@functools.lru_cache(maxsize=None)
+def full_data_generator(N: int,
+                        K: int,
+                        X_DIM: int,
+                        T_star_factors: Optional[str] = None,
+                        group_labels_generator_kind: str = "same",
+                        group_X: str = "same",
+                        exp_scale: float = 3.5):
+  """Capable Cox data generation with string arguments.
+
+  This function combines group_sizes_generator and data_generator.
+  It also accepts T_star_factors etc. as string, and performs required parsing
+  with the simpleeval package.
+  This function is ideally used directly by a command line interface.
+  """
+
+  if group_labels_generator_kind == "arithmetic_sequence":
+    group_labels_generator_kind_kwargs = {"start_val": N * 2 // (K * (K + 1))}
+  else:
+    group_labels_generator_kind_kwargs = {}
+
+  group_sizes = group_sizes_generator(
+      N,
+      K,
+      group_labels_generator_kind=group_labels_generator_kind,
+      **group_labels_generator_kind_kwargs)
+
+  X_generator = se.EvalWithCompoundTypes(
+      functions={
+          'normal':
+              normal,
+          'bernoulli':
+              bernoulli,
+          'custom':
+              lambda gdists, dims, weights: functools.partial(
+                  make_X_generator,
+                  g_dists=gdists,
+                  correlated_dims=dims,
+                  correlated_weights=weights),
+      },
+      names={
+          'group': grouping_X_generator_K3,
+          'same': default_X_generator,
+          'correlated': correlated_X_generator
+      }).eval(group_X)
+
+  if T_star_factors:
+    T_star_factors = se.EvalWithCompoundTypes(
+        functions={
+            'fixed': lambda *args: tuple(args),
+            'gamma': T_star_factors_gamma_gen
+        },
+        names={
+            'fixed': tuple((k + 1) / 2 for k in range(K)),
+            'gamma': T_star_factors_gamma_gen(1., 1.),
+            'None': None
+        }).eval(T_star_factors)
+
+  if exp_scale == 'inf':
+    exp_scale = onp.inf
+
+  return group_sizes, data_generator(N,
+                                     X_DIM,
+                                     group_sizes,
+                                     exp_scale=exp_scale,
+                                     T_star_factors=T_star_factors,
+                                     X_generator=X_generator,
+                                     return_T=True,
+                                     return_T_star=True)
 
 
 def group_labels_to_indices(K, group_labels):

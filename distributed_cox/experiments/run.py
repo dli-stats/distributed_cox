@@ -19,8 +19,6 @@ import jax.random as jrandom
 import jax.tree_util as tu
 import jax.numpy as np
 
-from simpleeval import EvalWithCompoundTypes
-
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
@@ -35,48 +33,7 @@ import distributed_cox.experiments.utils as utils
 # pylint: disable=unused-variable
 # pylint: disable=missing-function-docstring
 
-# def grouping_Xi_generator_2(N, dim, key, group_label=0):
-#   if group_label == 0:
-#     bernoulli_theta, normal_mean, normal_variance = 0.5, 0, 1
-#   elif group_label == 1:
-#     bernoulli_theta, normal_mean, normal_variance = 0.3, 1, 0.5
-#   elif group_label == 2:
-#     bernoulli_theta, normal_mean, normal_variance = 0.7, -1, 1.5
-#   return jax.lax.cond(
-#       dim % 2 == 0,
-#       key, \
-#       lambda key: jrandom.bernoulli(key, p=bernoulli_theta,
-#                                     shape=(N,)).astype(np.float32),
-#       key, \
-#       lambda key: (jrandom.normal(key, shape=(N,))) * normal_variance +
-#                   normal_mean)
-
-# grouping_X_generator_2 = functools.partial(
-# X_group_generator_indep_dim,
-# Xi_generator=grouping_Xi_generator_2)
-
-# def X_group_generator_joint(N, X_dim, key, group_label=0):
-#   assert X_dim == 3
-#   if group_label == 0:
-#     return default_X_generator(N, X_dim, key, group_label=0)
-#   elif group_label == 1:
-#     key, *subkeys = jrandom.split(key, 3)
-#     X02 = jrandom.multivariate_normal(subkeys[0],
-#                                       np.array([0, 0]),
-#                                       np.array([[1, 0.25], [0.25, 0.25]]),
-#                                       shape=(N,))
-#     X1 = jrandom.bernoulli(subkeys[1], p=0.3, shape=(N,)).astype(vdata.floatt)
-#     return np.stack(([X02[:, 0], X1, X02[:, 1]]), axis=1)
-#   else:
-#     key, *subkeys = jrandom.split(key, 3)
-#     X02 = jrandom.multivariate_normal(subkeys[0],
-#                                       np.array([0, 0]),
-#                                       np.array([[1.5, 0.5], [0.5, 0.25]]),
-#                                       shape=(N,))
-#     X1 = jrandom.normal(subkeys[1], shape=(N,)) * 1.5
-#     return np.stack(([X02[:, 0], X1, X02[:, 1]]), axis=1)
-
-ex = Experiment("varderiv")
+ex = Experiment("cox")
 
 
 @tu.register_pytree_node_class
@@ -164,76 +121,12 @@ def compute_results_averaged(result: ExperimentResult, std=False):
   return beta_hat, all_covs, onp.sum(keep_idxs)
 
 
-def eval_get_group_X_generator(group_X: str):
-  evaluator = EvalWithCompoundTypes(
-      functions={
-          'normal':
-              vdata.normal,
-          'bernoulli':
-              vdata.bernoulli,
-          'custom':
-              lambda gdists, dims, weights: functools.partial(
-                  vdata.make_X_generator,
-                  g_dists=gdists,
-                  correlated_dims=dims,
-                  correlated_weights=weights),
-      },
-      names={
-          'group': vdata.grouping_X_generator_K3,
-          'same': vdata.default_X_generator,
-          'correlated': vdata.correlated_X_generator
-      })
-  return evaluator.eval(group_X)
-
-
 @ex.capture(prefix="data")
-@functools.lru_cache(maxsize=None)
 def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
                      group_X, exp_scale):
-  """Initializes data generation."""
-
-  if group_labels_generator_kind == "arithmetic_sequence":
-    group_labels_generator_kind_kwargs = {"start_val": N * 2 // (K * (K + 1))}
-  else:
-    group_labels_generator_kind_kwargs = {}
-
-  group_sizes = vdata.group_sizes_generator(
-      N,
-      K,
-      group_labels_generator_kind=group_labels_generator_kind,
-      **group_labels_generator_kind_kwargs)
-
-  X_generator = eval_get_group_X_generator(group_X)
-
-  evaluator = EvalWithCompoundTypes()
-
-  def parse_float_tuple(s, prefix, default):
-    s = s[len(prefix):].strip()
-    if len(s) == 0:
-      return default
-    assert s[0] == "(" and s[-1] == ")"
-    return tuple(map(float, evaluator.eval(s)))
-
-  if isinstance(T_star_factors, str) and T_star_factors.startswith("gamma"):
-    gamma_args = parse_float_tuple(T_star_factors, "gamma", (1., 1.))
-    T_star_factors = vdata.T_star_factors_gamma_gen(*gamma_args)
-  elif T_star_factors == "fixed":
-    T_star_factors = parse_float_tuple(T_star_factors, "fixed",
-                                       tuple((k + 1) / 2 for k in range(K)))
-  else:
-    T_star_factors = None
-
-  if exp_scale == 'inf':
-    exp_scale = onp.inf
-
-  return group_sizes, vdata.data_generator(N,
-                                           X_DIM,
-                                           group_sizes,
-                                           exp_scale=exp_scale,
-                                           T_star_factors=T_star_factors,
-                                           X_generator=X_generator,
-                                           return_T=True,
-                                           return_T_star=True)
+  return vdata.full_data_generator(N, K, X_DIM, T_star_factors,
+                                   group_labels_generator_kind, group_X,
+                                   exp_scale)
 
 
 def freezeargs(func):
