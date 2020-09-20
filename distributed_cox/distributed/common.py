@@ -5,14 +5,14 @@ from typing import Optional, Dict, Any, Sequence, List
 import dataclasses
 import pathlib
 import inspect
-import shutil
+import os
+import re
 
 import numpy as np
 import jax.tree_util as tu
 
 from dataclasses_json import dataclass_json
 
-ClientState = Dict[str, Any]
 Message = Optional[Dict[str, Any]]
 
 
@@ -23,11 +23,18 @@ class VarianceSetting:
   robust: bool
   cox_correction: bool
 
+  def __str__(self):
+    return "cov:{}group_correction|{}robust|{}cox_correction".format(
+        *[("" if f else "no_")
+          for f in [self.group_correction, self.robust, self.cox_correction]])
+
 
 @dataclass_json
 @dataclasses.dataclass(frozen=True)
 class Config:
   """Variance configuration"""
+
+  client_id: str
 
   taylor_order: int = 1
 
@@ -50,23 +57,46 @@ class Config:
     return self.require("group_correction")
 
 
-def get_vars(state, *names):
-  return tuple(lambda n: state[n] for n in names)
-
-
 @dataclasses.dataclass
 class ClientState:
   config: Config
-  state: Dict[str, np.ndarray] = dataclasses.field(default=dict)
+  state: Dict[str, np.ndarray] = dataclasses.field(default=lambda: {'covs': {}})
 
   def __getitem__(self, k):
     return self.state[k]
 
-  def __setitem__(self, k, v):
+  def __setitem__(self, k: str, v):
+    if k.endswith("*"):
+      for i, vi in enumerate(v):
+        self.state.__setitem__(k[:-1] + str(i), vi)
+      return None
     return self.state.__setitem__(k, v)
 
   def update(self, vals):
     return self.state.update(vals)
+
+  def pop(self, k):
+    return self.state.pop(k)
+
+  def get_var(self, k):
+    if k.endswith("*"):
+      ret = [(n, self.get_var(n))
+             for n in self.state.keys()
+             if n.startswith(k[:-1])]
+      ret = sorted(ret, key=lambda x: int(x[0][len(k) - 1:]))
+      return tuple(r[1] for r in ret)
+    return self.state[k]
+
+  def get_vars(self, *keys):
+    return tuple(self.get_var(k) for k in keys)
+
+  @property
+  def is_master(self):
+    return self.config.client_id == "master"
+
+  @property
+  def is_local(self):
+    return not self.is_master
 
   @staticmethod
   def load(config_path, client_state_path):
@@ -102,12 +132,21 @@ def raise_to_command(fun):
     client_state = ClientState.load(config_file, client_state_file)
 
     # Recieve msgs
-    in_msgs = [
-        np.load(msg_file)
-        for msg_file in client_dir.joinpath("in_msgs").glob("*.npz")
-    ]
+    in_msgs = [(re.match(r"msg_from_(.+)_to_(.+).npz",
+                         str(os.path.basename(msg_file))).group(1),
+                dict(np.load(msg_file))) for msg_file in client_dir.joinpath(
+                    "in_msgs").glob("msg_from_*_to_*.npz")]
+    in_msgs = sorted(in_msgs, key=lambda t: t[0])
+    if client_state.is_master:
+      in_senders = [t[0] for t in in_msgs]
+    else:
+      in_senders = ["master"]
+    in_msgs = [t[1] for t in in_msgs]
     if in_msgs:
-      in_msgs = tu.tree_multimap(lambda args: np.array(*args), *in_msgs)
+      if len(in_msgs) > 1:
+        in_msgs = tu.tree_multimap(lambda *args: np.array(args), *in_msgs)
+      else:
+        in_msgs = in_msgs[0]
       client_state.update(in_msgs)
 
     # Do processing
@@ -115,24 +154,27 @@ def raise_to_command(fun):
 
     # Remove old messages
     for msg in client_dir.joinpath("out_msgs").glob("*.npz"):
-      shutil.rmtree(msg)
+      os.remove(msg)
 
     # Send out msgs
     if out_msg:
       num_targets = [len(v) for v in out_msg.values() if isinstance(v, list)]
       if len(set(num_targets)) > 1:
         raise ValueError("Num targets does not match")
-      num_targets = num_targets if num_targets else 1
+
+      num_targets = len(in_senders) if client_state.is_master else 1
 
       out_msgs = [{} for _ in range(num_targets)]
       for k, v in out_msg.items():
         if not isinstance(v, list):
-          v = [v] * len(out_msgs)
+          v = [v] * num_targets
         for i, (vi, out_msg) in enumerate(zip(v, out_msgs)):
           out_msg[k] = vi
-
-      for i, out_msg in enumerate(out_msgs):
-        out_msg_file = client_dir.joinpath("out_msgs", "msg_{}.npz".format(i))
+      for i, (sender, out_msg) in enumerate(zip(in_senders, out_msgs)):
+        out_msg_file = client_dir.joinpath(
+            "out_msgs",
+            "msg_from_{}_to_{}.npz".format(client_state.config.client_id,
+                                           sender))
         np.savez(out_msg_file, **out_msg)
 
     # Save new client state
