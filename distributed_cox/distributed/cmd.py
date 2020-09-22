@@ -17,6 +17,7 @@ import distributed_cox.data as vdata
 from distributed_cox.distributed.common import (Config, VarianceSetting,
                                                 ClientState, raise_to_command)
 import distributed_cox.distributed.eq2 as eq2
+import distributed_cox.distributed.eq4 as eq4
 
 cmd = simple_cmd.SimpleCMD()
 
@@ -79,12 +80,19 @@ def dummy_data_gen(N: int,
 to_cmd = lambda f: cmd.command(raise_to_command(f))
 
 to_cmd(local_load_data)
+
+# Eq2
 to_cmd(eq2.eq2_local_send_T)
 to_cmd(eq2.eq2_master_send_T)
 to_cmd(eq2.eq2_local)
 to_cmd(eq2.eq2_master)
 to_cmd(eq2.eq2_local_variance)
-to_cmd(eq2.eq2_master_variance)
+to_cmd(eq2.eq2_master_all_variances)
+# Eq 4
+to_cmd(eq4.eq4_local)
+to_cmd(eq4.eq4_master)
+to_cmd(eq4.eq4_local_variance)
+to_cmd(eq4.eq4_master_all_variances)
 
 if __name__ == "__main__":
   cmd.run()

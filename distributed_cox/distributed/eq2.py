@@ -17,12 +17,6 @@ from distributed_cox.cox import eq1_loglik, eq1_batch_score
 from distributed_cox.distributed.common import (VarianceSetting, ClientState,
                                                 Message)
 
-# pylint: disable=redefined-outer-name
-
-#########################################################
-# BEGIN eq2 distributed ver.
-#########################################################
-
 
 def eq2_local_send_T(local_state: ClientState) -> Message:
   T_group = local_state["T_group"]
@@ -56,39 +50,28 @@ def eq2_master_send_T(master_state: ClientState) -> Message:
   return msg
 
 
-def eq2_local(local_state: ClientState,
-              initial_guess: Optional[List[float]] = None,
-              loglik_eps: float = 1e-6,
-              max_num_steps: int = 10) -> Message:
-  """Compute local values."""
+def solve_distributed_pt1(local_state: ClientState,
+                          initial_guess: Optional[List[float]] = None,
+                          loglik_eps: float = 1e-6,
+                          max_num_steps: int = 10):
+  """Solves eq1 for a single group."""
 
-  T_group, X_group, delta_group, T_delta = local_state.get_vars(
-      "T_group",
+  X_group, delta_group = local_state.get_vars(
       "X_group",
       "delta_group",
-      "T_delta",
   )
-
-  assert T_group.shape[0] == X_group.shape[0] == delta_group.shape[0]
-  assert local_state.config.taylor_order >= 1
-
   if initial_guess is None:
     initial_guess = np.zeros((X_group.shape[1],))
-
-  # e.g. order=1 ==> need X * X * exp(beta * X)
-  required_orders = local_state.config.taylor_order + 1
-  # e.g. group_correction further requires X * X * X * exp(beta * X)
-  if local_state.config.require_group_correction:
-    required_orders += 1
 
   solve_eq1_fn = modeling.solve_single(eq1_loglik,
                                        use_likelihood=True,
                                        loglik_eps=loglik_eps,
                                        max_num_steps=max_num_steps)
-  eq1_sol = solve_eq1_fn(X_group, delta_group, initial_guess)
-  beta_k_hat = eq1_sol.guess
-  eq1_H = eq1_sol.hessian
+  return solve_eq1_fn(X_group, delta_group, initial_guess)
 
+
+def compute_nxebkxs(X_group, beta_k_hat, required_orders: int):
+  """Computes all of nxebkx for n = required_orders."""
   ebkx = np.exp(np.dot(X_group, beta_k_hat))
   nxebkxs = [ebkx]
   cur_ebkx = ebkx
@@ -103,11 +86,39 @@ def eq2_local(local_state: ClientState,
                                           o=o_dim_names), cur_ebkx, X_group)
     o_dim_names += oe.get_symbol(i + 1)
     nxebkxs.append(cur_ebkx)
+  return nxebkxs
 
-  if local_state.config.require_cox_correction:
-    for i, x in enumerate(nxebkxs):
-      local_state["nxebkxs{}".format(i)] = x
 
+def eq2_local(local_state: ClientState,
+              initial_guess: Optional[List[float]] = None,
+              loglik_eps: float = 1e-6,
+              max_num_steps: int = 30) -> Message:
+  """Compute local values."""
+
+  T_group, X_group, delta_group, T_delta = local_state.get_vars(
+      "T_group",
+      "X_group",
+      "delta_group",
+      "T_delta",
+  )
+
+  assert T_group.shape[0] == X_group.shape[0] == delta_group.shape[0]
+  assert local_state.config.taylor_order >= 1
+
+  eq1_sol = solve_distributed_pt1(local_state, initial_guess, loglik_eps,
+                                  max_num_steps)
+  beta_k_hat = eq1_sol.guess
+  eq1_H = eq1_sol.hessian
+
+  # e.g. order=1 ==> need X * X * exp(beta * X)
+  required_orders = local_state.config.taylor_order + 1
+  # e.g. group_correction further requires X * X * X * exp(beta * X)
+  if local_state.config.require_group_correction:
+    required_orders += 1
+
+  nxebkxs = compute_nxebkxs(X_group,
+                            beta_k_hat,
+                            required_orders=required_orders)
   nxebkx_css = [np.cumsum(nxebkx, 0) for nxebkx in nxebkxs]
 
   idxs = np.searchsorted(-T_group, -T_delta, side='right')
@@ -119,9 +130,7 @@ def eq2_local(local_state: ClientState,
 
   X_delta_sum = np.sum(X_group * delta_group.reshape((-1, 1)), axis=0)
 
-  if (local_state.config.require_robust or
-      local_state.config.require_group_correction):
-    local_state["beta_k_hat"] = beta_k_hat
+  local_state["beta_k_hat"] = beta_k_hat
 
   return dict(eq1_H=eq1_H,
               X_delta_sum=X_delta_sum,
@@ -135,7 +144,7 @@ mark, collect = modeling.model_temporaries("distributed_eq2")
 def _eq2_model(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta, taylor_order=1):
   K, D, X_dim = nxebkx_cs_ds[1].shape
 
-  bmb = mark(beta - beta_k_hat, "bmb")
+  bmb = beta - beta_k_hat
   numer = np.zeros((D, X_dim), dtype=beta.dtype)
   denom = np.zeros(D, dtype=beta.dtype)
   dbeta_pow = np.ones((K, 1), dtype=beta.dtype)
@@ -162,7 +171,7 @@ def _eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta,
   K, D, X_dim = nxebkx_cs_ds[1].shape
 
   t1xebkx_cs_ds = nxebkx_cs_ds[taylor_order + 1]  # order + 1 Xs times ebx
-  t2xebkx_cs_ds = nxebkx_cs_ds[taylor_order + 2]  # order + 2  Xs times ebx
+  t2xebkx_cs_ds = nxebkx_cs_ds[taylor_order + 2]  # order + 2 Xs times ebx
 
   numer, denom, dbeta_pow_t = collect(_eq2_model,
                                       ["numer", "denom", "dbeta_pow_order"])(
@@ -185,9 +194,10 @@ def _eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta,
                 axis=1)
 
 
-def eq2_master(master_state: ClientState) -> Message:
-  """Compute master values from local results."""
-
+def solve_eq2_model(master_state: ClientState,
+                    score_norm_eps: float = 1e-3,
+                    max_num_steps: int = 30):
+  """Solves eq2_model."""
   X_delta_sum, nxebkx_cs_ds, beta_k_hat = master_state.get_vars(
       "X_delta_sum",
       "nxebkx_cs_ds*",
@@ -201,7 +211,26 @@ def eq2_master(master_state: ClientState) -> Message:
                                   nxebkx_cs_ds,
                                   beta_k_hat,
                                   taylor_order=master_state.config.taylor_order)
-  sol = modeling.solve_single(fn_to_solve, use_likelihood=False)(beta_guess)
+  return modeling.solve_single(fn_to_solve,
+                               use_likelihood=False,
+                               score_norm_eps=score_norm_eps,
+                               max_num_steps=max_num_steps)(beta_guess)
+
+
+def eq2_master(master_state: ClientState,
+               score_norm_eps: float = 1e-3,
+               max_num_steps: int = 30) -> Message:
+  """Compute master values from local results."""
+
+  X_delta_sum, nxebkx_cs_ds, beta_k_hat = master_state.get_vars(
+      "X_delta_sum",
+      "nxebkx_cs_ds*",
+      "beta_k_hat",
+  )
+
+  sol = solve_eq2_model(master_state,
+                        score_norm_eps=score_norm_eps,
+                        max_num_steps=max_num_steps)
   beta_hat = sol.guess
 
   cov_H = modeling.cov_H()(sol)
@@ -209,6 +238,10 @@ def eq2_master(master_state: ClientState) -> Message:
   master_state[str(VarianceSetting(False, False, False))] = cov_H
 
   msg = {}
+
+  if not master_state.config.require_robust:
+    eq2_master_all_variances(master_state)
+    return msg
 
   if master_state.config.require_robust:
     numer, denom = collect(_eq2_model, ["numer", "denom"])(
@@ -236,14 +269,18 @@ def _right_cumsum(X, axis=0):
   return np.cumsum(X[::-1], axis=axis)[::-1]
 
 
-def _batch_score_cox_correction(local_state: ClientState, batch_score,
-                                numer_all_delta, denom_all_delta):
-  beta_k_hat, beta_hat, T_group, T_delta, delta_group = local_state.get_vars(
-      "beta_k_hat", "beta_hat", "T_group", "T_delta", "delta_group")
+def batch_score_cox_correction(local_state: ClientState, batch_score,
+                               numer_all_delta, denom_all_delta):
+  (beta_k_hat, beta_hat, X_group, T_group, T_delta,
+   delta_group) = local_state.get_vars("beta_k_hat", "beta_hat", "X_group",
+                                       "T_group", "T_delta", "delta_group")
   # Obtain the denom and numers for the current group
+  nxebkxs = compute_nxebkxs(X_group,
+                            beta_k_hat,
+                            required_orders=local_state.config.taylor_order + 1)
   denom_all_group, numer_all_group = collect(_eq2_model, ["denom", "numer"])(
       np.zeros_like(beta_k_hat).reshape((1, -1)),  # argument not used
-      [x.reshape((1,) + x.shape) for x in local_state.get_var("nxebkxs*")],
+      [x.reshape((1,) + x.shape) for x in nxebkxs],
       beta_k_hat.reshape((1, -1)),
       beta_hat.reshape((1, -1)),
       taylor_order=local_state.config.taylor_order,
@@ -265,11 +302,11 @@ def _batch_score_cox_correction(local_state: ClientState, batch_score,
   return batch_score - (term1 - term2)
 
 
-def _compute_B(local_state,
-               pt2_batch_score,
-               cox_correction=False,
-               group_correction=False,
-               robust=False):
+def compute_B(local_state,
+              pt2_batch_score,
+              cox_correction=False,
+              group_correction=False,
+              robust=False):
   ret = {}
   ret['B_diag_last'] = np.einsum("ni,nj->ij",
                                  pt2_batch_score,
@@ -316,17 +353,17 @@ def eq2_local_variance(local_state: ClientState) -> Message:
                                      denom_only_group_delta)
 
   msg.update(
-      _compute_B(local_state, pt2_batch_score, False,
-                 local_state.config.require_group_correction,
-                 local_state.config.require_robust))
+      compute_B(local_state, pt2_batch_score, False,
+                local_state.config.require_group_correction,
+                local_state.config.require_robust))
 
   if local_state.config.require_cox_correction:
-    pt2_batch_cox_correction_score = _batch_score_cox_correction(
+    pt2_batch_cox_correction_score = batch_score_cox_correction(
         local_state, pt2_batch_score, numer_all_delta, denom_all_delta)
     msg.update(
-        _compute_B(local_state, pt2_batch_cox_correction_score, True,
-                   local_state.config.require_group_correction,
-                   local_state.config.require_robust))
+        compute_B(local_state, pt2_batch_cox_correction_score, True,
+                  local_state.config.require_group_correction,
+                  local_state.config.require_robust))
   return msg
 
 
@@ -347,12 +384,7 @@ def _eq2_master_variance(master_state: ClientState,
        "beta_hat",
    )
 
-  eq2_hess_master = jacfwd(
-      functools.partial(_eq2_model,
-                        taylor_order=master_state.config.taylor_order), -1)
-  I_diag_last = -eq2_hess_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat,
-                                 beta_hat)
-  I_diag_inv_last = np.linalg.inv(I_diag_last)
+  I_diag_inv_last = master_state[str(VarianceSetting(False, False, False))]
 
   if variance_setting.group_correction:
     I_diag_wo_last = -eq1_H
@@ -395,32 +427,6 @@ def _eq2_master_variance(master_state: ClientState,
   master_state[str(variance_setting)] = cov
 
 
-def eq2_master_variance(master_state: ClientState):
+def eq2_master_all_variances(master_state: ClientState):
   for setting in master_state.config.variance_settings:
     _eq2_master_variance(master_state, setting)
-
-
-#########################################################
-# END
-#########################################################
-
-# if __name__ == '__main__':
-#   N = 1000
-#   K = 3
-#   X_DIM = 3
-#   import distributed_cox.data as vdata
-#   key, subkey = jrandom.split(vdata.key)
-#   group_sizes = vdata.group_sizes_generator(N, K, "same")
-#   T, X, delta, beta, group_labels = vdata.data_generator(
-#       N, X_DIM, group_sizes, return_T=True)(vdata.data_generation_key)
-
-#   T_delta = T[delta == 1]
-
-#   local_data: Sequence[Eq2LocalResult] = []
-#   for k in range(K):
-#     X_group = X[group_labels == k]
-#     T_group = T[group_labels == k]
-#     delta_group = delta[group_labels == k]
-#     local_data.append(eq2_local(T_group, X_group, delta_group, T_delta))
-
-#   beta_hat, cov_H = eq2_master(local_data)

@@ -118,8 +118,7 @@ def taylor_distribute(fun, *, reduction_kind, orders: Dict[str, int],
 
     if reduction_kind is None:
       return intermediates
-    else:
-      return pt2_fn(intermediates, group_labels, *single_args,
-                    *[arg for i, arg in enumerate(single_args) if i in argnums])
+    return pt2_fn(intermediates, group_labels, *single_args,
+                  *[arg for i, arg in enumerate(single_args) if i in argnums])
 
   return wrapped

@@ -1,6 +1,6 @@
 """Common declartions."""
 
-from typing import Optional, Dict, Any, Sequence, List
+from typing import Optional, Dict, Any, List
 
 import dataclasses
 import pathlib
@@ -71,6 +71,17 @@ class ClientState:
         self.state.__setitem__(k[:-1] + str(i), vi)
       return None
     return self.state.__setitem__(k, v)
+
+  def __delitem__(self, k: str):
+    if k.endswith("*"):
+      for k1 in self.state:
+        if k1.startswith(k[:-1]):
+          del self.state[k1]
+    else:
+      del self.state[k]
+
+  def __contains__(self, k: str):
+    return self.state.__contains__(k)
 
   def update(self, vals):
     return self.state.update(vals)

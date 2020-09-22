@@ -378,7 +378,7 @@ def group_labels_to_indices(K, group_labels):
     group_labels = group_labels.reshape((1, -1))
 
   assert len(group_labels.shape) == 2
-  #TODO(camyang) make this more efficient?
+  #TODO make this more efficient?
   ret = [[onp.flatnonzero(gl == k) for k in range(K)] for gl in group_labels]
   if not batch_mode:
     return ret[0]

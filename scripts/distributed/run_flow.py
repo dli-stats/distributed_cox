@@ -32,7 +32,7 @@ def call_cmd(*args):
   return subprocess.check_call(cmd)
 
 
-def run_flow(N: int, K: int, X_DIM: int, seed: int = 0):
+def run_flow(eq: str, N: int, K: int, X_DIM: int, seed: int = 0):
 
   tmp_work_dir = tempfile.mkdtemp(prefix="cox_run_flow--",
                                   dir=pathlib.Path.cwd())
@@ -94,12 +94,18 @@ def run_flow(N: int, K: int, X_DIM: int, seed: int = 0):
         call_cmd(cmd, local_dirs[k], *args)
     copy_msgs(client)
 
-  call_cmd_and_send("local", "eq2_local_send_T")
-  call_cmd_and_send("master", "eq2_master_send_T")
-  call_cmd_and_send("local", "eq2_local")
-  call_cmd_and_send("master", "eq2_master")
-  call_cmd_and_send("local", "eq2_local_variance")
-  call_cmd_and_send("master", "eq2_master_variance")
+  if eq == "eq2":
+    call_cmd_and_send("local", "eq2_local_send_T")
+    call_cmd_and_send("master", "eq2_master_send_T")
+    call_cmd_and_send("local", "eq2_local")
+    call_cmd_and_send("master", "eq2_master")
+    call_cmd_and_send("local", "eq2_local_variance")
+    call_cmd_and_send("master", "eq2_master_all_variances")
+  if eq == "eq4":
+    call_cmd_and_send("local", "eq4_local")
+    call_cmd_and_send("master", "eq4_master")
+    call_cmd_and_send("local", "eq4_local_variance")
+    call_cmd_and_send("master", "eq4_master_all_variances")
 
 
-run_flow(1000, 3, 3, 0)
+run_flow("eq4", 1000, 3, 3, 100)
