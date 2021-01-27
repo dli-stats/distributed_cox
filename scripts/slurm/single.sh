@@ -11,11 +11,10 @@
 #SBATCH --mail-user=dl263@hms.harvard.edu   # Email to which notifications will be sent
 
 
-EXP=$1
-EXTRA_ARGS=$2
+EXTRA_ARGS=$1
 
 ROOT_DIR=/home/dl263/varderiv/
 source activate varderiv
 cd $ROOT_DIR
 
-python -m "varderiv.experiments.${EXP}" -F /n/scratch3/users/d/dl263/varderiv_experiments  -p $EXTRA_ARGS
+python -m "varderiv.experiments.run" -F /n/scratch3/users/d/dl263/varderiv_experiments  -p $EXTRA_ARGS

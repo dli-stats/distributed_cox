@@ -60,12 +60,12 @@ for (eq, (N, K, nk, p),
   p = p.replace(";", ",").replace("Ber", "bernoulli").replace("N", "normal")
   cmd = [
       "sbatch",
-      "single_longer.sh",
-      eq,
+      "single.sh",
       "with",
+      f"eq={eq}",
       "base.num_experiments=10000",
-      f"base.X_DIM={x_dim}",
       f"base.batch_size={batch_size}",
+      f"data.X_DIM={x_dim}",
       f"data.N={N}",
       f"data.K={K}",
       f'data.group_labels_generator_kind="custom{nk}"',
@@ -73,4 +73,5 @@ for (eq, (N, K, nk, p),
       f'data.T_star_factors="{T_star_factors}"',
       f"meta_analysis.univariate={meta_analysis_univariate}",
   ]
-  subprocess.check_call(cmd)
+  print(cmd)
+  # subprocess.check_call(cmd)
