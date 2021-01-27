@@ -309,16 +309,26 @@ def full_data_generator(N: int,
   This function is ideally used directly by a command line interface.
   """
 
-  if group_labels_generator_kind == "arithmetic_sequence":
-    group_labels_generator_kind_kwargs = {"start_val": N * 2 // (K * (K + 1))}
-  else:
-    group_labels_generator_kind_kwargs = {}
+  group_sizes_gen = se.EvalWithCompoundTypes(
+      functions={
+          'custom':
+              lambda *args: functools.partial(group_sizes_generator,
+                                              group_labels_generator_kind=
+                                              "manual",
+                                              sizes=tuple(args))
+      },
+      names={
+          'arithmetic_sequence':
+              functools.partial(
+                  group_sizes_generator,
+                  group_labels_generator_kind="arithmetic_sequence",
+                  start_val=N * 2 // (K * (K + 1))),
+          'same':
+              functools.partial(group_sizes_generator,
+                                group_labels_generator_kind="same"),
+      }).eval(group_labels_generator_kind)
 
-  group_sizes = group_sizes_generator(
-      N,
-      K,
-      group_labels_generator_kind=group_labels_generator_kind,
-      **group_labels_generator_kind_kwargs)
+  group_sizes = group_sizes_gen(N, K)
 
   X_generator = se.EvalWithCompoundTypes(
       functions={

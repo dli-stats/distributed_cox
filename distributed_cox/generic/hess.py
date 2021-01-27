@@ -20,13 +20,14 @@ from jax.interpreters import ad
 # pylint: disable=no-else-return, missing-function-docstring
 
 
-def jacrev_and_value(fun, argnums=0, holomorphic=False):
+def jacrev_and_value(fun, argnums=0, holomorphic=False, allow_int=False):
   _check_callable(fun)
 
   def jacfun(*args, **kwargs):
     f = lu.wrap_init(fun, kwargs)
     f_partial, dyn_args = argnums_partial(f, argnums, args)
-    tree_map(partial(_check_input_dtype_jacrev, holomorphic), dyn_args)
+    tree_map(partial(_check_input_dtype_jacrev, holomorphic, allow_int),
+             dyn_args)
     y, pullback = _vjp(f_partial, *dyn_args)
     tree_map(partial(_check_output_dtype_jacrev, holomorphic), y)
     jac = vmap(pullback)(_std_basis(y))
@@ -95,11 +96,10 @@ def value_and_jacfwd(fun: Callable,
     pushfwd = partial(functools.partial(_jvp, has_aux=has_aux), f_partial,
                       dyn_args)
     if not has_aux:
-      y, jac = vmap(pushfwd,
-                    out_axes=(None, batching.last))(_std_basis(dyn_args))
+      y, jac = vmap(pushfwd, out_axes=(None, -1))(_std_basis(dyn_args))
     else:
-      y, jac, aux = vmap(pushfwd, out_axes=(None, batching.last,
-                                            None))(_std_basis(dyn_args))
+      y, jac, aux = vmap(pushfwd,
+                         out_axes=(None, -1, None))(_std_basis(dyn_args))
     tree_map(partial(_check_output_dtype_jacfwd, holomorphic), y)
     example_args = dyn_args[0] if isinstance(argnums, int) else dyn_args
     jac = tree_map(partial(_unravel_array_into_pytree, example_args, -1), jac)

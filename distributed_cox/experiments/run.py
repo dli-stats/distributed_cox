@@ -347,7 +347,8 @@ def config():
       N=500,
       X_DIM=3,
       K=3,
-      group_labels_generator_kind="same",  # "same", "arithemetic_sequence"
+      group_labels_generator_kind=
+      "same",  # "same", "arithemetic_sequence", "custom(...)"
       group_X="same",  # "same", "group", "correlated", "custom(...)"
       T_star_factors=None,  # "None", "fixed(...)", "gamma(...)"
       exp_scale=3.5,
