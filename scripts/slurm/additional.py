@@ -59,15 +59,18 @@ for (eq, (N, K, nk, p),
   x_dim = p.count(";") + 1
   p = p.replace(";", ",").replace("Ber", "bernoulli").replace("N", "normal")
   cmd = [
-      "sbatch", "single_longer.sh", eq, "with",
-      ("base.num_experiments=10000 "
-       f"base.X_DIM={x_dim} "
-       f"base.N={N} "
-       f"base.K={K} "
-       f"base.group_labels_generator_kind=custom{nk} "
-       f"base.group_X=custom([[{p}]],[],[]) "
-       f"base.T_star_factors={T_star_factors} "
-       f"base.batch_size={batch_size} "
-       f"meta_analysis.univariate={meta_analysis_univariate}")
+      "sbatch",
+      "single_longer.sh",
+      eq,
+      "with",
+      "base.num_experiments=10000",
+      f"base.X_DIM={x_dim}",
+      f"base.batch_size={batch_size}",
+      f"data.N={N}",
+      f"data.K={K}",
+      f'data.group_labels_generator_kind="custom{nk}"',
+      f'data.group_X="custom([[{p}]],[],[])"',
+      f'data.T_star_factors="{T_star_factors}"',
+      f"meta_analysis.univariate={meta_analysis_univariate}",
   ]
   subprocess.check_call(cmd)
