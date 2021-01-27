@@ -87,21 +87,43 @@ def main(args):
   ]
 
   paper_results = {}
-
+  same_data_setting_kept_idxs = {}
   cov_names = set()
+
+  if args.intersect_ketp:
+
+    for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
+      expkey = get_expkey((run_dir, config_json, run_json))
+      with open(os.path.join(run_dir, "result"), "rb") as f:
+        result = pickle.load(f)
+      _, _, keep_idxs = compute_results_averaged(result,
+                                                 std=args.std,
+                                                 keep_idxs=None)
+      if config_json["data"] not in same_data_setting_kept_idxs:
+        same_data_setting_kept_idxs[config_json["data"]] = keep_idxs
+      else:
+        same_data_setting_kept_idxs[config_json["data"]] &= keep_idxs
 
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
     expkey = get_expkey((run_dir, config_json, run_json))
     with open(os.path.join(run_dir, "result"), "rb") as f:
       result = pickle.load(f)
-    beta_hat, covs, n_kept = compute_results_averaged(result, std=args.std)
+    beta_hat, covs, keep_idxs = compute_results_averaged(
+        result,
+        std=args.std,
+        keep_idxs=same_data_setting_kept_idxs.get(config_json["data"], None))
     n_converged = onp.sum(result.sol.converged)
     paper_results[expkey] = {
         'beta_hat': beta_hat,
         'n_converged': n_converged,
-        'n_kept': n_kept,
+        'n_kept': onp.sum(keep_idxs),
         **covs
     }
+    if config_json["data"] not in same_data_setting_kept_idxs:
+      same_data_setting_kept_idxs[config_json["data"]] = keep_idxs
+    else:
+      same_data_setting_kept_idxs[config_json["data"]] &= keep_idxs
+
     cov_names = cov_names.union(covs.keys())
 
   df = pd.DataFrame(columns=["beta_hat", "n_converged", "n_kept"] +
@@ -120,4 +142,5 @@ if __name__ == "__main__":
   parser.add_argument('--runs_dir', type=str, default="runs/")
   parser.add_argument('--out_csv', type=str, default="paper_results.csv")
   parser.add_argument('--std', action="store_true", default=False)
+  parser.add_argument('--intersect-kept', action="store_true", default=False)
   main(parser.parse_args())

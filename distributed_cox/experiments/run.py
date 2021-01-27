@@ -73,7 +73,9 @@ class ExperimentResult:
     return self.sol.guess
 
 
-def compute_results_averaged(result: ExperimentResult, std=False):
+def compute_results_averaged(result: ExperimentResult,
+                             std=False,
+                             keep_idxs=None):
   """
   Args:
     - result: the experiment result object.
@@ -82,6 +84,9 @@ def compute_results_averaged(result: ExperimentResult, std=False):
       to plot the analytical cov. The function returns the cov
       matrices from result.cov.
   """
+  if keep_idxs is None:
+    keep_idxs = onp.ones_like(result.sol.converged, dtype=np.bool_)
+
   all_covs = collections.OrderedDict()
 
   converged_idxs = result.sol.converged
@@ -93,7 +98,7 @@ def compute_results_averaged(result: ExperimentResult, std=False):
 
   beta_empirical_nan_idxs = onp.any(onp.isnan(beta), axis=1)
 
-  keep_idxs = converged_idxs & ~beta_empirical_nan_idxs
+  keep_idxs = keep_idxs & converged_idxs & ~beta_empirical_nan_idxs
   for cov_name, cov_analyticals in result.covs.items():
     cov_analyticals_nan_idxs = onp.any(onp.isnan(
         cov_analyticals.reshape(-1, cov_analyticals.shape[1]**2)),
@@ -118,7 +123,7 @@ def compute_results_averaged(result: ExperimentResult, std=False):
     cov_analytical = onp.mean(cov_analyticals, axis=0)
     all_covs[cov_name] = cov_analytical
 
-  return beta_hat, all_covs, onp.sum(keep_idxs)
+  return beta_hat, all_covs, keep_idxs
 
 
 @ex.capture(prefix="data")
