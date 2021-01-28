@@ -1,6 +1,11 @@
+"""Run additional experiments."""
+
 import collections
 import subprocess
 import itertools
+import textwrap
+
+import simple_slurm
 
 Param = collections.namedtuple("Param", "N K nk p")
 settings = [
@@ -46,6 +51,19 @@ settings = [
     Param(300, 3, (100,) * 3, "Ber(0.5); N(0,1); Ber(0.5)"),
 ]
 
+root_dir = subprocess.check_output(["git", "rev-parse",
+                                    "--show-toplevel"]).strip()
+
+slurm = simple_slurm.Slurm(cpus_per_task=8,
+                           nodes=1,
+                           time='0-2:00',
+                           partition='short',
+                           mem=3000,
+                           output='hostname_%j.out',
+                           error='hostname_%j.err',
+                           mail_type='FAIL',
+                           mail_user='dl263@hms.harvard.edu')
+
 batch_size = 32
 T_star_factorss = ["None"]
 eqs = ["eq1", "eq2", "eq3", "eq4", "meta_analysis", "meta_analysis_univariate"]
@@ -58,20 +76,21 @@ for (eq, (N, K, nk, p),
     meta_analysis_univariate = False
   x_dim = p.count(";") + 1
   p = p.replace(";", ",").replace("Ber", "bernoulli").replace("N", "normal")
-  cmd = [
-      "sbatch",
-      "single.sh",
-      "with",
-      "num_experiments=10000",
-      f"eq={eq}",
-      f"batch_size={batch_size}",
-      f"data.X_DIM={x_dim}",
-      f"data.N={N}",
-      f"data.K={K}",
-      f'data.group_labels_generator_kind="custom{nk}"',
-      f'data.group_X="custom([[{p}]],None,None)"',
-      f'data.T_star_factors="{T_star_factors}"',
-      f"meta_analysis.univariate={meta_analysis_univariate}",
-  ]
-  print(cmd)
-  # subprocess.check_call(cmd)
+  slurm.sbatch(
+      textwrap.dedent(f"""
+        ROOT_DIR={root_dir}
+        source activate varderiv
+        cd $ROOT_DIR
+
+        python -m distributed_cox.experiments.run -p with \\
+          num_experiments=10000 \\
+          eq={eq} \\
+          batch_size={batch_size} \\
+          data.X_DIM={x_dim} \\
+          data.N={N} \\
+          data.K={K} \\
+          data.group_labels_generator_kind='custom{nk}' \\
+          data.group_X='custom([[{p}]],None,None)' \\
+          data.T_star_factors='{T_star_factors}' \\
+          meta_analysis.univariate={meta_analysis_univariate}
+        """))
