@@ -52,7 +52,7 @@ settings = [
 ]
 
 root_dir = subprocess.check_output(["git", "rev-parse",
-                                    "--show-toplevel"]).strip()
+                                    "--show-toplevel"]).strip().decode("utf-8")
 
 slurm = simple_slurm.Slurm(cpus_per_task=8,
                            nodes=1,
