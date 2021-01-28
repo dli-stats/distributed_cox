@@ -53,6 +53,7 @@ settings = [
 
 root_dir = subprocess.check_output(["git", "rev-parse",
                                     "--show-toplevel"]).strip().decode("utf-8")
+storage_dir = "/n/scratch3/users/d/dl263/varderiv_experiments"
 
 slurm = simple_slurm.Slurm(cpus_per_task=8,
                            nodes=1,
@@ -82,7 +83,9 @@ for (eq, (N, K, nk, p),
         source activate varderiv
         cd $ROOT_DIR
 
-        python -m distributed_cox.experiments.run -p with \\
+        python -m distributed_cox.experiments.run -p
+        -F {storage_dir}
+        with \\
           num_experiments=10000 \\
           eq={eq} \\
           batch_size={batch_size} \\
@@ -93,4 +96,6 @@ for (eq, (N, K, nk, p),
           data.group_X='custom([[{p}]],None,None)' \\
           data.T_star_factors='{T_star_factors}' \\
           meta_analysis.univariate={meta_analysis_univariate}
-        """))
+        """),
+      shell="/bin/bash",
+  )
