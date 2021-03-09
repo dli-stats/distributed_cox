@@ -213,7 +213,7 @@ def main(args):
       vmap(compute_confidence_interval_overlap))
   compute_confidence_interval_overlap_clip_jit = jit(
       vmap(compute_confidence_interval_overlap_clip,
-           in_axes=(0, 0, None, None, None),
+           in_axes=(0, 0, None),
            out_axes=0))
 
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
@@ -253,7 +253,7 @@ def main(args):
           result.guess, _eq_get_var(config_json, result),
           same_X_dim_beta_true[config_json["data"]["X_DIM"]])
       cr_stats = cr_stats[keep_idxs]
-      cr_stats1 = onp.mean(cr_stats)
+      cr_stats1 = onp.mean(cr_stats, axis=0)
       cr_stats2 = onp.mean(onp.all(cr_stats, axis=1))
 
     else:
