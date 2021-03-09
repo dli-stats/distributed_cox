@@ -60,7 +60,7 @@ def plan3_setting(args):
 
 
 plan3_settings = list(
-    map(plan3_setting, itertools.product(range(30, 60, 10), [3, 5], [1, 2])))
+    map(plan3_setting, itertools.product(range(10, 60, 10), [3, 5], [1, 2])))
 
 _settings = plan1_settings + plan2_settings + plan3_settings
 
@@ -86,7 +86,7 @@ for (eq, (N, K, nk, p),
           K=K,
           X_DIM=x_dim,
           T_star_factors=T_star_factors,
-          group_labels_generator_kind=f'custom{nk}',
+          group_labels_generator_kind=f'custom({",".join(nk)})',
           group_X=f'custom([[{p}]],None,None)',
       ),
       distributed=dict(

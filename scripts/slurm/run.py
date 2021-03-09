@@ -15,7 +15,10 @@ from importlib import util
 
 import numpy as np
 
+import tqdm
 import simple_slurm
+
+import distributed_cox.experiments.read_file_storage as rfs
 
 root_dir = subprocess.check_output(["git", "rev-parse",
                                     "--show-toplevel"]).strip().decode("utf-8")
@@ -32,6 +35,7 @@ parser.add_argument(
 parser.add_argument("--n_jobs", type=int, default=10)
 parser.add_argument("--dry_run", action='store_true')
 parser.add_argument("--settings", type=str, action='append')
+parser.add_argument("--skip_completed", action="store_true")
 
 
 def estimate_runtime(setting: Dict):
@@ -198,6 +202,18 @@ def import_file(full_name, path):
   return mod
 
 
+def filter_completed(settings: List[Dict], storage_dir: str) -> List[Dict]:
+  filtered_settings = []
+  for setting in tqdm.tqdm(settings):
+    setting_done = False
+    for _, _, run_json in rfs.find_experiment(storage_dir, **setting):
+      if run_json["status"] == "COMPLETED":
+        setting_done = True
+    if not setting_done:
+      filtered_settings.append(setting)
+  return filtered_settings
+
+
 def main():
   args = parser.parse_args()
   if args.settings is None:
@@ -207,6 +223,9 @@ def main():
   for i, settings_path in enumerate(args.settings):
     setting_mod = import_file(f"settings_{i}", settings_path)
     settings += setting_mod.settings
+
+  if args.skip_completed:
+    settings = filter_completed(settings, args.storage_dir)
 
   slurm = simple_slurm.Slurm(cpus_per_task=8,
                              nodes=1,
