@@ -226,6 +226,7 @@ def main():
 
   if args.skip_completed:
     settings = filter_completed(settings, args.storage_dir)
+    print(f"Filtered down to {len(settings)}")
 
   slurm = simple_slurm.Slurm(cpus_per_task=8,
                              nodes=1,
