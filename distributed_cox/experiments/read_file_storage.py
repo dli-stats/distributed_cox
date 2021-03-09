@@ -212,7 +212,9 @@ def main(args):
   compute_confidence_interval_overlap_jit = jit(
       vmap(compute_confidence_interval_overlap))
   compute_confidence_interval_overlap_clip_jit = jit(
-      vmap(compute_confidence_interval_overlap_clip))
+      vmap(compute_confidence_interval_overlap_clip,
+           in_axes=(0, 0, None, None, None),
+           out_axes=0))
 
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
     exp_key = get_expkey((run_dir, config_json, run_json))
