@@ -1,7 +1,5 @@
 """Experiment result collection."""
 
-from jax._src.numpy.lax_numpy import clip
-from distributed_cox.data import T_star_factors_gamma_gen
 import glob
 import os
 import json
@@ -111,6 +109,18 @@ def compute_confidence_interval_overlap(beta_eq,
   return np.mean(I, axis=0)
 
 
+def compute_confidence_interval_overlap_clip(beta_eq,
+                                             var_eq,
+                                             beta_true,
+                                             lb=0.025,
+                                             ub=1 - 0.025):
+  std_eq = np.sqrt(var_eq)
+  L_rel = beta_eq + scipy.stats.norm.ppf(lb) * std_eq
+  U_rel = beta_eq + scipy.stats.norm.ppf(ub) * std_eq
+  clip = np.logical_and(L_rel < beta_true, beta_true < U_rel)
+  return clip
+
+
 def _get_true_model_in_group(group):
   _, config_json, _ = group[0]
   assert config_json["data"]["T_star_factors"] is not None
@@ -201,6 +211,8 @@ def main(args):
 
   compute_confidence_interval_overlap_jit = jit(
       vmap(compute_confidence_interval_overlap))
+  compute_confidence_interval_overlap_clip_jit = jit(
+      vmap(compute_confidence_interval_overlap_clip))
 
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
     exp_key = get_expkey((run_dir, config_json, run_json))
@@ -234,6 +246,11 @@ def main(args):
           _eq_get_var(true_model_config_json, result_true_model),
       )
       cio_stats = onp.mean(cio_stats[keep_idxs], axis=0)
+
+      cr_stats = compute_confidence_interval_overlap_clip_jit(
+          result.guess, _eq_get_var(config_json, result),
+          same_X_dim_beta_true[config_json["data"]["X_DIM"]])
+
     else:
       cio_stats = None
 
@@ -243,6 +260,7 @@ def main(args):
         'n_converged': n_converged,
         'n_kept': onp.sum(keep_idxs),
         'cio_stats': cio_stats,
+        'cr_stats': cr_stats,
         **covs
     }
     cov_names = cov_names.union(covs.keys())
