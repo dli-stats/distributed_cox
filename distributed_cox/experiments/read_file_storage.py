@@ -93,7 +93,7 @@ def main(args):
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
     data_key = json.dumps(config_json["data"], sort_keys=True)
     same_data_setting_groups[data_key].append((run_dir, config_json, run_json))
-    if same_X_dim_beta_true[config_json["data"]["X_DIM"]] is None:
+    if config_json["data"]["X_DIM"] not in same_X_dim_beta_true:
       with open(os.path.join(run_dir, "result"), "rb") as f:
         result: ExperimentResult = pickle.load(f)
       _, data_gen = init_data_gen_fn(**config_json["data"])
@@ -141,10 +141,10 @@ def main(args):
     }
     cov_names = cov_names.union(covs.keys())
 
-  df = pd.DataFrame(columns=["beta_hat", "n_converged", "n_kept"] +
-                    list(sorted(cov_names)),
-                    index=pd.MultiIndex.from_tuples(paper_results.keys(),
-                                                    names=expkey_names))
+  df = pd.DataFrame(
+      columns=["beta_hat", "n_converged", "n_kept", "beta_l1_norm"] +
+      list(sorted(cov_names)),
+      index=pd.MultiIndex.from_tuples(paper_results.keys(), names=expkey_names))
   for k1, r in paper_results.items():
     for k2, v in r.items():
       df[k2].loc[k1] = v
