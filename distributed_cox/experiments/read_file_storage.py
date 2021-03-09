@@ -263,8 +263,8 @@ def main(args):
         'n_converged': n_converged,
         'n_kept': onp.sum(keep_idxs),
         'cio_stats': cio_stats,
-        'cr_stats1': cr_stats1,
-        'cr_stats2': cr_stats2,
+        'cr_stats_mean': cr_stats1,
+        'cr_stats_all': cr_stats2,
         **covs
     }
     cov_names = cov_names.union(covs.keys())
@@ -275,8 +275,8 @@ def main(args):
       "n_kept",
       "beta_l1_norm",
       "cio_stats",
-      "cr_stats1",
-      "cr_stats2",
+      "cr_stats_mean",
+      "cr_stats_all",
   ] + list(sorted(cov_names)),
                     index=pd.MultiIndex.from_tuples(paper_results.keys(),
                                                     names=expkey_names))
