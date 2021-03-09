@@ -88,15 +88,17 @@ def main(args):
   cov_names = set()
 
   same_data_setting_groups = collections.defaultdict(list)
-  beta_true = None  # Assumes all data settings have the same beta_true
+  # Assumes data settings have the same beta_true if X_dim are the same
+  same_X_dim_beta_true = {}
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
     data_key = json.dumps(config_json["data"], sort_keys=True)
     same_data_setting_groups[data_key].append((run_dir, config_json, run_json))
-    if beta_true is None:
+    if same_X_dim_beta_true[config_json["data"]["X_DIM"]] is None:
       with open(os.path.join(run_dir, "result"), "rb") as f:
         result: ExperimentResult = pickle.load(f)
       _, data_gen = init_data_gen_fn(**config_json["data"])
-      (_, _, beta_true, _, _, _) = data_gen(result.data_generation_key[0])
+      (_, _, _, _, beta_true, _) = data_gen(result.data_generation_key[0])
+      same_X_dim_beta_true[config_json["data"]["X_DIM"]] = beta_true
 
   same_data_setting_kept_idxs = {}
   if args.intersect_kept:
@@ -118,15 +120,17 @@ def main(args):
     with open(os.path.join(run_dir, "result"), "rb") as f:
       result = pickle.load(f)
     keep_idxs = same_data_setting_kept_idxs.get(data_key, None)
-    beta_hat, covs, _ = compute_results_averaged(result,
-                                                 std=args.std,
-                                                 keep_idxs=keep_idxs)
+    beta_hat, covs, keep_idxs = compute_results_averaged(result,
+                                                         std=args.std,
+                                                         keep_idxs=keep_idxs)
     n_converged = onp.sum(result.sol.converged)
 
-    beta_l1_norm = onp.mean(onp.linalg.norm(result.guess[keep_idxs] - beta_true,
-                                            ord=1,
-                                            axis=1),
-                            axis=0)
+    beta_l1_norm = onp.mean(
+        onp.linalg.norm(result.guess[keep_idxs] -
+                        same_X_dim_beta_true[config_json["data"]["X_DIM"]],
+                        ord=1,
+                        axis=1),
+        axis=0)
 
     paper_results[exp_key] = {
         'beta_hat': beta_hat,
