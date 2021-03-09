@@ -17,16 +17,6 @@ import numpy as np
 
 import simple_slurm
 
-slurm = simple_slurm.Slurm(cpus_per_task=8,
-                           nodes=1,
-                           time='0-1:00',
-                           partition='short',
-                           mem=3000,
-                           output='hostname_%j.out',
-                           error='hostname_%j.err',
-                           mail_type='FAIL',
-                           mail_user='dl263@hms.harvard.edu')
-
 root_dir = subprocess.check_output(["git", "rev-parse",
                                     "--show-toplevel"]).strip().decode("utf-8")
 
@@ -34,6 +24,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--storage_dir",
                     type=str,
                     default="/n/scratch3/users/d/dl263/varderiv_experiments")
+parser.add_argument("--logs_dir", type=str, default="logs")
 parser.add_argument(
     "--config_dir",
     type=str,
@@ -142,7 +133,9 @@ def format_timedelta(value,
 fake_job_id = 0
 
 
-def run_settings_on_node(settings: List[PreparedSetting], dry_run=True):
+def run_settings_on_node(slurm: simple_slurm.Slurm,
+                         settings: List[PreparedSetting],
+                         dry_run=True):
   """Run settings in a single sbatch command."""
   all_cmds = "\n\n".join([s.cmd for s in settings])
   est_sum_time = sum([s.est_time for s in settings])
@@ -165,7 +158,8 @@ def run_settings_on_node(settings: List[PreparedSetting], dry_run=True):
   return fake_job_id
 
 
-def run_settings(settings: List[Dict],
+def run_settings(slurm: simple_slurm.Slurm,
+                 settings: List[Dict],
                  config_dir: str,
                  storage_dir: str,
                  n_jobs=10,
@@ -175,7 +169,7 @@ def run_settings(settings: List[Dict],
   groups = partition_settings(settings, n_jobs)
   job_id_to_config_paths = {}
   for group in groups:
-    job_id = run_settings_on_node(group, dry_run=dry_run)
+    job_id = run_settings_on_node(slurm, group, dry_run=dry_run)
     job_id_to_config_paths[job_id] = {
         "est_time": sum([s.est_time for s in group]),
         "configs": [s.config_file_path for s in group]
@@ -208,7 +202,20 @@ def main():
     setting_mod = import_file(f"settings_{i}", settings_path)
     settings += setting_mod.settings
 
-  run_settings(settings,
+  slurm = simple_slurm.Slurm(cpus_per_task=8,
+                             nodes=1,
+                             time='0-1:00',
+                             partition='short',
+                             mem=3000,
+                             output=os.path.join(args.logs_dir,
+                                                 'hostname_%j.out'),
+                             error=os.path.join(args.logs_dir,
+                                                'hostname_%j.err'),
+                             mail_type='FAIL',
+                             mail_user='dl263@hms.harvard.edu')
+
+  run_settings(slurm,
+               settings,
                args.config_dir,
                args.storage_dir,
                args.n_jobs,
