@@ -86,7 +86,7 @@ for (eq, (N, K, nk, p),
           K=K,
           X_DIM=x_dim,
           T_star_factors=T_star_factors,
-          group_labels_generator_kind=f'custom({",".join(nk)})',
+          group_labels_generator_kind=f'custom({",".join(map(str, nk))})',
           group_X=f'custom([[{p}]],None,None)',
       ),
       distributed=dict(
