@@ -250,6 +250,7 @@ def main(args):
       cr_stats = compute_confidence_interval_overlap_clip_jit(
           result.guess, _eq_get_var(config_json, result),
           same_X_dim_beta_true[config_json["data"]["X_DIM"]])
+      cr_stats = cr_stats[keep_idxs]
       cr_stats1 = onp.mean(cr_stats)
       cr_stats2 = onp.mean(onp.all(cr_stats, axis=1))
 
