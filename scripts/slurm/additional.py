@@ -58,7 +58,6 @@ def plan3_setting(args):
   p = "Ber(0.5)" if x_dim == 1 else "Ber(0.5); N(0, 1)"
   return Param(N=N, K=K, nk=nk, p=p)
 
-settings = plan3_settings
 
 plan3_settings = list(
     map(plan3_setting, itertools.product(range(30, 60, 10), [3, 5], [1, 2])))
