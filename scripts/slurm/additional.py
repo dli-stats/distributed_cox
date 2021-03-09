@@ -66,13 +66,15 @@ plan2_settings = [
 ]
 
 # Plan 3
-def plan3_setting(nk, K, x_dim):
+def plan3_setting(args):
+  nk, K, x_dim = args
   nk = nk * x_dim
   N = nk * K
   p = "Ber(0.5)" if x_dim == 1 else "Ber(0.5); N(0, 1)"
-  return Param(N=N, K=K, nk=nk, p=p)
-plan3_settings = map(plan3_setting, itertools.product(range(30, 60, 10), [3, 5], [1, 2]))
+  return Param(N=N, K=K, nk=(nk,)*K, p=p)
+plan3_settings = list(map(plan3_setting, itertools.product(range(10, 60, 10), [3, 5], [1, 2])))
 
+settings = plan3_settings
 
 root_dir = subprocess.check_output(["git", "rev-parse",
                                     "--show-toplevel"]).strip().decode("utf-8")
@@ -108,7 +110,7 @@ for (eq, (N, K, nk, p),
           data.group_labels_generator_kind='custom{nk}' \\
           data.group_X='custom([[{p}]],None,None)' \\
           data.T_star_factors='{T_star_factors}' \\
-          meta_analysis.univariate={meta_analysis_univariate}
+          meta_analysis.univariate={meta_analysis_univariate} \\
         """),
       shell="/bin/bash",
   )
