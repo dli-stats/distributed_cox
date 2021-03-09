@@ -18,8 +18,9 @@ slurm = simple_slurm.Slurm(cpus_per_task=8,
                            mail_user='dl263@hms.harvard.edu')
 
 Param = collections.namedtuple("Param", "N K nk p")
-settings = [
-    ## Plan 1
+
+# Plan 1
+plan1_settings = [
     Param(500, 5, (100,) * 5, "Ber(0.5); N(0,1); Ber(0.5)"),
     Param(500, 5, (50,) * 3 + (175,) * 2, "Ber(0.5); N(0,1); Ber(0.5)"),
     Param(500, 10, (50,) * 10, "Ber(0.5); N(0,1); Ber(0.5)"),
@@ -55,11 +56,23 @@ settings = [
     Param(
         500, 10, (25,) * 5 + (75,) * 5,
         "Ber(0.5); N(0,1); Ber(0.3); N(0,0.25); Ber(0.7); N(0, 0.5); Ber(0.2)"),
-    ## Plan 2
+]
+
+# Plan 2
+plan2_settings = [
     Param(60, 3, (20,) * 3, "Ber(0.5); N(0,1); Ber(0.5)"),
     Param(150, 3, (50,) * 3, "Ber(0.5); N(0,1); Ber(0.5)"),
     Param(300, 3, (100,) * 3, "Ber(0.5); N(0,1); Ber(0.5)"),
 ]
+
+# Plan 3
+def plan3_setting(nk, K, x_dim):
+  nk = nk * x_dim
+  N = nk * K
+  p = "Ber(0.5)" if x_dim == 1 else "Ber(0.5); N(0, 1)"
+  return Param(N=N, K=K, nk=nk, p=p)
+plan3_settings = map(plan3_setting, itertools.product(range(30, 60, 10), [3, 5], [1, 2]))
+
 
 root_dir = subprocess.check_output(["git", "rev-parse",
                                     "--show-toplevel"]).strip().decode("utf-8")
