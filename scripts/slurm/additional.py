@@ -84,7 +84,7 @@ for (eq, (N, K, nk, p),
       data=dict(
           N=N,
           K=K,
-          X_dim=x_dim,
+          X_DIM=x_dim,
           T_star_factors=T_star_factors,
           group_labels_generator_kind=f'custom{nk}',
           group_X=f'custom([[{p}]],None,None)',
