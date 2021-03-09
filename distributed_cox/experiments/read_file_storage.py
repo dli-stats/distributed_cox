@@ -1,16 +1,25 @@
 """Experiment result collection."""
 
+from jax._src.numpy.lax_numpy import clip
+from distributed_cox.data import T_star_factors_gamma_gen
 import glob
 import os
 import json
 import argparse
 import pickle
 import collections
+import functools
 
 import numpy as onp
 import pandas as pd
+import scipy.stats
+import jax.scipy.stats
+import jax.numpy as np
+from jax import vmap, jit
+
 from sacred.experiment import Experiment
 import tqdm
+
 from distributed_cox.experiments.run import (compute_results_averaged,
                                              init_data_gen_fn, ExperimentResult)
 
@@ -78,7 +87,83 @@ def merge_experiments_same_setting(runs_dir, **kwargs):
   return same_experiments
 
 
+def compute_confidence_interval_overlap(beta_eq,
+                                        var_eq,
+                                        beta_eq_true,
+                                        var_eq_true,
+                                        lb=0.025,
+                                        ub=1 - 0.025):
+  std_eq, std_eq_true = np.sqrt(var_eq), np.sqrt(var_eq_true)
+  f_orig_cdf = functools.partial(jax.scipy.stats.norm.cdf,
+                                 loc=beta_eq_true,
+                                 scale=std_eq_true)
+  f_rel_cdf = functools.partial(jax.scipy.stats.norm.cdf,
+                                loc=beta_eq,
+                                scale=std_eq)
+  L_rel = beta_eq + scipy.stats.norm.ppf(lb) * std_eq
+  U_rel = beta_eq + scipy.stats.norm.ppf(ub) * std_eq
+  L_orig = beta_eq_true + scipy.stats.norm.ppf(lb) * std_eq_true
+  U_orig = beta_eq_true + scipy.stats.norm.ppf(ub) * std_eq_true
+
+  I = ((f_orig_cdf(U_rel) - f_orig_cdf(L_rel)) +
+       (f_rel_cdf(U_orig) - f_rel_cdf(L_orig))) / 2
+
+  return np.mean(I, axis=0)
+
+
+def _get_true_model_in_group(group):
+  _, config_json, _ = group[0]
+  assert config_json["data"]["T_star_factors"] is not None
+  if config_json["data"]["T_star_factors"] == "None":
+    eq_true = "eq1"
+  else:
+    eq_true = "eq3"
+  return next(setting for setting in group if setting[1]["eq"] == eq_true)
+
+
+def _eq_get_var(config_json, result):
+  eq = config_json["eq"]
+  if eq == "eq1":
+    if config_json["data"]["T_star_factors"] == "None":
+      kind = "ese"
+    else:
+      kind = "rse"
+  elif eq == "eq2":
+    kind = "rse"
+  else:
+    kind = "ese"
+
+  mapping = {
+      ("eq1", "ese"):
+          "cov:no_group_correction|no_sandwich|no_cox_correction|no_sum_first",
+      ("eq1", "rse"):
+          "cov:no_group_correction|sandwich|cox_correction|no_sum_first",
+      ("eq2", "ese"):
+          "cov:group_correction|no_sandwich|no_cox_correction|no_sum_first",
+      ("eq2", "rse"):
+          "cov:group_correction|sandwich|cox_correction|no_sum_first",
+      ("eq3", "ese"):
+          "cov:no_group_correction|no_sandwich|no_cox_correction|no_sum_first",
+      ("eq3", "rse"):
+          None,
+      ("eq4", "ese"):
+          "cov:group_correction|no_sandwich|no_cox_correction|no_sum_first",
+      ("eq4", "rse"):
+          None,
+      ("meta_analysis", "ese"):
+          "cov:meta_analysis",
+      ("meta_analysis", "rse"):
+          None
+  }
+
+  cov_kind = mapping[eq, kind]
+  return onp.diagonal(result.covs[cov_kind], axis1=1, axis2=2)
+
+
 def main(args):
+  if args.compute_confidence_interval_overlap:
+    args.intersect_kept = True
+
   runs = [
       experiment for experiment in iterate_experiments(args.runs_dir)
       if experiment[-1]["status"] == "COMPLETED"
@@ -114,11 +199,14 @@ def main(args):
       else:
         same_data_setting_kept_idxs[data_key] &= keep_idxs
 
+  compute_confidence_interval_overlap_jit = jit(
+      vmap(compute_confidence_interval_overlap))
+
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
     exp_key = get_expkey((run_dir, config_json, run_json))
     data_key = json.dumps(config_json["data"], sort_keys=True)
     with open(os.path.join(run_dir, "result"), "rb") as f:
-      result = pickle.load(f)
+      result: ExperimentResult = pickle.load(f)
     keep_idxs = same_data_setting_kept_idxs.get(data_key, None)
     beta_hat, covs, keep_idxs = compute_results_averaged(result,
                                                          std=args.std,
@@ -132,19 +220,38 @@ def main(args):
                         axis=1),
         axis=0)
 
+    # Get true model result
+    if args.compute_confidence_interval_overlap:
+      true_model_run_dir, true_model_config_json, _ = _get_true_model_in_group(
+          same_data_setting_groups[data_key])
+      with open(os.path.join(true_model_run_dir, "result"), "rb") as f:
+        result_true_model: ExperimentResult = pickle.load(f)
+
+      cio_stats = compute_confidence_interval_overlap_jit(
+          result.guess,
+          _eq_get_var(config_json, result),
+          result_true_model.guess,
+          _eq_get_var(true_model_config_json, result_true_model),
+      )
+      cio_stats = onp.mean(cio_stats[keep_idxs], axis=0)
+    else:
+      cio_stats = None
+
     paper_results[exp_key] = {
         'beta_hat': beta_hat,
         "beta_l1_norm": beta_l1_norm,
         'n_converged': n_converged,
         'n_kept': onp.sum(keep_idxs),
+        'cio_stats': cio_stats,
         **covs
     }
     cov_names = cov_names.union(covs.keys())
 
-  df = pd.DataFrame(
-      columns=["beta_hat", "n_converged", "n_kept", "beta_l1_norm"] +
-      list(sorted(cov_names)),
-      index=pd.MultiIndex.from_tuples(paper_results.keys(), names=expkey_names))
+  df = pd.DataFrame(columns=[
+      "beta_hat", "n_converged", "n_kept", "beta_l1_norm", "cio_stats"
+  ] + list(sorted(cov_names)),
+                    index=pd.MultiIndex.from_tuples(paper_results.keys(),
+                                                    names=expkey_names))
   for k1, r in paper_results.items():
     for k2, v in r.items():
       df[k2].loc[k1] = v
@@ -158,4 +265,7 @@ if __name__ == "__main__":
   parser.add_argument('--out_csv', type=str, default="paper_results.csv")
   parser.add_argument('--std', action="store_true", default=False)
   parser.add_argument('--intersect-kept', action="store_true", default=False)
+  parser.add_argument('--compute_confidence_interval_overlap',
+                      action="store_true",
+                      default=False)
   main(parser.parse_args())
