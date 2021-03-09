@@ -269,7 +269,13 @@ def main(args):
     cov_names = cov_names.union(covs.keys())
 
   df = pd.DataFrame(columns=[
-      "beta_hat", "n_converged", "n_kept", "beta_l1_norm", "cio_stats"
+      "beta_hat",
+      "n_converged",
+      "n_kept",
+      "beta_l1_norm",
+      "cio_stats",
+      "cr_stats1",
+      "cr_stats2",
   ] + list(sorted(cov_names)),
                     index=pd.MultiIndex.from_tuples(paper_results.keys(),
                                                     names=expkey_names))
