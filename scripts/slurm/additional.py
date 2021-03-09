@@ -1,21 +1,5 @@
-"""Run additional experiments."""
-
 import collections
-import subprocess
 import itertools
-import textwrap
-
-import simple_slurm
-
-slurm = simple_slurm.Slurm(cpus_per_task=8,
-                           nodes=1,
-                           time='0-2:00',
-                           partition='short',
-                           mem=3000,
-                           output='hostname_%j.out',
-                           error='hostname_%j.err',
-                           mail_type='FAIL',
-                           mail_user='dl263@hms.harvard.edu')
 
 Param = collections.namedtuple("Param", "N K nk p")
 
@@ -65,24 +49,27 @@ plan2_settings = [
     Param(300, 3, (100,) * 3, "Ber(0.5); N(0,1); Ber(0.5)"),
 ]
 
+
 # Plan 3
-def plan3_setting(nk, K, x_dim):
+def plan3_setting(args):
+  nk, K, x_dim = args
   nk = nk * x_dim
   N = nk * K
   p = "Ber(0.5)" if x_dim == 1 else "Ber(0.5); N(0, 1)"
   return Param(N=N, K=K, nk=nk, p=p)
-plan3_settings = map(plan3_setting, itertools.product(range(30, 60, 10), [3, 5], [1, 2]))
 
 
-root_dir = subprocess.check_output(["git", "rev-parse",
-                                    "--show-toplevel"]).strip().decode("utf-8")
-storage_dir = "/n/scratch3/users/d/dl263/varderiv_experiments"
+plan3_settings = list(
+    map(plan3_setting, itertools.product(range(30, 60, 10), [3, 5], [1, 2])))
 
+_settings = plan1_settings + plan2_settings + plan3_settings
+
+settings = []
 batch_size = 32
 T_star_factorss = ["None"]
 eqs = ["eq1", "eq2", "eq3", "eq4", "meta_analysis", "meta_analysis_univariate"]
 for (eq, (N, K, nk, p),
-     T_star_factors) in itertools.product(eqs, settings, T_star_factorss):
+     T_star_factors) in itertools.product(eqs, _settings, T_star_factorss):
   if eq == "meta_analysis_univariate":
     eq = "meta_analysis"
     meta_analysis_univariate = True
@@ -91,24 +78,21 @@ for (eq, (N, K, nk, p),
   x_dim = p.count(";") + 1
   p = p.replace(";", ",").replace(" ", "")
   p = p.replace("Ber", "bernoulli").replace("N", "normal")
-
-  slurm.sbatch(
-      textwrap.dedent(f"""
-        ROOT_DIR={root_dir}
-        source activate varderiv
-        cd $ROOT_DIR
-
-        python -m distributed_cox.experiments.run -p -F {storage_dir} with \\
-          num_experiments=10000 \\
-          eq={eq} \\
-          batch_size={batch_size} \\
-          data.X_DIM={x_dim} \\
-          data.N={N} \\
-          data.K={K} \\
-          data.group_labels_generator_kind='custom{nk}' \\
-          data.group_X='custom([[{p}]],None,None)' \\
-          data.T_star_factors='{T_star_factors}' \\
-          meta_analysis.univariate={meta_analysis_univariate}
-        """),
-      shell="/bin/bash",
+  setting = dict(
+      eq=eq,
+      batch_size=batch_size,
+      data=dict(
+          N=N,
+          K=K,
+          X_dim=x_dim,
+          T_star_factors=T_star_factors,
+          group_labels_generator_kind=f'custom{nk}',
+          group_X=f'custom([[{p}]],None,None)',
+      ),
+      distributed=dict(
+          hessian_use_taylor=True,
+          taylor_order=1,
+      ),
+      meta_analysis=dict(univariate=meta_analysis_univariate),
   )
+  settings.append(setting)
