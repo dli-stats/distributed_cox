@@ -120,7 +120,7 @@ def solve_newton(likelihood_or_score_fn,
     else:
       args = (state, (new_score, new_hessian, cho_factor, is_finite))
 
-    return jax.lax.cond(converged,
+    return jax.lax.cond(np.logical_and(converged, state.step > 0),
                         functools.partial(do_converged, use_likelihood),
                         functools.partial(do_work, use_likelihood),
                         operand=args)
