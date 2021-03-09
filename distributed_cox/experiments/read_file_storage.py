@@ -9,12 +9,10 @@ import collections
 
 import numpy as onp
 import pandas as pd
+from sacred.experiment import Experiment
 import tqdm
-from distributed_cox.experiments.run import compute_results_averaged
-
-# pylint: disable=missing-docstring, unused-import
-
-from distributed_cox.experiments.run import ExperimentResult
+from distributed_cox.experiments.run import (compute_results_averaged,
+                                             init_data_gen_fn, ExperimentResult)
 
 
 def iterate_experiments(runs_dir):
@@ -87,36 +85,53 @@ def main(args):
   ]
 
   paper_results = {}
-  same_data_setting_kept_idxs = {}
   cov_names = set()
 
-  if args.intersect_kept:
-
-    for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
-      expkey = get_expkey((run_dir, config_json, run_json))
+  same_data_setting_groups = collections.defaultdict(list)
+  beta_trues = {}
+  for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
+    data_key = json.dumps(config_json["data"], sort_keys=True)
+    same_data_setting_groups[data_key].append((run_dir, config_json, run_json))
+    if data_key not in beta_trues:
       with open(os.path.join(run_dir, "result"), "rb") as f:
-        result = pickle.load(f)
+        result: ExperimentResult = pickle.load(f)
+      _, data_gen = init_data_gen_fn(**config_json["data"])
+      (_, _, beta_true, _) = data_gen(result.data_generation_key[0])
+      beta_trues[data_key] = beta_true
+
+  same_data_setting_kept_idxs = {}
+  if args.intersect_kept:
+    for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
+      with open(os.path.join(run_dir, "result"), "rb") as f:
+        result: ExperimentResult = pickle.load(f)
       _, _, keep_idxs = compute_results_averaged(result,
                                                  std=args.std,
                                                  keep_idxs=None)
-      data_config_json = json.dumps(config_json["data"], sort_keys=True)
-      if data_config_json not in same_data_setting_kept_idxs:
-        same_data_setting_kept_idxs[data_config_json] = keep_idxs
+      data_key = json.dumps(config_json["data"], sort_keys=True)
+      if data_key not in same_data_setting_kept_idxs:
+        same_data_setting_kept_idxs[data_key] = keep_idxs
       else:
-        same_data_setting_kept_idxs[data_config_json] &= keep_idxs
+        same_data_setting_kept_idxs[data_key] &= keep_idxs
 
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
-    expkey = get_expkey((run_dir, config_json, run_json))
+    exp_key = get_expkey((run_dir, config_json, run_json))
+    data_key = json.dumps(config_json["data"], sort_keys=True)
     with open(os.path.join(run_dir, "result"), "rb") as f:
       result = pickle.load(f)
-    beta_hat, covs, keep_idxs = compute_results_averaged(
-        result,
-        std=args.std,
-        keep_idxs=same_data_setting_kept_idxs.get(
-            json.dumps(config_json["data"], sort_keys=True), None))
+    keep_idxs = same_data_setting_kept_idxs.get(data_key, None)
+    beta_hat, covs, _ = compute_results_averaged(result,
+                                                 std=args.std,
+                                                 keep_idxs=keep_idxs)
     n_converged = onp.sum(result.sol.converged)
-    paper_results[expkey] = {
+
+    beta_l1_norm = onp.mean(onp.linalg.norm(result.guess - beta_trues[data_key],
+                                            ord=1,
+                                            axis=1),
+                            axis=0)
+
+    paper_results[exp_key] = {
         'beta_hat': beta_hat,
+        "beta_l1_norm": beta_l1_norm,
         'n_converged': n_converged,
         'n_kept': onp.sum(keep_idxs),
         **covs
