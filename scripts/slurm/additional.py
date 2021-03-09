@@ -56,7 +56,7 @@ def plan3_setting(args):
   nk = nk * x_dim
   N = nk * K
   p = "Ber(0.5)" if x_dim == 1 else "Ber(0.5); N(0, 1)"
-  return Param(N=N, K=K, nk=nk, p=p)
+  return Param(N=N, K=K, nk=(nk,) * K, p=p)
 
 
 plan3_settings = list(
