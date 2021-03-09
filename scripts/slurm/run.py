@@ -56,10 +56,16 @@ def prepare_settings(settings: List[Dict], config_dir: str,
                      storage_dir: str) -> List[PreparedSetting]:
   """Preprocess the settings."""
   prepared_settings = []
+  md5_hashes = set()
   for setting in settings:
     setting_json = json.dumps(setting, indent=4, sort_keys=True)
     setting_md5 = hashlib.md5(setting_json.encode('utf-8')).hexdigest()
+    if setting_md5 in md5_hashes:
+      print(setting)
+      raise ValueError(f"Duplicated setting hash = {setting_md5}")
+    md5_hashes.add(setting_md5)
     config_file_path = os.path.join(config_dir, f"{setting_md5}.json")
+
     with open(config_file_path, "w") as config_file:
       config_file.write(setting_json)
 
