@@ -250,6 +250,8 @@ def main(args):
       cr_stats = compute_confidence_interval_overlap_clip_jit(
           result.guess, _eq_get_var(config_json, result),
           same_X_dim_beta_true[config_json["data"]["X_DIM"]])
+      cr_stats1 = onp.mean(cr_stats)
+      cr_stats2 = onp.mean(onp.all(cr_stats, axis=1))
 
     else:
       cio_stats = None
@@ -260,7 +262,8 @@ def main(args):
         'n_converged': n_converged,
         'n_kept': onp.sum(keep_idxs),
         'cio_stats': cio_stats,
-        'cr_stats': cr_stats,
+        'cr_stats1': cr_stats1,
+        'cr_stats2': cr_stats2,
         **covs
     }
     cov_names = cov_names.union(covs.keys())
