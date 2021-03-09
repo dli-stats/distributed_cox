@@ -88,16 +88,15 @@ def main(args):
   cov_names = set()
 
   same_data_setting_groups = collections.defaultdict(list)
-  beta_trues = {}
+  beta_true = None  # Assumes all data settings have the same beta_true
   for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
     data_key = json.dumps(config_json["data"], sort_keys=True)
     same_data_setting_groups[data_key].append((run_dir, config_json, run_json))
-    if data_key not in beta_trues:
+    if beta_true is None:
       with open(os.path.join(run_dir, "result"), "rb") as f:
         result: ExperimentResult = pickle.load(f)
       _, data_gen = init_data_gen_fn(**config_json["data"])
-      (_, _, beta_true, _) = data_gen(result.data_generation_key[0])
-      beta_trues[data_key] = beta_true
+      (_, _, beta_true, _, _, _) = data_gen(result.data_generation_key[0])
 
   same_data_setting_kept_idxs = {}
   if args.intersect_kept:
@@ -124,7 +123,7 @@ def main(args):
                                                  keep_idxs=keep_idxs)
     n_converged = onp.sum(result.sol.converged)
 
-    beta_l1_norm = onp.mean(onp.linalg.norm(result.guess - beta_trues[data_key],
+    beta_l1_norm = onp.mean(onp.linalg.norm(result.guess[keep_idxs] - beta_true,
                                             ord=1,
                                             axis=1),
                             axis=0)
