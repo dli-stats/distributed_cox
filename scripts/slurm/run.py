@@ -74,7 +74,7 @@ def prepare_settings(settings: List[Dict], config_dir: str,
 
     cmd = textwrap.dedent(f"""
         python -m distributed_cox.experiments.run -p -F {storage_dir} with \\
-          {config_file}
+          {config_file_path} \\
           num_experiments=10000
         """)
     prepared_settings.append(
