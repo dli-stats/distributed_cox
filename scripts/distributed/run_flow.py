@@ -1,6 +1,6 @@
 """Run Distributed flow."""
 
-from typing import Callable
+from typing import Callable, Optional
 
 import subprocess
 import sys
@@ -11,6 +11,7 @@ import tempfile
 import logging
 import json
 import itertools
+import code
 
 import numpy as onp
 
@@ -40,7 +41,10 @@ def call_cmd(*args):
   return subprocess.check_call(cmd)
 
 
-def _run_flow(fill_data_fn: Callable, eq: str, seed: int = 0):
+def _run_flow(fill_data_fn: Callable,
+              eq: str,
+              check_result: bool = False,
+              seed: int = 0) -> pathlib.Path:
   del seed
 
   tmp_work_dir = tempfile.mkdtemp(prefix="cox_run_flow--",
@@ -111,9 +115,20 @@ def _run_flow(fill_data_fn: Callable, eq: str, seed: int = 0):
     call_cmd_and_send("local", "eq4_local_variance")
     call_cmd_and_send("master", "eq4_master_all_variances", end=True)
 
+  if check_result:
+    client = onp.load(work_dir.joinpath("master", "client_state.npz"))  # pylint: disable=unused-variable
+    code.interact(local=dict(client=client))
+
+  return work_dir
+
 
 @cmd.command
-def run_dummy_flow(eq: str, N: int, K: int, X_DIM: int, seed: int = 0):
+def run_dummy_flow(eq: str,
+                   N: int,
+                   K: int,
+                   X_DIM: int,
+                   check_result: bool = False,
+                   seed: int = 0) -> pathlib.Path:
   """Generate dummy data then run a distributed flow."""
 
   def fill_data(data_dir: pathlib.Path):
@@ -127,11 +142,14 @@ def run_dummy_flow(eq: str, N: int, K: int, X_DIM: int, seed: int = 0):
     )
     return N, K, X_DIM
 
-  return _run_flow(fill_data, eq, seed)
+  return _run_flow(fill_data, eq, check_result, seed)
 
 
 @cmd.command
-def run_flow(eq: str, data_dir: pathlib.Path, seed: int = 0):
+def run_flow(eq: str,
+             data_dir: pathlib.Path,
+             check_result: bool = False,
+             seed: int = 0) -> pathlib.Path:
 
   def fill_data(flow_data_dir: pathlib.Path):
     all_data = onp.load(data_dir.joinpath("all.npz"))
@@ -142,7 +160,7 @@ def run_flow(eq: str, data_dir: pathlib.Path, seed: int = 0):
       shutil.copy(data_dir.joinpath(name), flow_data_dir.joinpath(name))
     return N, K, X_DIM
 
-  return _run_flow(fill_data, eq, seed)
+  return _run_flow(fill_data, eq, check_result, seed)
 
 
 if __name__ == "__main__":
