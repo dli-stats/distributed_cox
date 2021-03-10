@@ -107,6 +107,9 @@ def eq2_local(local_state: ClientState,
 
   eq1_sol = solve_distributed_pt1(local_state, initial_guess, loglik_eps,
                                   max_num_steps)
+  if not eq1_sol.converged:
+    print(f"Did not converge in {max_num_steps}!")
+
   beta_k_hat = eq1_sol.guess
   eq1_H = eq1_sol.hessian
 
@@ -180,7 +183,7 @@ def _eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta,
                                           beta_k_hat,
                                           beta,
                                           taylor_order=taylor_order)
-  t1ebkxbmb_cs_d = np.einsum("kdip,kp->kdp",
+  t1ebkxbmb_cs_d = np.einsum("kdip,kp->kdi",
                              t1xebkx_cs_ds.reshape((K, D, X_dim, -1)),
                              dbeta_pow_t)
   t2ebkxbmb_cs_d = np.einsum("kdijp,kp->kdij",
@@ -188,7 +191,6 @@ def _eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta,
                              dbeta_pow_t)
 
   denom = denom.reshape((1, len(denom), 1, 1))
-
   return np.sum((np.einsum("dm,kdn->kdmn", numer, t1ebkxbmb_cs_d) / denom**2 -
                  t2ebkxbmb_cs_d / denom),
                 axis=1)
@@ -203,7 +205,6 @@ def solve_eq2_model(master_state: ClientState,
       "nxebkx_cs_ds*",
       "beta_k_hat",
   )
-
   beta_guess = np.mean(beta_k_hat, axis=0)
 
   fn_to_solve = functools.partial(_eq2_model,
@@ -399,7 +400,7 @@ def _eq2_master_variance(master_state: ClientState,
           "B_diag_last",
           "B_row_wo_last",
           cox_correction=variance_setting.cox_correction)
-      S = np.einsum("ab,bBc,Bcd->Bad", I_diag_inv_last, I_row_wo_last,
+      S = np.einsum("ab,Bbc,Bcd->Bad", I_diag_inv_last, I_row_wo_last,
                     I_diag_inv_wo_last)
 
       sas = np.einsum("Bab,Bbc,Bdc->ad", S, B_diag_wo_last, S)
@@ -409,7 +410,7 @@ def _eq2_master_variance(master_state: ClientState,
                       I_diag_inv_last)
       cov = sas - sb1s - sb2s + scs
     else:
-      S = np.einsum("ab,bBc->Bac", I_diag_inv_last, I_row_wo_last)
+      S = np.einsum("ab,Bbc->Bac", I_diag_inv_last, I_row_wo_last)
 
       cov = np.einsum(
           "Bab,Bbc,Bdc->ad", S, I_diag_inv_wo_last, S,

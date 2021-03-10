@@ -127,11 +127,30 @@ def compute_results_averaged(result: ExperimentResult,
 
 
 @ex.capture(prefix="data")
-def init_data_gen_fn(N, K, X_DIM, T_star_factors, group_labels_generator_kind,
-                     group_X, exp_scale):
-  return vdata.full_data_generator(N, K, X_DIM, T_star_factors,
-                                   group_labels_generator_kind, group_X,
-                                   exp_scale)
+def init_data_gen_fn(N,
+                     K,
+                     X_DIM,
+                     T_star_factors,
+                     group_labels_generator_kind,
+                     group_X,
+                     exp_scale,
+                     npz_path: str = None):
+  if npz_path is None:
+    return vdata.full_data_generator(N, K, X_DIM, T_star_factors,
+                                     group_labels_generator_kind, group_X,
+                                     exp_scale)
+  else:
+    data = onp.load(npz_path)
+    T, X, delta, group_labels = (data["T"], data["X"], data["delta"],
+                                 data["group_labels"])
+    T_star = onp.zeros_like(T) - 1  # Not applicable for real data
+    group_sizes = tuple(onp.sum(group_labels == k) for k in range(K))
+
+    def gen(key):
+      del key
+      return T, T_star, X, delta, onp.zeros(X.shape[1]), group_labels
+
+    return group_sizes, gen
 
 
 def freezeargs(func):
@@ -357,6 +376,7 @@ def config():
       group_X="same",  # "same", "group", "correlated", "custom(...)"
       T_star_factors=None,  # "None", "fixed(...)", "gamma(...)"
       exp_scale=3.5,
+      npz_path=None,
   )
   solver = dict(max_num_steps=40, loglik_eps=1e-5, score_norm_eps=1e-3)
 
@@ -370,7 +390,7 @@ def config():
   # groupped_configs
   distributed = dict(
       pt2_use_average_guess=False,
-      hessian_use_taylor=False,
+      hessian_use_taylor=True,
       taylor_order=1,
   )
 
@@ -394,6 +414,7 @@ def cov_experiment_main(data_generation_key, experiment_rand_key,
                            result_file=result_file)
       result_file.flush()
       ex.add_artifact(result_file.name, name="result")
+
     if return_result:
       return res
     return None
