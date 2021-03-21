@@ -115,7 +115,7 @@ def run_cov_experiment(init_fn,
     pbar.update(batch_size)
   pbar.close()
 
-  if i % save_interval != 0:
+  if i == 0 or i % save_interval != 0:
     # Save final result
     save(result)
 

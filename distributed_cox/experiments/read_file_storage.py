@@ -59,7 +59,7 @@ def find_experiment(runs_dir, **kwargs):
       yield (run_dir, config_json, run_json)
 
 
-expkey_names = ("eq data.K data.N data.T_star_factors data.X_DIM "
+expkey_names = ("eq data.K data.N data.T_star_factors data.X_DIM data.npz_path "
                 "data.group_X data.group_labels_generator_kind "
                 "distributed.taylor_order meta_analysis.univariate").split()
 

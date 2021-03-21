@@ -139,18 +139,17 @@ def init_data_gen_fn(N,
     return vdata.full_data_generator(N, K, X_DIM, T_star_factors,
                                      group_labels_generator_kind, group_X,
                                      exp_scale)
-  else:
-    data = onp.load(npz_path)
-    T, X, delta, group_labels = (data["T"], data["X"], data["delta"],
-                                 data["group_labels"])
-    T_star = onp.zeros_like(T) - 1  # Not applicable for real data
-    group_sizes = tuple(onp.sum(group_labels == k) for k in range(K))
+  data = onp.load(npz_path)
+  T, X, delta, group_labels = (data["T"], data["X"], data["delta"],
+                               data["group_labels"])
+  T_star = onp.zeros_like(T) - 1  # Not applicable for real data
+  group_sizes = tuple(onp.sum(group_labels == k) for k in range(K))
 
-    def gen(key):
-      del key
-      return T, T_star, X, delta, onp.zeros(X.shape[1]), group_labels
+  def gen(key):
+    del key
+    return T, T_star, X, delta, onp.zeros(X.shape[1]), group_labels
 
-    return group_sizes, gen
+  return group_sizes, gen
 
 
 def freezeargs(func):
@@ -368,6 +367,7 @@ def config():
   save_interval = 50
 
   data = dict(
+      npz_path=None,
       N=500,
       X_DIM=3,
       K=3,
@@ -376,8 +376,16 @@ def config():
       group_X="same",  # "same", "group", "correlated", "custom(...)"
       T_star_factors=None,  # "None", "fixed(...)", "gamma(...)"
       exp_scale=3.5,
-      npz_path=None,
   )
+
+  if data["npz_path"] is not None:
+    npz_data = onp.load(data["npz_path"])
+    _, X, _, group_labels = (npz_data["T"], npz_data["X"], npz_data["delta"],
+                             npz_data["group_labels"])
+    data["N"], data["X_DIM"] = X.shape
+    data["K"] = onp.max(group_labels) + 1
+    del X, group_labels, npz_data, _
+
   solver = dict(max_num_steps=40, loglik_eps=1e-5, score_norm_eps=1e-3)
 
   seed = 0
@@ -389,7 +397,7 @@ def config():
 
   # groupped_configs
   distributed = dict(
-      pt2_use_average_guess=False,
+      pt2_use_average_guess=data["npz_path"] is not None,
       hessian_use_taylor=True,
       taylor_order=1,
   )
@@ -416,6 +424,7 @@ def cov_experiment_main(data_generation_key, experiment_rand_key,
       ex.add_artifact(result_file.name, name="result")
 
     if return_result:
+      print(res)
       return res
     return None
   except EndExperimentException:
