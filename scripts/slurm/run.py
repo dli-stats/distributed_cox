@@ -2,6 +2,7 @@
 
 from typing import Dict, List
 
+import functools
 import collections
 import os
 import subprocess
