@@ -5,6 +5,7 @@ from typing import Dict, List
 import collections
 import os
 import subprocess
+import multiprocessing
 import textwrap
 import json
 import hashlib
@@ -203,15 +204,18 @@ def import_file(full_name, path):
 
 
 def filter_completed(settings: List[Dict], storage_dir: str) -> List[Dict]:
-  filtered_settings = []
-  for setting in tqdm.tqdm(settings):
-    setting_done = False
+
+  def find(setting):
     for _, _, run_json in rfs.find_experiment(storage_dir, **setting):
       if run_json["status"] == "COMPLETED":
-        setting_done = True
-    if not setting_done:
-      filtered_settings.append(setting)
-  return filtered_settings
+        return True
+    return False
+
+  pool_size = multiprocessing.cpu_count()
+  with multiprocessing.Pool(pool_size) as pool:
+    completed = list(tqdm.tqdm(pool.imap(find, settings), total=len(settings)))
+
+  return [s for s, c in zip(settings, completed) if not c]
 
 
 def main():
