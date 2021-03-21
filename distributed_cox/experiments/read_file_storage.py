@@ -109,7 +109,7 @@ def compute_confidence_interval_overlap(beta_eq,
   I = ((f_orig_cdf(U_rel) - f_orig_cdf(L_rel)) +
        (f_rel_cdf(U_orig) - f_rel_cdf(L_orig))) / 2
 
-  return np.mean(I, axis=0)
+  return I
 
 
 def compute_confidence_interval_overlap_clip(beta_eq,
