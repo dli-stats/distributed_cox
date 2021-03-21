@@ -38,7 +38,7 @@ for group_correction, robust, cox_correction in itertools.product(
 def call_cmd(*args):
   cmd = CMD + [str(arg) for arg in args]
   logging.info("Running command: %s", " ".join(cmd))
-  return subprocess.check_call(cmd)
+  return subprocess.check_call(cmd, env={"JAX_PLATFORM_NAME": "cpu"})
 
 
 def _run_flow(fill_data_fn: Callable,

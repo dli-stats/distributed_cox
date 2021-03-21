@@ -6,10 +6,6 @@ import pathlib
 import os
 import shutil
 
-import absl.logging
-# Disable JAX's CPU vs. GPU warning...
-absl.logging.set_verbosity(absl.logging.FATAL)
-
 # pylint: disable=wrong-import-position
 import numpy as np
 
