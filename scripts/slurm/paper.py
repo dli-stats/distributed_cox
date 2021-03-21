@@ -2,13 +2,16 @@ import itertools
 
 group_X_setting1 = "same"
 group_X_setting3 = "custom([[normal(0, 1.), normal(0, 0.04), bernoulli(0.5)], [bernoulli(0.1), normal(0, 0.5), normal(2, 0.5)], [bernoulli(0.9), normal(0, 0.04), normal(-1, 1.5)]], [[0, 1]], [3., 5., 1./3])"
+group_X_setting4 = "custom([[bernoulli(0.5), normal(0, 1.), normal(0, 0.04)], [bernoulli(0.1), normal(0, 0.5), normal(2, 0.5)], [bernoulli(0.9), normal(0, 0.04), normal(-1, 1.5)]], [[1, 2], [0, 1], [0, 1]], [3., 5., 1./3])"
 
 eqs = ["eq1", "eq2", "eq3", "eq4", "meta_analysis", "meta_analysis_univariate"]
 
 N_and_group_X_settings_and_taylor_order = [(N, group_X_setting1, taylor_order)
                                            for taylor_order in range(1, 5)
-                                           for N in [500, 1000, 3000]
-                                          ] + [(3000, group_X_setting3, 1)]
+                                           for N in [500, 1000, 3000]] + [
+                                               (3000, group_X_setting3, 1),
+                                               (3000, group_X_setting4, 1),
+                                           ]
 
 group_labels_generator_kinds = ["same", "arithmetic_sequence"]
 T_star_factorss = ["None", "fixed", "gamma(1, 1.)"]
