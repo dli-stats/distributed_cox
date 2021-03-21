@@ -203,17 +203,20 @@ def import_file(full_name, path):
   return mod
 
 
-def filter_completed(settings: List[Dict], storage_dir: str) -> List[Dict]:
+def _find(storage_dir, setting):
+  for _, _, run_json in rfs.find_experiment(storage_dir, **setting):
+    if run_json["status"] == "COMPLETED":
+      return True
+  return False
 
-  def find(setting):
-    for _, _, run_json in rfs.find_experiment(storage_dir, **setting):
-      if run_json["status"] == "COMPLETED":
-        return True
-    return False
+
+def filter_completed(settings: List[Dict], storage_dir: str) -> List[Dict]:
 
   pool_size = multiprocessing.cpu_count()
   with multiprocessing.Pool(pool_size) as pool:
-    completed = list(tqdm.tqdm(pool.imap(find, settings), total=len(settings)))
+    completed = list(
+        tqdm.tqdm(pool.imap(functools.partial(_find, storage_dir), settings),
+                  total=len(settings)))
 
   return [s for s, c in zip(settings, completed) if not c]
 
