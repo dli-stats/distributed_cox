@@ -69,8 +69,11 @@ def get_expkey(experiment):
   expkey = []
   for n in expkey_names:
     k = config_json
-    for part in n.split("."):
-      k = k[part]
+    try:
+      for part in n.split("."):
+        k = k[part]
+    except KeyError:
+      k = None
     expkey.append(k)
   return tuple(expkey)
 
@@ -228,10 +231,8 @@ def main(args):
     n_converged = onp.sum(result.sol.converged)
 
     beta_l1_norm = onp.mean(
-        onp.linalg.norm(result.guess[keep_idxs] -
-                        same_X_dim_beta_true[config_json["data"]["X_DIM"]],
-                        ord=1,
-                        axis=1),
+        onp.abs(result.guess[keep_idxs] -
+                same_X_dim_beta_true[config_json["data"]["X_DIM"]]),
         axis=0)
 
     # Get true model result
