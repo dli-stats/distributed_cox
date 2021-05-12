@@ -37,9 +37,12 @@ def get_cox_solve_fn(eq: str,
     a function that takes in the Cox inputs, and outputs the solved beta
     estimate.
   """
+  distributed = distributed or {}
+  solver = solver or {}
+  meta_analysis = meta_analysis or {}
 
   get_cox_fun = functools.partial(cox.get_cox_fun,
-                                  order=distributed['taylor_order'])
+                                  order=distributed.get('taylor_order', -1))
 
   if eq == "meta_analysis":
     solve_fn = functools.partial(modeling.solve_meta_analysis,
@@ -87,6 +90,9 @@ def get_cov_fn(  # pylint: disable=too-many-return-statements
     meta_analysis: Optional[Mapping[str, Any]] = None,
 ):
   """Returns a function that computes a single convariance setting."""
+  distributed = distributed or {}
+  meta_analysis = meta_analysis or {}
+
   # Reject some non-sensical situations
   if eq == "meta_analysis":
     if (group_correction or sandwich_robust or cox_correction or
@@ -150,6 +156,9 @@ def get_cov_fns(eq: str,
                 meta_analysis: Optional[Mapping[str, Any]] = None
                ) -> Dict[str, Callable]:
   """Constructs function to compute all settings of covariances for `eq`."""
+  distributed = distributed or {}
+  meta_analysis = meta_analysis or {}
+
   cov_fns = {}
   for cov_setting in itertools.product(*[(True, False)] * 4):
     (group_correction, sandwich_robust, cox_correction,
@@ -191,6 +200,10 @@ def get_cox_solve_and_cov_fn(eq: str,
     a function that takes in the Cox inputs, and outputs the solved beta
     estimate as well as all the covariances.
   """
+  distributed = distributed or {}
+  solver = solver or {}
+  meta_analysis = meta_analysis or {}
+
   K = len(group_sizes)
 
   solve_fn = get_cox_solve_fn(eq,
