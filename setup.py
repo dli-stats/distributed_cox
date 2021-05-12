@@ -1,13 +1,11 @@
 """Setup script."""
 
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 setup(
     name='distributed_cox',
     version='0.1dev',
-    packages=[
-        'distributed_cox',
-    ],
+    packages=find_packages(),
     entry_points={
         'console_scripts': [
             'distributed_cmd=distributed_cox.distributed.cmd:main'
