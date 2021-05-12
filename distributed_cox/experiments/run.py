@@ -6,7 +6,6 @@ import collections
 import functools
 import tempfile
 import dataclasses
-import itertools
 import os
 import json
 
@@ -14,7 +13,7 @@ from frozendict import frozendict
 
 import numpy as onp
 
-from jax import jit, vmap, jacrev, jacfwd
+from jax import jit, vmap
 import jax.random as jrandom
 import jax.tree_util as tu
 import jax.numpy as jnp
@@ -23,10 +22,10 @@ from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 
 import distributed_cox.data as vdata
-import distributed_cox.cox as cox
 
 import distributed_cox.generic.modeling as modeling
 from distributed_cox.generic.solver import NewtonSolverResult
+import distributed_cox.cox_solve as cox_solve
 
 import distributed_cox.experiments.utils as utils
 
@@ -118,8 +117,8 @@ def compute_results_averaged(result: ExperimentResult,
   for cov_name, cov_analyticals in result.covs.items():
     cov_analyticals = cov_analyticals[keep_idxs]
     if std:
-      cov_analyticals = jnp.sqrt(jnp.diagonal(cov_analyticals, axis1=-2,
-                                            axis2=-1))
+      cov_analyticals = jnp.sqrt(
+          jnp.diagonal(cov_analyticals, axis1=-2, axis2=-1))
     cov_analytical = onp.mean(cov_analyticals, axis=0)
     all_covs[cov_name] = cov_analytical
 
@@ -175,151 +174,28 @@ def freezeargs(func):
 @ex.capture
 @freezeargs
 @functools.lru_cache(maxsize=None)
-def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
+def cov_experiment_init(eq, distributed, solver, meta_analysis,
                         **experiment_params):
   del experiment_params
-  K = data["K"]
-  num_single_args = 3
-
-  get_cox_fun = functools.partial(cox.get_cox_fun,
-                                  order=distributed['taylor_order'])
-
-  if eq == "meta_analysis":
-    solve_fn = functools.partial(modeling.solve_meta_analysis,
-                                 get_cox_fun("eq1", "loglik", batch=False),
-                                 use_likelihood=True,
-                                 **meta_analysis)
-  else:
-    if eq in ("eq1", "eq3"):
-      batch_loglik_or_score_fn = get_cox_fun(eq, "loglik", batch=True)
-      log_likelihood_fn = get_cox_fun(eq, "loglik", batch=False)
-      use_likelihood = True
-      solve_fn = functools.partial(modeling.solve_single,
-                                   log_likelihood_fn,
-                                   use_likelihood=use_likelihood)
-    elif eq in ("eq2", "eq4"):
-      batch_loglik_or_score_fn = get_cox_fun(eq, "score", batch=True)
-      loglik_or_score_fn = get_cox_fun(eq, "score", batch=False)
-      use_likelihood = False
-      if distributed["hessian_use_taylor"]:
-        hessian_fn = get_cox_fun(eq, "hessian", batch=False)
-      else:
-        hessian_fn = jacfwd(loglik_or_score_fn, num_single_args - 1)
-      solve_fn = functools.partial(
-          modeling.solve_distributed,
-          get_cox_fun("eq1", "loglik", batch=False),
-          distributed_hessian_fn=hessian_fn,
-          num_single_args=num_single_args,
-          K=K,
-          pt2_use_average_guess=distributed["pt2_use_average_guess"],
-          single_use_likelihood=True)
-      solve_fn = functools.partial(solve_fn,
-                                   loglik_or_score_fn,
-                                   distributed_use_likelihood=use_likelihood)
-    else:
-      raise ValueError("invalid equation")
-
-  solve_fn = solve_fn(**solver)
-
-  cov_fns = {}
-
-  if eq == "meta_analysis":
-    cov_fns["cov:meta_analysis"] = modeling.cov_meta_analysis(**meta_analysis)
-  else:
-    for (group_correction, sandwich_robust, sandwich_robust_sum_group_first,
-         cox_correction) in itertools.product(*[(True, False)] * 4):
-      # Some non-sensical situations
-      if not sandwich_robust and cox_correction:
-        continue
-      if not sandwich_robust and sandwich_robust_sum_group_first:
-        continue
-      if group_correction and eq in ("eq1", "eq3"):
-        continue
-      if sandwich_robust_sum_group_first and eq in ("eq1", "eq2"):
-        continue
-      if sandwich_robust_sum_group_first:  # disabled because it's too bad
-        continue
-      batch_robust_cox_correction_score = get_cox_fun(
-          eq, "robust_cox_correction_score", True)
-      if group_correction:
-        batch_score = get_cox_fun(eq, "score", batch=True)
-        cov_fn = modeling.cov_group_correction(
-            (get_cox_fun("eq1", "robust_cox_correction_score", True)
-             if cox_correction else get_cox_fun("eq1", "loglik", True)),
-            (batch_robust_cox_correction_score
-             if cox_correction else batch_score),
-            distributed_cross_hessian_fn=jacrev(
-                get_cox_fun(eq, "score", batch=False), -1),
-            batch_single_use_likelihood=not cox_correction,
-            batch_distributed_use_likelihood=False,
-            num_single_args=num_single_args,
-            robust=sandwich_robust,
-            robust_sum_group_first=sandwich_robust_sum_group_first)
-      elif sandwich_robust:
-        cov_batch_log_likelihood_or_score_fn = (
-            batch_robust_cox_correction_score
-            if cox_correction else batch_loglik_or_score_fn)
-        cov_fn = modeling.cov_robust(
-            batch_log_likelihood_or_score_fn=
-            cov_batch_log_likelihood_or_score_fn,
-            use_likelihood=(use_likelihood and not cox_correction),
-            num_single_args=num_single_args,
-            sum_group_first=sandwich_robust_sum_group_first)
-      else:
-        cov_fn = modeling.cov_H()
-      cov_name = ("cov:{}group_correction|{}sandwich"
-                  "|{}cox_correction|{}sum_first").format(*[
-                      "" if v else "no_"
-                      for v in (group_correction, sandwich_robust,
-                                cox_correction, sandwich_robust_sum_group_first)
-                  ])
-      cov_fns[cov_name] = cov_fn
 
   group_sizes, gen = init_data_gen_fn()  # pylint: disable=no-value-for-parameter
-  group_size = max(group_sizes)
+  solve_and_cov_fn = cox_solve.get_cox_solve_and_cov_fn(eq, group_sizes,
+                                                        distributed, solver,
+                                                        meta_analysis)
 
-  def solve_and_cov(data_generation_key):
+  def solve_and_cov_end2end(data_generation_key):
     T_star, T, X, delta, beta, group_labels = gen(data_generation_key)
     del T_star, T  # not used by solver
-    initial_beta_hat = beta
-    if eq != "eq1":
-      X_groups, delta_groups = vdata.group_data_by_labels(group_labels,
-                                                          X,
-                                                          delta,
-                                                          K=K,
-                                                          group_size=group_size)
-
-      initial_beta_k_hat = jnp.broadcast_to(beta, (K,) + beta.shape)
-
-    if eq == "eq1":
-      pt1_sol = None
-      pt2_sol = sol = solve_fn(X, delta, initial_beta_hat)
-      model_args = (X, delta, sol.guess)
-    elif eq == "eq3":
-      pt1_sol = None
-      pt2_sol = sol = solve_fn(X_groups, delta_groups, initial_beta_hat)
-      model_args = (X_groups, delta_groups, sol.guess)
-    elif eq in ("eq2", "eq4"):
-      pt1_sol, pt2_sol = sol = solve_fn(X, delta, initial_beta_hat,
-                                        group_labels, X_groups, delta_groups,
-                                        initial_beta_k_hat)
-      model_args = (X, delta, pt2_sol.guess, group_labels, X_groups,
-                    delta_groups, pt1_sol.guess)
-    elif eq == "meta_analysis":
-      sol = solve_fn(X_groups, delta_groups, initial_beta_k_hat)
-      pt1_sol, pt2_sol = sol.pt1, sol.pt2
-      model_args = tuple()
-
-    cov_results = {}
-    for cov_name, cov_fn in cov_fns.items():
-      cov_results[cov_name] = cov_fn(sol, *model_args)
-
+    cox_sol = solve_and_cov_fn(X, delta, beta, group_labels)
     return ExperimentResult(data_generation_key=data_generation_key,
-                            pt1=pt1_sol,
-                            pt2=pt2_sol,
-                            covs=cov_results)
+                            pt1=cox_sol.pt1,
+                            pt2=cox_sol.pt2,
+                            covs=cox_sol.covs)
 
-  return {"solve_and_cov": jit(vmap(solve_and_cov)), "gen": jit(vmap(gen))}
+  return {
+      "solve_and_cov": jit(vmap(solve_and_cov_end2end)),
+      "gen": jit(vmap(gen))
+  }
 
 
 class EndExperimentException(Exception):
