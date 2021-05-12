@@ -1,6 +1,6 @@
-"""Run Distributed flow."""
+"""Run distributed flow driver."""
 
-from typing import Callable, Optional
+from typing import Callable
 
 import subprocess
 import sys

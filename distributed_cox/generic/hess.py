@@ -10,7 +10,7 @@ from jax.api import (_check_input_dtype_jacrev, _check_output_dtype_jacrev,
                      _vjp, _unravel_array_into_pytree, _std_basis,
                      _check_callable, tree_flatten, safe_zip, _dtype,
                      flatten_fun_nokwargs, flatten_fun_nokwargs2,
-                     tree_unflatten, batching, _check_input_dtype_jacfwd,
+                     tree_unflatten, _check_input_dtype_jacfwd,
                      _check_output_dtype_jacfwd)
 
 from jax.api_util import argnums_partial
@@ -126,12 +126,12 @@ def value_jac_and_hessian(fun, argnums=0, holomorphic=False):
 
 
 if __name__ == "__main__":
-  import jax.numpy as np
+  import jax.numpy as jnp
 
   def f(x1, x2):
     return x1 + x2[0] + x2[1]
 
-  x = np.array(1.)
-  y = np.array([1., 2.])
+  x = jnp.array(1.)
+  y = jnp.array([1., 2.])
 
   print(value_jac_and_hessian(f, argnums=(0, 1))(x, y))

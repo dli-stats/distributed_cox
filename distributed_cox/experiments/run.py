@@ -17,7 +17,7 @@ import numpy as onp
 from jax import jit, vmap, jacrev, jacfwd
 import jax.random as jrandom
 import jax.tree_util as tu
-import jax.numpy as np
+import jax.numpy as jnp
 
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
@@ -85,7 +85,7 @@ def compute_results_averaged(result: ExperimentResult,
       matrices from result.cov.
   """
   if keep_idxs is None:
-    keep_idxs = onp.ones_like(result.sol.converged, dtype=np.bool_)
+    keep_idxs = onp.ones_like(result.sol.converged, dtype=jnp.bool_)
 
   all_covs = collections.OrderedDict()
 
@@ -112,13 +112,13 @@ def compute_results_averaged(result: ExperimentResult,
   if cov_empirical.shape == tuple():
     cov_empirical = cov_empirical.reshape((1, 1))
   if std:
-    cov_empirical = onp.sqrt(np.diagonal(cov_empirical, axis1=-2, axis2=-1))
+    cov_empirical = onp.sqrt(jnp.diagonal(cov_empirical, axis1=-2, axis2=-1))
   all_covs["empirical"] = cov_empirical
 
   for cov_name, cov_analyticals in result.covs.items():
     cov_analyticals = cov_analyticals[keep_idxs]
     if std:
-      cov_analyticals = np.sqrt(np.diagonal(cov_analyticals, axis1=-2,
+      cov_analyticals = jnp.sqrt(jnp.diagonal(cov_analyticals, axis1=-2,
                                             axis2=-1))
     cov_analytical = onp.mean(cov_analyticals, axis=0)
     all_covs[cov_name] = cov_analytical
@@ -289,7 +289,7 @@ def cov_experiment_init(eq, data, distributed, solver, meta_analysis,
                                                           K=K,
                                                           group_size=group_size)
 
-      initial_beta_k_hat = np.broadcast_to(beta, (K,) + beta.shape)
+      initial_beta_k_hat = jnp.broadcast_to(beta, (K,) + beta.shape)
 
     if eq == "eq1":
       pt1_sol = None
@@ -333,7 +333,7 @@ def cov_experiment_core(rnd_keys,
                         save_data_csv=None,
                         data=None):
   assert solve_and_cov is not None
-  key, data_generation_keys = map(np.array, zip(*rnd_keys))
+  key, data_generation_keys = map(jnp.array, zip(*rnd_keys))
   if save_data_csv is not None:
     T_star, T, X, delta, beta, group_labels = gen(data_generation_keys)
     os.makedirs(save_data_csv, exist_ok=True)

@@ -3,7 +3,7 @@
 import functools
 
 from jax import vmap
-import jax.numpy as np
+import jax.numpy as jnp
 
 import oryx
 
@@ -19,7 +19,7 @@ plant = oryx.core.plant
 
 
 def _right_cumsum(X, axis=0):
-  return np.cumsum(X[::-1], axis=axis)[::-1]
+  return jnp.cumsum(X[::-1], axis=axis)[::-1]
 
 
 def _group_by(fun):
@@ -45,16 +45,16 @@ mark, collect = modeling.model_temporaries("cox")
 
 
 def eq1_loglik(X, delta, beta):
-  bx = np.dot(X, beta)
-  ebx_cs = np.cumsum(np.exp(bx), 0)
-  log_term = np.log(ebx_cs)
+  bx = jnp.dot(X, beta)
+  ebx_cs = jnp.cumsum(jnp.exp(bx), 0)
+  log_term = jnp.log(ebx_cs)
   batch_loglik = mark((bx - log_term) * delta, "batch_loglik")
-  return np.sum(batch_loglik, axis=0)
+  return jnp.sum(batch_loglik, axis=0)
 
 
 def eq1_score(X, delta, beta):
-  bx = np.dot(X, beta)
-  ebx = mark(np.exp(bx).reshape((-1, 1)), "ebx")
+  bx = jnp.dot(X, beta)
+  ebx = mark(jnp.exp(bx).reshape((-1, 1)), "ebx")
   ebx = taylor_approx(ebx, name="ebx")
   xebx = mark(X * ebx, "xebx")
   ebx_cs = mark(cumsum(ebx, name="ebx_cs"), "ebx_cs")
@@ -71,10 +71,10 @@ def eq1_hessian(X, delta, beta):
   score_numer_cs = cumsum(score_numer, name="xebx_cs")
   score_denom_cs = cumsum(score_denom, name="ebx_cs").reshape((-1, 1, 1))
 
-  term_1 = (cumsum(np.einsum("Ni,Nj->Nij", X, score_numer, optimize="optimal"),
+  term_1 = (cumsum(jnp.einsum("Ni,Nj->Nij", X, score_numer, optimize="optimal"),
                    name="xxebx_cs") / score_denom_cs)
 
-  term_2 = (np.einsum(
+  term_2 = (jnp.einsum(
       "Ni,Nj->Nij", score_numer_cs, score_numer_cs, optimize="optimal") /
             score_denom_cs**2)
 

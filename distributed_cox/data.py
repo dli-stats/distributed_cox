@@ -9,7 +9,7 @@ import simpleeval as se
 
 import numpy as onp
 
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import vmap
 import jax.lax
 import jax.config
@@ -25,9 +25,9 @@ else:
   jrandom_shuffle = jrandom.shuffle
 
 if jax.config.read("jax_enable_x64"):
-  floatt = np.float64
+  floatt = jnp.float64
 else:
-  floatt = np.float32
+  floatt = jnp.float32
 # pylint: disable=redefined-outer-name
 
 
@@ -81,14 +81,14 @@ def make_X_generator(N,
                                N,
                                group_label=group_label,
                                g_dists=g_dists)
-  dims = np.arange(X_dim, dtype=np.int32)
+  dims = jnp.arange(X_dim, dtype=jnp.int32)
   subkeys = jrandom.split(key, X_dim)
   X = vmap(gen_X_fn, (0, 0), 1)(dims, subkeys)
   if correlated_dims is None:
     return X
 
-  correlated_dims = np.array(correlated_dims, dtype=np.int32)
-  correlated_weights = np.array(correlated_weights, dtype=floatt)
+  correlated_dims = jnp.array(correlated_dims, dtype=jnp.int32)
+  correlated_weights = jnp.array(correlated_weights, dtype=floatt)
   correlated_from, correlated_to = correlated_dims[group_label %
                                                    correlated_dims.shape[0]]
   weight = correlated_weights[group_label % correlated_weights.shape[0]]
@@ -172,7 +172,7 @@ def data_generator(N,
   if X_generator is None:
     X_generator = default_X_generator
 
-  @functools.partial(np.vectorize, signature=wrapped_signature)
+  @functools.partial(jnp.vectorize, signature=wrapped_signature)
   def wrapped(key):
     r"""Generates dummy data.
 
@@ -185,12 +185,12 @@ def data_generator(N,
       5. Reorder X by `T = \min(T^*, C)`
     """
     # beta = np.array([-1, 0, 1], dtype=np.float32)
-    beta = np.arange(1, X_dim + 1, dtype=floatt) / X_dim
+    beta = jnp.arange(1, X_dim + 1, dtype=floatt) / X_dim
 
     key, *subkeys = jrandom.split(key, K + 1)
-    subkeys = np.stack(subkeys)
+    subkeys = jnp.stack(subkeys)
 
-    X = np.zeros((N, X_dim), dtype=floatt)
+    X = jnp.zeros((N, X_dim), dtype=floatt)
     max_group_size = max(group_sizes)
 
     def gen_X(carry, group_size):
@@ -200,12 +200,12 @@ def data_generator(N,
                             subkeys[group_label],
                             group_label=group_label)
       X = jax.lax.dynamic_update_slice(X, X_group,
-                                       np.array([cur_idx, 0], dtype=np.int32))
+                                       jnp.array([cur_idx, 0], dtype=jnp.int32))
       return (X, group_label + 1, cur_idx + group_size), 0
 
-    (X, _, _), _ = jax.lax.scan(gen_X, (X, 0, 0), np.array(group_sizes))
+    (X, _, _), _ = jax.lax.scan(gen_X, (X, 0, 0), jnp.array(group_sizes))
 
-    group_labels = np.repeat(np.arange(K), group_sizes)
+    group_labels = jnp.repeat(jnp.arange(K), group_sizes)
 
     key, subkey = jrandom.split(key)
     u = jrandom.uniform(subkey, shape=(N,), minval=0, maxval=1)
@@ -213,29 +213,29 @@ def data_generator(N,
       key, subkey = jrandom.split(key)
       T_star_factors_ = T_star_factors(subkey, K)
     else:
-      T_star_factors_ = np.array(T_star_factors)
-    T_star_factors_per_item = np.repeat(T_star_factors_, group_sizes)
-    T_star = -T_star_factors_per_item * np.log(u) / np.exp(X.dot(beta))
+      T_star_factors_ = jnp.array(T_star_factors)
+    T_star_factors_per_item = jnp.repeat(T_star_factors_, group_sizes)
+    T_star = -T_star_factors_per_item * jnp.log(u) / jnp.exp(X.dot(beta))
 
     key, subkey = jrandom.split(key)
     C = jrandom.exponential(subkey, shape=(N,)) * exp_scale
     delta = T_star <= C
 
-    T = np.minimum(T_star, C)
+    T = jnp.minimum(T_star, C)
 
-    sorted_idx = np.argsort(-T)  # sort T descending
+    sorted_idx = jnp.argsort(-T)  # sort T descending
 
-    T = np.take(T, sorted_idx, axis=0)
-    X = np.take(X, sorted_idx, axis=0)
-    delta = np.take(delta, sorted_idx, axis=0)
-    group_labels = np.take(group_labels, sorted_idx, axis=0)
+    T = jnp.take(T, sorted_idx, axis=0)
+    X = jnp.take(X, sorted_idx, axis=0)
+    delta = jnp.take(delta, sorted_idx, axis=0)
+    group_labels = jnp.take(group_labels, sorted_idx, axis=0)
 
     # X = X - np.mean(X, axis=0)
     ret = (X, delta, beta, group_labels)
     if return_T:
       ret = (T,) + ret
     if return_T_star:
-      T_star = np.take(T_star, sorted_idx, axis=0)
+      T_star = jnp.take(T_star, sorted_idx, axis=0)
       ret = (T_star,) + ret
     return ret
 
@@ -304,7 +304,7 @@ def full_data_generator(N: int,
   """Capable Cox data generation with string arguments.
 
   This function combines group_sizes_generator and data_generator.
-  It also accepts T_star_factors etc. as string, and performs required parsing
+  It also accepts T_star_factors etc. as strings, and performs required parsing
   with the simpleeval package.
   This function is ideally used directly by a command line interface.
   """
@@ -425,7 +425,7 @@ def group_data_by_labels(group_labels, *data, K=1, group_size=-1):
     - delta_groups: array of shape (batch_size, K, group_size)
   """
   if group_size < 0:
-    group_size = np.max(np.vectorize(functools.partial(np.bincount, length=K),
+    group_size = jnp.max(jnp.vectorize(functools.partial(jnp.bincount, length=K),
                                      signature="(N)->(K)")(group_labels),
                         axis=-1)
 
@@ -438,10 +438,10 @@ key = jrandom.PRNGKey(0)
 key, data_generation_key = jrandom.split(key)
 
 
-@functools.partial(np.vectorize, signature="(N,p),(p)->(N,p),(p),(p)")
+@functools.partial(jnp.vectorize, signature="(N,p),(p)->(N,p),(p),(p)")
 def normalize(X, beta):
-  X = X - np.mean(X, axis=0)
-  scale = X.shape[0] / np.linalg.norm(X, ord=1, axis=0)
+  X = X - jnp.mean(X, axis=0)
+  scale = X.shape[0] / jnp.linalg.norm(X, ord=1, axis=0)
   X *= scale
   beta /= scale
   return X, beta, scale

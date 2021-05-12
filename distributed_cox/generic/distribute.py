@@ -3,7 +3,7 @@ from typing import Dict
 
 import functools
 
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import vmap
 import jax.lax as lax
 import jax.ops
@@ -20,7 +20,7 @@ nest = oryx.core.nest
 
 def cumsum(vals, *, name: str):
   """Custom cumsum for modeling."""
-  return sow(np.cumsum(vals, axis=0, dtype=None),
+  return sow(jnp.cumsum(vals, axis=0, dtype=None),
              tag="cumsum",
              name=name,
              mode="clobber")
@@ -28,7 +28,7 @@ def cumsum(vals, *, name: str):
 
 def sum(vals, *, name: str):  # pylint: disable=redefined-builtin
   """Custom sum for modeling."""
-  return sow(np.sum(vals, axis=0, dtype=None),
+  return sow(jnp.sum(vals, axis=0, dtype=None),
              tag="sum",
              name=name,
              mode="clobber")
@@ -59,18 +59,18 @@ def distribute(fun, reduction_kind="sum"):
         def groupped_cumsum(intermediate, group_cnts, group_label):
           K, *_ = intermediate.shape
           group_cnts = jax.ops.index_add(group_cnts, group_label, 1)
-          cur_sum = np.sum(
+          cur_sum = jnp.sum(
               (group_cnts >= 0).reshape((K,) + (1,) *
                                         (len(intermediate.shape) - 2)) *
-              intermediate[np.arange(K), group_cnts],
+              intermediate[jnp.arange(K), group_cnts],
               axis=0)
           return group_cnts, cur_sum
 
         _, intermediate_reduced = lax.scan(
             functools.partial(groupped_cumsum, intermediate),
-            np.zeros(K, dtype=np.int32) - 1, group_labels)
+            jnp.zeros(K, dtype=jnp.int32) - 1, group_labels)
       elif reduction_kind == "sum":
-        intermediate_reduced = np.sum(intermediate, axis=0)
+        intermediate_reduced = jnp.sum(intermediate, axis=0)
       else:
         raise TypeError("Invalid reduction kind")
 

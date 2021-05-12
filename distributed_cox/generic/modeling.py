@@ -7,14 +7,9 @@ import functools
 
 import jax
 from jax import jacfwd, vmap, jacrev
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.scipy as scipy
-
-try:
-  import jax.scipy.optimize._bfgs as bfgs
-except ImportError:
-  bfgs = None
-
+import jax.scipy.optimize as scipy_optimize
 from oryx.core import sow, reap
 
 from distributed_cox.generic.solver import solve_newton, NewtonSolverResult
@@ -31,7 +26,7 @@ def sum_fn(fun, ndims=0):
 
   def wrapped(*args):
     batch_loglik = fun(*args)
-    return np.sum(
+    return jnp.sum(
         batch_loglik.reshape((-1,) +
                              batch_loglik.shape[-ndims +
                                                 len(batch_loglik.shape):]),
@@ -128,14 +123,14 @@ def solve_distributed(single_log_likelihood_or_score_fn: Callable,
                      use_likelihood=single_use_likelihood,
                      **kwargs))(*distributed_args)
 
-    pt1_converged = np.all(pt1_sol.converged, axis=0)
+    pt1_converged = jnp.all(pt1_sol.converged, axis=0)
 
     def wrap_fun_single_arg(fun):
 
       def wrapped(initial_guess):
         if pt2_use_pt1_average_guess:
-          ss = np.mean(pt1_sol.guess, axis=0)
-          pt1_guesses = np.broadcast_to(ss, (K,) + ss.shape)
+          ss = jnp.mean(pt1_sol.guess, axis=0)
+          pt1_guesses = jnp.broadcast_to(ss, (K,) + ss.shape)
         else:
           pt1_guesses = pt1_sol.guess
         return fun(*single_static_args[:-1], initial_guess, group_labels,
@@ -144,7 +139,7 @@ def solve_distributed(single_log_likelihood_or_score_fn: Callable,
       return wrapped
 
     if pt2_use_average_guess:
-      pt2_initial_guess = np.mean(pt1_sol.guess, axis=0)
+      pt2_initial_guess = jnp.mean(pt1_sol.guess, axis=0)
     else:
       pt2_initial_guess = args[num_single_args - 1]
 
@@ -157,18 +152,22 @@ def solve_distributed(single_log_likelihood_or_score_fn: Callable,
           use_likelihood=distributed_use_likelihood,
           **kwargs)
     elif pt2_solver == "bfgs":
-      bfgs_sol = bfgs.minimize_bfgs(
+      bfgs_sol = scipy_optimize.minimize(
           wrap_fun_single_arg(distributed_log_likelihood_or_score_fn),
           pt2_initial_guess,
-          maxiter=kwargs.get("max_num_steps", 40),
-          gtol=kwargs.get("loglik_eps", 1e-5),
-          line_search_maxiter=10)
-      converged = bfgs_sol.f_k < kwargs.get("loglik_eps", 1e-5)
-      pt2_sol = NewtonSolverResult(guess=bfgs_sol.x_k,
-                                   loglik=bfgs_sol.f_k,
-                                   score=bfgs_sol.g_k,
-                                   hessian=bfgs_sol.H_k,
-                                   step=bfgs_sol.k,
+          method="bfgs",
+          options=dict(
+              maxiter=kwargs.get("max_num_steps", 40),
+              gtol=kwargs.get("loglik_eps", 1e-5),
+              line_search_maxiter=10,
+          ),
+      )
+      converged = bfgs_sol.fun < kwargs.get("loglik_eps", 1e-5)
+      pt2_sol = NewtonSolverResult(guess=bfgs_sol.x,
+                                   loglik=bfgs_sol.fun,
+                                   score=bfgs_sol.jac,
+                                   hessian=bfgs_sol.hess_inv,
+                                   step=bfgs_sol.nit,
                                    converged=converged)
     else:
       raise ValueError("Solver must be one of {}".format(["bfgs", "newton"]))
@@ -190,28 +189,28 @@ def solve_meta_analysis(single_log_likelihood_or_score_fn,
         solve_single(single_log_likelihood_or_score_fn,
                      use_likelihood=use_likelihood,
                      **kwargs))(*args)
-    converged = np.all(sol.converged, axis=0)
+    converged = jnp.all(sol.converged, axis=0)
     I_diag_wo_last = -sol.hessian
 
     if use_only_dims is not None:
-      I_diag_wo_last = np.take(np.take(I_diag_wo_last, use_only_dims, axis=1),
-                               use_only_dims,
-                               axis=2)
-      pt1_guesses = np.take(sol.guess, use_only_dims, axis=-1)
+      I_diag_wo_last = jnp.take(jnp.take(I_diag_wo_last, use_only_dims, axis=1),
+                                use_only_dims,
+                                axis=2)
+      pt1_guesses = jnp.take(sol.guess, use_only_dims, axis=-1)
     else:
       pt1_guesses = sol.guess
 
     if univariate:
-      wk = 1. / np.diagonal(np.linalg.inv(I_diag_wo_last), axis1=-2, axis2=-1)
-      guess = np.einsum("kp,kp->p", wk, pt1_guesses,
-                        optimize="optimal") / np.sum(wk, axis=0)
+      wk = 1. / jnp.diagonal(jnp.linalg.inv(I_diag_wo_last), axis1=-2, axis2=-1)
+      guess = jnp.einsum("kp,kp->p", wk, pt1_guesses,
+                         optimize="optimal") / jnp.sum(wk, axis=0)
     else:
-      guess = np.linalg.solve(
-          np.sum(I_diag_wo_last, axis=0),
-          np.einsum("Kab,Kb->a",
-                    I_diag_wo_last,
-                    pt1_guesses,
-                    optimize='optimal'))
+      guess = jnp.linalg.solve(
+          jnp.sum(I_diag_wo_last, axis=0),
+          jnp.einsum("Kab,Kb->a",
+                     I_diag_wo_last,
+                     pt1_guesses,
+                     optimize='optimal'))
     return DistributedModelSolverResult(pt1=sol,
                                         pt2=MetaAnalysisResult(
                                             guess=guess, converged=converged))
@@ -226,17 +225,17 @@ def cov_meta_analysis(use_only_dims: Optional[Sequence] = None,
   def wrapped(sol: DistributedModelSolverResult):
     I_diag_wo_last = -sol.pt1.hessian
     if use_only_dims is not None:
-      I_diag_wo_last = np.take(np.take(I_diag_wo_last, use_only_dims, axis=1),
-                               use_only_dims,
-                               axis=2)
+      I_diag_wo_last = jnp.take(jnp.take(I_diag_wo_last, use_only_dims, axis=1),
+                                use_only_dims,
+                                axis=2)
     if univariate:
-      wk = 1. / np.diagonal(np.linalg.inv(I_diag_wo_last), axis1=-2, axis2=-1)
+      wk = 1. / jnp.diagonal(jnp.linalg.inv(I_diag_wo_last), axis1=-2, axis2=-1)
       X_DIM = sol.pt2.guess.shape[0]
-      cov = np.zeros((X_DIM, X_DIM), dtype=sol.pt2.guess.dtype)
-      cov = jax.ops.index_update(cov, np.diag_indices(X_DIM),
-                                 1. / np.sum(wk, axis=0))
+      cov = jnp.zeros((X_DIM, X_DIM), dtype=sol.pt2.guess.dtype)
+      cov = jax.ops.index_update(cov, jnp.diag_indices(X_DIM),
+                                 1. / jnp.sum(wk, axis=0))
     else:
-      cov = np.linalg.inv(np.sum(I_diag_wo_last, axis=0))
+      cov = jnp.linalg.inv(jnp.sum(I_diag_wo_last, axis=0))
     return cov
 
   return wrapped
@@ -272,9 +271,9 @@ def cov_robust(batch_log_likelihood_or_score_fn,
     A_inv = scipy.linalg.inv(-sol.hessian)
     batch_score = batch_score_fn(*args)
     if sum_group_first:
-      batch_score = np.sum(batch_score, axis=1)
+      batch_score = jnp.sum(batch_score, axis=1)
     batch_score = batch_score.reshape((-1, batch_score.shape[-1]))
-    B = np.einsum("ni,nj->ij", batch_score, batch_score, optimize="optimal")
+    B = jnp.einsum("ni,nj->ij", batch_score, batch_score, optimize="optimal")
     return A_inv @ B @ A_inv.T
 
   return wrapped
@@ -320,58 +319,58 @@ def cov_group_correction(
 
     I_row_wo_last = -distributed_cross_hessian_fn(*args)
 
-    I_diag_inv_wo_last = np.linalg.inv(I_diag_wo_last)
-    I_diag_inv_last = np.linalg.inv(I_diag_last)
+    I_diag_inv_wo_last = jnp.linalg.inv(I_diag_wo_last)
+    I_diag_inv_last = jnp.linalg.inv(I_diag_last)
 
     if robust:
       pt1_batch_scores = vmap(batch_single_score_fn)(*distributed_args)
       pt2_batch_scores = batch_distributed_score_fn(*args)  # batch_dims x X_dim
 
-      B_diag_wo_last = np.einsum("kbi,kbj->kij",
-                                 pt1_batch_scores,
+      B_diag_wo_last = jnp.einsum("kbi,kbj->kij",
+                                  pt1_batch_scores,
+                                  pt1_batch_scores,
+                                  optimize="optimal")
+      B_diag_last = jnp.einsum("ksi,ksj->ij",
+                               pt2_batch_scores,
+                               pt2_batch_scores,
+                               optimize="optimal")
+      B_row_wo_last = jnp.einsum("kbi,kbj->kij",
+                                 pt2_batch_scores,
                                  pt1_batch_scores,
                                  optimize="optimal")
-      B_diag_last = np.einsum("ksi,ksj->ij",
-                              pt2_batch_scores,
-                              pt2_batch_scores,
-                              optimize="optimal")
-      B_row_wo_last = np.einsum("kbi,kbj->kij",
-                                pt2_batch_scores,
-                                pt1_batch_scores,
-                                optimize="optimal")
 
-      S = np.einsum("ab,bBc,Bcd->Bad",
-                    I_diag_inv_last,
-                    I_row_wo_last,
-                    I_diag_inv_wo_last,
-                    optimize="optimal")
+      S = jnp.einsum("ab,bBc,Bcd->Bad",
+                     I_diag_inv_last,
+                     I_row_wo_last,
+                     I_diag_inv_wo_last,
+                     optimize="optimal")
 
-      sas = np.einsum("Bab,Bbc,Bdc->ad",
-                      S,
-                      B_diag_wo_last,
-                      S,
-                      optimize="optimal")
-      sb1s = np.einsum("ab,Bbc,Bdc->ad",
-                       I_diag_inv_last,
-                       B_row_wo_last,
+      sas = jnp.einsum("Bab,Bbc,Bdc->ad",
+                       S,
+                       B_diag_wo_last,
                        S,
                        optimize="optimal")
+      sb1s = jnp.einsum("ab,Bbc,Bdc->ad",
+                        I_diag_inv_last,
+                        B_row_wo_last,
+                        S,
+                        optimize="optimal")
       sb2s = sb1s.T  # pylint: disable=no-member
-      scs = np.einsum('ab,bc,dc->ad',
-                      I_diag_inv_last,
-                      B_diag_last,
-                      I_diag_inv_last,
-                      optimize='optimal')
+      scs = jnp.einsum('ab,bc,dc->ad',
+                       I_diag_inv_last,
+                       B_diag_last,
+                       I_diag_inv_last,
+                       optimize='optimal')
       cov = sas - sb1s - sb2s + scs
 
     else:
 
-      S = np.einsum("ab,bBc->Bac",
-                    I_diag_inv_last,
-                    I_row_wo_last,
-                    optimize="optimal")
+      S = jnp.einsum("ab,bBc->Bac",
+                     I_diag_inv_last,
+                     I_row_wo_last,
+                     optimize="optimal")
 
-      cov = np.einsum(
+      cov = jnp.einsum(
           "Bab,Bbc,Bdc->ad", S, I_diag_inv_wo_last, S,
           optimize='optimal') + I_diag_inv_last
 

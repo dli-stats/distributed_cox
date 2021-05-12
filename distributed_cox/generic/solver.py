@@ -6,7 +6,7 @@ import collections
 import functools
 
 import jax.lax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.scipy as scipy
 from jax import value_and_grad
 
@@ -51,7 +51,7 @@ def do_work(use_likelihood, args):
   if use_likelihood:
     is_finite = args[1][-2]
     loglik_increased = args[1][-1]
-    should_do_normal_update = np.logical_and(is_finite, loglik_increased)
+    should_do_normal_update = jnp.logical_and(is_finite, loglik_increased)
   else:
     is_finite = args[1][-1]
     should_do_normal_update = is_finite
@@ -100,17 +100,17 @@ def solve_newton(likelihood_or_score_fn,
       new_score, new_hessian = jac_and_hessian_fn(new_guess)
     cho_factor = scipy.linalg.cholesky(-new_hessian, lower=False)
 
-    is_finite = np.logical_and(np.all(np.isfinite(new_score)),
-                               np.all(np.isfinite(cho_factor)))
+    is_finite = jnp.logical_and(jnp.all(jnp.isfinite(new_score)),
+                                jnp.all(jnp.isfinite(cho_factor)))
     if use_likelihood:
-      is_finite = np.logical_and(np.all(np.isfinite(new_loglik)), is_finite)
+      is_finite = jnp.logical_and(jnp.all(jnp.isfinite(new_loglik)), is_finite)
       loglik_increased = new_loglik > loglik
-      converged = np.logical_and(is_finite,
-                                 np.abs(1 - loglik / new_loglik) < loglik_eps)
+      converged = jnp.logical_and(is_finite,
+                                  jnp.abs(1 - loglik / new_loglik) < loglik_eps)
     else:
-      converged = np.logical_and(
+      converged = jnp.logical_and(
           is_finite,
-          np.linalg.norm(new_score, ord=np.inf) < score_norm_eps)
+          jnp.linalg.norm(new_score, ord=jnp.inf) < score_norm_eps)
 
     state = state._replace(converged=converged)
 
@@ -120,25 +120,25 @@ def solve_newton(likelihood_or_score_fn,
     else:
       args = (state, (new_score, new_hessian, cho_factor, is_finite))
 
-    return jax.lax.cond(np.logical_and(converged, state.step > 0),
+    return jax.lax.cond(jnp.logical_and(converged, state.step > 0),
                         functools.partial(do_converged, use_likelihood),
                         functools.partial(do_work, use_likelihood),
                         operand=args)
 
   def loop_cond(state):
-    return np.logical_or(
+    return jnp.logical_or(
         state.step == 0,  # Run at least one iteration
-        np.logical_and(state.step < max_num_steps,
-                       np.logical_not(state.converged)))
+        jnp.logical_and(state.step < max_num_steps,
+                        jnp.logical_not(state.converged)))
 
   if use_likelihood:
-    initial_state = InternalState(initial_guess, initial_guess, -np.inf,
-                                  np.zeros_like(initial_guess),
-                                  np.zeros((X_DIM, X_DIM)), 0, 0, False)
+    initial_state = InternalState(initial_guess, initial_guess, -jnp.inf,
+                                  jnp.zeros_like(initial_guess),
+                                  jnp.zeros((X_DIM, X_DIM)), 0, 0, False)
   else:
     initial_state = InternalState(initial_guess, initial_guess,
-                                  np.zeros_like(initial_guess),
-                                  np.zeros((X_DIM, X_DIM)), 0, 0, False)
+                                  jnp.zeros_like(initial_guess),
+                                  jnp.zeros((X_DIM, X_DIM)), 0, 0, False)
 
   state = jax.lax.while_loop(loop_cond, newton_update, initial_state)
 
@@ -163,6 +163,6 @@ def solve_newton(likelihood_or_score_fn,
 if __name__ == "__main__":
 
   def test_fun(x):
-    return np.squeeze(x**3 + x**2 - x + np.cos(x))
+    return jnp.squeeze(x**3 + x**2 - x + jnp.cos(x))
 
-  print(solve_newton(test_fun, np.array([1.])))
+  print(solve_newton(test_fun, jnp.array([1.])))

@@ -5,7 +5,7 @@ import numpy as onp
 import pandas as pd
 import jax
 from jax import jit
-import jax.numpy as np
+import jax.numpy as jnp
 
 import distributed_cox.equations.eq1 as eq1
 import distributed_cox.data

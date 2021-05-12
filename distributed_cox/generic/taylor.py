@@ -4,7 +4,7 @@ from typing import Union, Sequence
 import functools
 import operator
 
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.api as api
 import jax.experimental.jet as jet
 from jax.interpreters import ad
@@ -43,7 +43,7 @@ def taylor_expand_fun(fun, argnums, order: int = 1):
     del in_tree2
     f_flat, out_tree = api.flatten_fun_nokwargs(f_partial, in_tree)
 
-    dparams = api.safe_map(np.subtract, dyn_args_flat, dyn_args0_flat)
+    dparams = api.safe_map(jnp.subtract, dyn_args_flat, dyn_args0_flat)
     # pylint: disable=protected-access,no-member,no-value-for-parameter
     if order == 1:
       # f0, vjp_fun = ad.vjp(f_flat, dyn_args0_flat)
@@ -51,7 +51,7 @@ def taylor_expand_fun(fun, argnums, order: int = 1):
       f0, f1 = ad.jvp(f_flat).call_wrapped(dyn_args0_flat, dparams)
       out_val = api.safe_map(operator.add, f0, f1)
     else:
-      series = [([d] + [np.zeros_like(d)] * (order - 1)) for d in dparams]
+      series = [([d] + [jnp.zeros_like(d)] * (order - 1)) for d in dparams]
       f0, f_terms = jet.jet_fun(jet.jet_subtrace(f_flat),
                                 order).call_wrapped(dyn_args0_flat, series)
       out_val = api.safe_map(

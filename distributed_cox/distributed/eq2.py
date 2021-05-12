@@ -6,8 +6,7 @@ import functools
 
 import opt_einsum as oe
 
-import jax.numpy as np
-from jax import jacfwd
+import jax.numpy as jnp
 import jax.lax as lax
 
 import distributed_cox.generic.modeling as modeling
@@ -31,12 +30,12 @@ def eq2_master_send_T(master_state: ClientState) -> Message:
 
   msg = {}
 
-  T_delta = np.concatenate(T_deltas)
-  idxs = np.argsort(-T_delta)
+  T_delta = jnp.concatenate(T_deltas)
+  idxs = jnp.argsort(-T_delta)
   T_delta = T_delta[idxs]
   master_state["T_delta"] = T_delta
-  T_delta_group_labels = np.concatenate(
-      [np.repeat(k, len(T_deltas[k])) for k in range(num_groups)])
+  T_delta_group_labels = jnp.concatenate(
+      [jnp.repeat(k, len(T_deltas[k])) for k in range(num_groups)])
   T_delta_group_labels = T_delta_group_labels[idxs]
   master_state["T_delta_group_labels"] = T_delta_group_labels
   master_state["num_groups"] = num_groups
@@ -61,7 +60,7 @@ def solve_distributed_pt1(local_state: ClientState,
       "delta_group",
   )
   if initial_guess is None:
-    initial_guess = np.zeros((X_group.shape[1],))
+    initial_guess = jnp.zeros((X_group.shape[1],))
 
   solve_eq1_fn = modeling.solve_single(eq1_loglik,
                                        use_likelihood=True,
@@ -72,7 +71,7 @@ def solve_distributed_pt1(local_state: ClientState,
 
 def compute_nxebkxs(X_group, beta_k_hat, required_orders: int):
   """Computes all of nxebkx for n = required_orders."""
-  ebkx = np.exp(np.dot(X_group, beta_k_hat))
+  ebkx = jnp.exp(jnp.dot(X_group, beta_k_hat))
   nxebkxs = [ebkx]
   cur_ebkx = ebkx
 
@@ -80,7 +79,7 @@ def compute_nxebkxs(X_group, beta_k_hat, required_orders: int):
   x_dim_name = oe.get_symbol(1)
   o_dim_names = ""
   for i in range(1, required_orders + 1):
-    cur_ebkx = np.einsum(
+    cur_ebkx = jnp.einsum(
         "{B}{o},{B}{x}->{B}{o}{x}".format(B=batch_dim_name,
                                           x=x_dim_name,
                                           o=o_dim_names), cur_ebkx, X_group)
@@ -122,16 +121,16 @@ def eq2_local(local_state: ClientState,
   nxebkxs = compute_nxebkxs(X_group,
                             beta_k_hat,
                             required_orders=required_orders)
-  nxebkx_css = [np.cumsum(nxebkx, 0) for nxebkx in nxebkxs]
+  nxebkx_css = [jnp.cumsum(nxebkx, 0) for nxebkx in nxebkxs]
 
-  idxs = np.searchsorted(-T_group, -T_delta, side='right')
+  idxs = jnp.searchsorted(-T_group, -T_delta, side='right')
 
   nxebkx_cs_ds = {
-      "nxebkx_cs_ds{}".format(i): np.take(nxebkx_cs, idxs, axis=0)
+      "nxebkx_cs_ds{}".format(i): jnp.take(nxebkx_cs, idxs, axis=0)
       for i, nxebkx_cs in enumerate(nxebkx_css)
   }
 
-  X_delta_sum = np.sum(X_group * delta_group.reshape((-1, 1)), axis=0)
+  X_delta_sum = jnp.sum(X_group * delta_group.reshape((-1, 1)), axis=0)
 
   local_state["beta_k_hat"] = beta_k_hat
 
@@ -148,24 +147,24 @@ def _eq2_model(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta, taylor_order=1):
   K, D, X_dim = nxebkx_cs_ds[1].shape
 
   bmb = beta - beta_k_hat
-  numer = np.zeros((D, X_dim), dtype=beta.dtype)
-  denom = np.zeros(D, dtype=beta.dtype)
-  dbeta_pow = np.ones((K, 1), dtype=beta.dtype)
+  numer = jnp.zeros((D, X_dim), dtype=beta.dtype)
+  denom = jnp.zeros(D, dtype=beta.dtype)
+  dbeta_pow = jnp.ones((K, 1), dtype=beta.dtype)
   fact = 1.
   for i in range(taylor_order + 1):
-    denom += np.einsum("kdp,kp->d", nxebkx_cs_ds[i].reshape(
+    denom += jnp.einsum("kdp,kp->d", nxebkx_cs_ds[i].reshape(
         (K, D, -1)), dbeta_pow) / fact
-    numer += np.einsum("kdip,kp->di", nxebkx_cs_ds[i + 1].reshape(
+    numer += jnp.einsum("kdip,kp->di", nxebkx_cs_ds[i + 1].reshape(
         (K, D, X_dim, -1)), dbeta_pow) / fact
     if i != taylor_order:
-      dbeta_pow = np.einsum("kp,ki->kpi", dbeta_pow, bmb).reshape((K, -1))
+      dbeta_pow = jnp.einsum("kp,ki->kpi", dbeta_pow, bmb).reshape((K, -1))
     fact *= (i + 1)
 
   mark(dbeta_pow, "dbeta_pow_order")  # (b - b0)^|order - 1|
   numer = mark(numer, "numer")
   denom = mark(denom, "denom")
 
-  return np.sum(X_delta_sum, axis=0) - np.sum(numer / denom.reshape((-1, 1)),
+  return jnp.sum(X_delta_sum, axis=0) - jnp.sum(numer / denom.reshape((-1, 1)),
                                               axis=0)
 
 
@@ -183,15 +182,15 @@ def _eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta,
                                           beta_k_hat,
                                           beta,
                                           taylor_order=taylor_order)
-  t1ebkxbmb_cs_d = np.einsum("kdip,kp->kdi",
+  t1ebkxbmb_cs_d = jnp.einsum("kdip,kp->kdi",
                              t1xebkx_cs_ds.reshape((K, D, X_dim, -1)),
                              dbeta_pow_t)
-  t2ebkxbmb_cs_d = np.einsum("kdijp,kp->kdij",
+  t2ebkxbmb_cs_d = jnp.einsum("kdijp,kp->kdij",
                              t2xebkx_cs_ds.reshape((K, D, X_dim, X_dim, -1)),
                              dbeta_pow_t)
 
   denom = denom.reshape((1, len(denom), 1, 1))
-  return np.sum((np.einsum("dm,kdn->kdmn", numer, t1ebkxbmb_cs_d) / denom**2 -
+  return jnp.sum((jnp.einsum("dm,kdn->kdmn", numer, t1ebkxbmb_cs_d) / denom**2 -
                  t2ebkxbmb_cs_d / denom),
                 axis=1)
 
@@ -205,7 +204,7 @@ def solve_eq2_model(master_state: ClientState,
       "nxebkx_cs_ds*",
       "beta_k_hat",
   )
-  beta_guess = np.mean(beta_k_hat, axis=0)
+  beta_guess = jnp.mean(beta_k_hat, axis=0)
 
   fn_to_solve = functools.partial(_eq2_model,
                                   X_delta_sum,
@@ -267,7 +266,7 @@ def eq2_master(master_state: ClientState,
 
 
 def _right_cumsum(X, axis=0):
-  return np.cumsum(X[::-1], axis=axis)[::-1]
+  return jnp.cumsum(X[::-1], axis=axis)[::-1]
 
 
 def batch_score_cox_correction(local_state: ClientState, batch_score,
@@ -280,21 +279,21 @@ def batch_score_cox_correction(local_state: ClientState, batch_score,
                             beta_k_hat,
                             required_orders=local_state.config.taylor_order + 1)
   denom_all_group, numer_all_group = collect(_eq2_model, ["denom", "numer"])(
-      np.zeros_like(beta_k_hat).reshape((1, -1)),  # argument not used
+      jnp.zeros_like(beta_k_hat).reshape((1, -1)),  # argument not used
       [x.reshape((1,) + x.shape) for x in nxebkxs],
       beta_k_hat.reshape((1, -1)),
       beta_hat.reshape((1, -1)),
       taylor_order=local_state.config.taylor_order,
   )
   denom_all_group = denom_all_group.reshape((-1, 1))
-  idxs = np.searchsorted(-T_delta, -T_group, side='right')
+  idxs = jnp.searchsorted(-T_delta, -T_group, side='right')
   denom_all_delta_1 = 1. / denom_all_delta
   term1 = numer_all_group * _right_cumsum(denom_all_delta_1, axis=0)[idxs]
   term2 = denom_all_group * _right_cumsum(
       numer_all_delta * (denom_all_delta_1**2), axis=0)[idxs]
 
   # Pad batch_score to entire group's size where non-marked indices are set to 0
-  batch_score = np.array(batch_score)
+  batch_score = jnp.array(batch_score)
 
   def insert_at(carry, delta):
     return carry + delta, batch_score[carry] * delta
@@ -309,7 +308,7 @@ def compute_B(local_state,
               group_correction=False,
               robust=False):
   ret = {}
-  ret['B_diag_last'] = np.einsum("ni,nj->ij",
+  ret['B_diag_last'] = jnp.einsum("ni,nj->ij",
                                  pt2_batch_score,
                                  pt2_batch_score,
                                  optimize="optimal")
@@ -317,11 +316,11 @@ def compute_B(local_state,
     X_group, delta_group, beta_k_hat = local_state.get_vars(
         "X_group", "delta_group", "beta_k_hat")
     pt1_batch_score = eq1_batch_score(X_group, delta_group, beta_k_hat)
-    ret['B_diag_wo_last'] = np.einsum("ni,nj->ij", pt1_batch_score,
+    ret['B_diag_wo_last'] = jnp.einsum("ni,nj->ij", pt1_batch_score,
                                       pt1_batch_score)
     if not cox_correction:
       pt1_batch_score = pt1_batch_score[delta_group]
-    ret['B_row_wo_last'] = np.einsum("ni,nj->ij", pt1_batch_score,
+    ret['B_row_wo_last'] = jnp.einsum("ni,nj->ij", pt1_batch_score,
                                      pt2_batch_score)
 
   if cox_correction:
@@ -392,7 +391,7 @@ def _eq2_master_variance(master_state: ClientState,
     I_row_wo_last = -_eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds,
                                              beta_k_hat, beta_hat,
                                              master_state.config.taylor_order)
-    I_diag_inv_wo_last = np.linalg.inv(I_diag_wo_last)
+    I_diag_inv_wo_last = jnp.linalg.inv(I_diag_wo_last)
     if variance_setting.robust:
       B_diag_wo_last, B_diag_last, B_row_wo_last = _get_B(
           master_state,
@@ -400,26 +399,26 @@ def _eq2_master_variance(master_state: ClientState,
           "B_diag_last",
           "B_row_wo_last",
           cox_correction=variance_setting.cox_correction)
-      S = np.einsum("ab,Bbc,Bcd->Bad", I_diag_inv_last, I_row_wo_last,
+      S = jnp.einsum("ab,Bbc,Bcd->Bad", I_diag_inv_last, I_row_wo_last,
                     I_diag_inv_wo_last)
 
-      sas = np.einsum("Bab,Bbc,Bdc->ad", S, B_diag_wo_last, S)
-      sb1s = np.einsum("ab,Bbc,Bdc->ad", I_diag_inv_last, B_row_wo_last, S)
+      sas = jnp.einsum("Bab,Bbc,Bdc->ad", S, B_diag_wo_last, S)
+      sb1s = jnp.einsum("ab,Bbc,Bdc->ad", I_diag_inv_last, B_row_wo_last, S)
       sb2s = sb1s.T  # pylint: disable=no-member
-      scs = np.einsum('ab,kbc,dc->ad', I_diag_inv_last, B_diag_last,
+      scs = jnp.einsum('ab,kbc,dc->ad', I_diag_inv_last, B_diag_last,
                       I_diag_inv_last)
       cov = sas - sb1s - sb2s + scs
     else:
-      S = np.einsum("ab,Bbc->Bac", I_diag_inv_last, I_row_wo_last)
+      S = jnp.einsum("ab,Bbc->Bac", I_diag_inv_last, I_row_wo_last)
 
-      cov = np.einsum(
+      cov = jnp.einsum(
           "Bab,Bbc,Bdc->ad", S, I_diag_inv_wo_last, S,
           optimize='optimal') + I_diag_inv_last
   elif variance_setting.robust:
     B_diag_last, = _get_B(master_state,
                           "B_diag_last",
                           cox_correction=variance_setting.cox_correction)
-    B_diag_last = np.sum(B_diag_last, axis=0)
+    B_diag_last = jnp.sum(B_diag_last, axis=0)
     cov = I_diag_inv_last @ B_diag_last @ I_diag_inv_last.T
 
   else:

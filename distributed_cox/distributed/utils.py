@@ -1,6 +1,6 @@
 """Distributed utilities."""
 
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.experimental.loops as loops
 import jax.ops as ops
 
@@ -19,7 +19,7 @@ def searchsorted2(a, v):
   """
   with loops.Scope() as scope:
     scope.cur_v_idx = 0
-    scope.ret = np.zeros_like(v, dtype=np.int32)
+    scope.ret = jnp.zeros_like(v, dtype=jnp.int32)
     for i in scope.range(len(a)):
       for _ in scope.cond_range(a[i] >= v[scope.cur_v_idx]):
         scope.ret = ops.index_update(scope.ret, scope.cur_v_idx, i)

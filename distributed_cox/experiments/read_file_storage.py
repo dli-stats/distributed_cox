@@ -12,10 +12,10 @@ import numpy as onp
 import pandas as pd
 import scipy.stats
 import jax.scipy.stats
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import vmap, jit
 
-from sacred.experiment import Experiment
+from sacred.experiment import Experiment  # pylint: disable=unused-import
 import tqdm
 
 from distributed_cox.experiments.run import (compute_results_averaged,
@@ -94,7 +94,7 @@ def compute_confidence_interval_overlap(beta_eq,
                                         var_eq_true,
                                         lb=0.025,
                                         ub=1 - 0.025):
-  std_eq, std_eq_true = np.sqrt(var_eq), np.sqrt(var_eq_true)
+  std_eq, std_eq_true = jnp.sqrt(var_eq), jnp.sqrt(var_eq_true)
   f_orig_cdf = functools.partial(jax.scipy.stats.norm.cdf,
                                  loc=beta_eq_true,
                                  scale=std_eq_true)
@@ -117,10 +117,10 @@ def compute_confidence_interval_overlap_clip(beta_eq,
                                              beta_true,
                                              lb=0.025,
                                              ub=1 - 0.025):
-  std_eq = np.sqrt(var_eq)
+  std_eq = jnp.sqrt(var_eq)
   L_rel = beta_eq + scipy.stats.norm.ppf(lb) * std_eq
   U_rel = beta_eq + scipy.stats.norm.ppf(ub) * std_eq
-  clip = np.logical_and(L_rel < beta_true, beta_true < U_rel)
+  clip = jnp.logical_and(L_rel < beta_true, beta_true < U_rel)
   return clip
 
 
@@ -259,6 +259,8 @@ def main(args):
 
     else:
       cio_stats = None
+      cr_stats1 = None
+      cr_stats2 = None
 
     paper_results[exp_key] = {
         'beta_hat': beta_hat,

@@ -1,14 +1,14 @@
 import functools
 
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.ops
 import jax.lax
 
 
 def _group_by_labels(group_labels, X, K=1, group_size=-1):
   """A convenience function for groupping X by labels in Jax."""
-  X_grouped = np.zeros((K, group_size) + X.shape[1:], dtype=X.dtype)
-  group_cnts = np.zeros((K,), np.int32)
+  X_grouped = jnp.zeros((K, group_size) + X.shape[1:], dtype=X.dtype)
+  group_cnts = jnp.zeros((K,), jnp.int32)
 
   def group_by(data, var):
     x, g = var
