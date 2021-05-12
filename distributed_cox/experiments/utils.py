@@ -1,12 +1,11 @@
 """Variance Experiment Utilities."""
 
-from typing import Dict, BinaryIO
+from typing import BinaryIO
 
 import sys
 import time
 import itertools
 import pickle
-import collections
 
 from multiprocessing.dummy import Pool as ThreadPool
 

@@ -1,3 +1,8 @@
-jax>=0.1.49
-jaxlib>=0.1.32 
-docopt>=0.6.2
+numpy
+jax>=0.2.9
+oryx==0.1.4
+sacred==0.8.1
+dataclasses_json
+tqdm
+simpleeval
+frozendict

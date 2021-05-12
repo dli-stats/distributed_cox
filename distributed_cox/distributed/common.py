@@ -155,7 +155,17 @@ def raise_to_command(fun):
     in_msgs = [t[1] for t in in_msgs]
     if in_msgs:
       if len(in_msgs) > 1:
-        in_msgs = tu.tree_multimap(lambda *args: np.array(args), *in_msgs)
+
+        def possibily_compact_array(*arrays):
+          # Creates an np.array by stacking together `arrays`
+          # If `arrays` have different shapes, create a ragged object array
+          # This is to emulate the old numpy behavior prior to NEP34:
+          #  https://numpy.org/neps/nep-0034-infer-dtype-is-object.html
+          if len(set(map(lambda a: a.shape, arrays))) == 1:
+            return np.array(arrays)
+          return np.array(arrays, dtype=object)
+
+        in_msgs = tu.tree_multimap(possibily_compact_array, *in_msgs)
       else:
         in_msgs = in_msgs[0]
       client_state.update(in_msgs)
