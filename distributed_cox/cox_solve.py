@@ -175,9 +175,12 @@ def get_cov_fns(eq: str,
     )
     if cov_fn is None:
       continue
-    cov_name = ("cov:{}group_correction|{}sandwich"
-                "|{}cox_correction|{}sum_first"
-               ).format(*["" if v else "no_" for v in cov_setting])
+    if eq == "meta_analysis":
+      cov_name = "cov:meta_analysis"
+    else:
+      cov_name = ("cov:{}group_correction|{}sandwich"
+                  "|{}cox_correction|{}sum_first"
+                 ).format(*["" if v else "no_" for v in cov_setting])
     cov_fns[cov_name] = cov_fn
   return cov_fns
 
