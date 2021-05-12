@@ -1,26 +1,28 @@
 # Use the official image as a parent image.
-FROM jupyter/datascience-notebook
+FROM python:3.7
 
-ARG REPO=github.com/MrWilber/varderiv.git
-ARG BRANCH=master
-ARG GIT_USER
-ARG GIT_PASSWORD
+ARG PROJ_REPO=https://github.com/dli-stats/distributed_cox.git
+ARG GIT_TAG=repro
+ARG DATA_REPO=https://github.com/dli-stats/distributed_cox_paper_simudata.git
 
-# Set the working directory.
+ENV REPO_DIR=/distributed_cox
+ENV DATA_DIR=/cox-data
+ENV DATA_NPZ_DIR=/distributed_cox/npz_data
 
-# Run the command inside your image filesystem.
-RUN rm -rf varderiv; mkdir varderiv
-WORKDIR varderiv
-RUN git init
-RUN git pull https://${GIT_USER}:${GIT_PASSWORD}@${REPO} ${BRANCH}
+# Clone paper simulated data
+RUN git clone ${DATA_REPO} ${DATA_DIR}
 
+# Prepare repo code
+WORKDIR ${REPO_DIR}
+RUN git clone --depth=1 --branch ${GIT_TAG} ${PROJ_REPO} ${REPO_DIR}
+
+# Install dependencies
 RUN pip install -r requirements.txt
+RUN pip install -e .
 
-# Inform Docker that the container is listening on the specified port at runtime.
-# EXPOSE 8080
-
-# Run the specified command within the container.
-# CMD [ "npm", "start" ]
-
-# Copy the rest of your app's source code from your host to your image filesystem.
-# COPY . .
+# Preprocess the raw csv data into .npz files
+RUN mkdir -p $DATA_NPZ_DIR
+RUN python scripts/distributed/convert_simulated_data.py \
+  convert_from_csv \
+  "${DATA_DIR}/dat_std_simulated.csv" \
+  ${DATA_NPZ_DIR}
