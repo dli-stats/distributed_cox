@@ -165,7 +165,7 @@ def _eq2_model(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta, taylor_order=1):
   denom = mark(denom, "denom")
 
   return jnp.sum(X_delta_sum, axis=0) - jnp.sum(numer / denom.reshape((-1, 1)),
-                                              axis=0)
+                                                axis=0)
 
 
 def _eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta,
@@ -183,16 +183,16 @@ def _eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta,
                                           beta,
                                           taylor_order=taylor_order)
   t1ebkxbmb_cs_d = jnp.einsum("kdip,kp->kdi",
-                             t1xebkx_cs_ds.reshape((K, D, X_dim, -1)),
-                             dbeta_pow_t)
+                              t1xebkx_cs_ds.reshape((K, D, X_dim, -1)),
+                              dbeta_pow_t)
   t2ebkxbmb_cs_d = jnp.einsum("kdijp,kp->kdij",
-                             t2xebkx_cs_ds.reshape((K, D, X_dim, X_dim, -1)),
-                             dbeta_pow_t)
+                              t2xebkx_cs_ds.reshape((K, D, X_dim, X_dim, -1)),
+                              dbeta_pow_t)
 
   denom = denom.reshape((1, len(denom), 1, 1))
   return jnp.sum((jnp.einsum("dm,kdn->kdmn", numer, t1ebkxbmb_cs_d) / denom**2 -
-                 t2ebkxbmb_cs_d / denom),
-                axis=1)
+                  t2ebkxbmb_cs_d / denom),
+                 axis=1)
 
 
 def solve_eq2_model(master_state: ClientState,
@@ -309,19 +309,19 @@ def compute_B(local_state,
               robust=False):
   ret = {}
   ret['B_diag_last'] = jnp.einsum("ni,nj->ij",
-                                 pt2_batch_score,
-                                 pt2_batch_score,
-                                 optimize="optimal")
+                                  pt2_batch_score,
+                                  pt2_batch_score,
+                                  optimize="optimal")
   if group_correction and robust:
     X_group, delta_group, beta_k_hat = local_state.get_vars(
         "X_group", "delta_group", "beta_k_hat")
     pt1_batch_score = eq1_batch_score(X_group, delta_group, beta_k_hat)
     ret['B_diag_wo_last'] = jnp.einsum("ni,nj->ij", pt1_batch_score,
-                                      pt1_batch_score)
+                                       pt1_batch_score)
     if not cox_correction:
       pt1_batch_score = pt1_batch_score[delta_group]
     ret['B_row_wo_last'] = jnp.einsum("ni,nj->ij", pt1_batch_score,
-                                     pt2_batch_score)
+                                      pt2_batch_score)
 
   if cox_correction:
     ret = {(k + "_cox_correction"): v for k, v in ret.items()}
@@ -400,13 +400,13 @@ def _eq2_master_variance(master_state: ClientState,
           "B_row_wo_last",
           cox_correction=variance_setting.cox_correction)
       S = jnp.einsum("ab,Bbc,Bcd->Bad", I_diag_inv_last, I_row_wo_last,
-                    I_diag_inv_wo_last)
+                     I_diag_inv_wo_last)
 
       sas = jnp.einsum("Bab,Bbc,Bdc->ad", S, B_diag_wo_last, S)
       sb1s = jnp.einsum("ab,Bbc,Bdc->ad", I_diag_inv_last, B_row_wo_last, S)
       sb2s = sb1s.T  # pylint: disable=no-member
       scs = jnp.einsum('ab,kbc,dc->ad', I_diag_inv_last, B_diag_last,
-                      I_diag_inv_last)
+                       I_diag_inv_last)
       cov = sas - sb1s - sb2s + scs
     else:
       S = jnp.einsum("ab,Bbc->Bac", I_diag_inv_last, I_row_wo_last)

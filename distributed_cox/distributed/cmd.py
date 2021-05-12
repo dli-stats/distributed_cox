@@ -95,5 +95,10 @@ to_cmd(eq4.eq4_master)
 to_cmd(eq4.eq4_local_variance)
 to_cmd(eq4.eq4_master_all_variances)
 
-if __name__ == "__main__":
+
+def main():
   cmd.run()
+
+
+if __name__ == "__main__":
+  main()
