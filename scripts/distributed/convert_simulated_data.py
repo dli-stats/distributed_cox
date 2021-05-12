@@ -21,7 +21,7 @@ def data_from_csv(csv_file: pathlib.Path):
   group_labels = dataframe["indDP"] - 1
   X, delta, T, group_labels = map(lambda x: x.to_numpy(),
                                   (X, delta, T, group_labels))
-  delta = delta.astype(onp.bool)
+  delta = delta.astype(bool)
   sorted_idx = onp.argsort(-T)
   T = onp.take(T, sorted_idx, axis=0)
   X = onp.take(X, sorted_idx, axis=0)
