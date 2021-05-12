@@ -18,6 +18,7 @@ setup(
         'oryx==0.1.4',
         'jax>=0.2.9',
         'numpy',
+        'pandas',
         'dataclasses_json',
         'tqdm',
         'sacred',

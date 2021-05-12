@@ -6,3 +6,4 @@ dataclasses_json
 tqdm
 simpleeval
 frozendict
+pandas
