@@ -59,7 +59,7 @@ def get_cox_solve_fn(eq: str,
     elif eq in ("eq2", "eq4"):
       loglik_or_score_fn = get_cox_fun(eq, "score", batch=False)
       use_likelihood = False
-      if distributed["hessian_use_taylor"]:
+      if distributed.get("hessian_use_taylor", True):
         hessian_fn = get_cox_fun(eq, "hessian", batch=False)
       else:
         hessian_fn = jacfwd(loglik_or_score_fn, _NUM_SINGLE_ARGS - 1)
@@ -69,8 +69,9 @@ def get_cox_solve_fn(eq: str,
           distributed_hessian_fn=hessian_fn,
           num_single_args=_NUM_SINGLE_ARGS,
           K=K,
-          pt2_use_average_guess=distributed["pt2_use_average_guess"],
-          single_use_likelihood=True)
+          pt2_use_average_guess=distributed.get("pt2_use_average_guess", True),
+          single_use_likelihood=True,
+      )
       solve_fn = functools.partial(solve_fn,
                                    loglik_or_score_fn,
                                    distributed_use_likelihood=use_likelihood)
@@ -112,7 +113,7 @@ def get_cov_fn(  # pylint: disable=too-many-return-statements
     return None
 
   get_cox_fun = functools.partial(cox.get_cox_fun,
-                                  order=distributed['taylor_order'])
+                                  order=distributed.get('taylor_order', -1))
 
   if eq in ("eq1", "eq3"):
     batch_loglik_or_score_fn = get_cox_fun(eq, "loglik", batch=True)
