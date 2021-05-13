@@ -1,5 +1,5 @@
 """Distributed modeling."""
-from typing import Dict
+from typing import Dict, Tuple, Union
 
 import functools
 
@@ -18,6 +18,8 @@ plant = oryx.core.plant
 nest = oryx.core.nest
 
 
+# Reduction primitives
+# ------------------------------------------------------------
 def cumsum(vals, *, name: str):
   """Custom cumsum for modeling."""
   vals = sow(vals, tag="pre_cumsum", name=name, mode="clobber")
@@ -38,17 +40,29 @@ def sum(vals, *, name: str):  # pylint: disable=redefined-builtin
              mode="clobber")
 
 
-def reap_fun(fun, *, tag, name):
-
-  def wrapped(*args, **kwargs):
-    intermediate_vals = reap(fun, tag=tag, allowlist=[name])(*args, **kwargs)
-    return intermediate_vals[name]
-
-  return wrapped
+# end primitives
+# ------------------------------------------------------------
 
 
-def distribute(fun, reduction_kind="sum"):
-  """Partitions a function into distributed version."""
+def distribute(fun, reduction_kind: str = "sum"):
+  """Partitions a function into distributed version.
+
+  Assuming `fun` contains invocations of the collective primitives, this
+  function partitions `fun` into a composition of two functions
+  `fun_partt1` and `fun_partt2`.
+  The arguments to `fun_part1` are the same as `fun`; the outputs of `fun_part1`
+  are the intermediate values right before the collective primitives in `fun`.
+
+  The arguments to `fun_part2` contains two additional arguments compared to
+  `fun`: `intermediates` and `group_labels`.
+  `intermediates` has an additional group dimension compared to the
+  `intermediates` output in `fun_part1`.
+  `group_labels` is a global array containing individual group labels.
+
+  Calling `fun_part1` on multiple sub-divisions of the original inputs,
+  followed by `fun_part2` which collects all the result together, will return
+  the same result as simply calling `fun`.
+  """
 
   pt1_fun = reap(fun, tag="pre_" + reduction_kind)
 
@@ -88,8 +102,11 @@ def distribute(fun, reduction_kind="sum"):
   return pt1_fun, pt2_fun
 
 
-def taylor_distribute(fun, *, reduction_kind, orders: Dict[str, int],
-                      argnums=0):
+def taylor_distribute(fun,
+                      *,
+                      reduction_kind: str,
+                      orders: Dict[str, int],
+                      argnums: Union[int, Tuple[int]] = 0):
   """Taylor distributes function."""
 
   if isinstance(argnums, int):
