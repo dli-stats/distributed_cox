@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from jax import vmap
 import jax.lax as lax
 import jax.ops
-
+# import numpy as np
 import oryx
 
 import distributed_cox.generic.taylor as taylor
@@ -20,10 +20,13 @@ nest = oryx.core.nest
 
 def cumsum(vals, *, name: str):
   """Custom cumsum for modeling."""
-  return sow(jnp.cumsum(vals, axis=0, dtype=None),
-             tag="cumsum",
-             name=name,
-             mode="clobber")
+  vals = sow(vals, tag="pre_cumsum", name=name, mode="clobber")
+  return sow(
+      jnp.cumsum(vals, axis=0, dtype=None),
+      tag="cumsum",
+      name=name,
+      mode="clobber",
+  )
 
 
 def sum(vals, *, name: str):  # pylint: disable=redefined-builtin
@@ -46,7 +49,8 @@ def reap_fun(fun, *, tag, name):
 def distribute(fun, reduction_kind="sum"):
   """Partitions a function into distributed version."""
 
-  pt1_fun = reap(fun, tag=reduction_kind)
+  pt1_fun = reap(
+      fun, tag="pre_cumsum" if reduction_kind == "cumsum" else reduction_kind)
 
   def pt2_fun(intermediates, group_labels, *args, **kwargs):
     intermediates = dict(intermediates)
@@ -55,15 +59,24 @@ def distribute(fun, reduction_kind="sum"):
       K, *_ = intermediate.shape
 
       if reduction_kind == "cumsum":
+        # # The groupped_cumsum performs the commented operations below,
+        # # in an optimized fasion:
+        #
+        # idxs = jnp.cumsum(group_labels[..., jnp.newaxis] == jnp.arange(K),
+        #                   axis=0)
+        # intermediate_reduced = jnp.sum(
+        #     (idxs > 0).reshape((group_labels.shape[0], K) + (1,) *
+        #                        (len(intermediate.shape) - 2)) *
+        #     intermediate[jnp.arange(K), idxs - 1],
+        #     axis=1,
+        # )
 
         def groupped_cumsum(intermediate, carry, group_label):
           group_cnts, curr_sum = carry
           group_cnt_before = group_cnts[group_label]
           group_cnt_after = group_cnt_before + 1
-          val_before = ((group_cnt_before >= 0) *
-                        intermediate[group_label, group_cnt_before])
-          val_after = intermediate[group_label, group_cnt_after]
-          curr_sum = curr_sum - val_before + val_after
+          val = intermediate[group_label, group_cnt_after]
+          curr_sum = curr_sum + val
           group_cnts = jax.ops.index_add(group_cnts, group_label, 1)
           return (group_cnts, curr_sum), curr_sum
 
