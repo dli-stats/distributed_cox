@@ -56,19 +56,25 @@ def distribute(fun, reduction_kind="sum"):
 
       if reduction_kind == "cumsum":
 
-        def groupped_cumsum(intermediate, group_cnts, group_label):
-          K, *_ = intermediate.shape
+        def groupped_cumsum(intermediate, carry, group_label):
+          group_cnts, curr_sum = carry
+          group_cnt_before = group_cnts[group_label]
+          group_cnt_after = group_cnt_before + 1
+          val_before = ((group_cnt_before >= 0) *
+                        intermediate[group_label, group_cnt_before])
+          val_after = intermediate[group_label, group_cnt_after]
+          curr_sum = curr_sum - val_before + val_after
           group_cnts = jax.ops.index_add(group_cnts, group_label, 1)
-          cur_sum = jnp.sum(
-              (group_cnts >= 0).reshape((K,) + (1,) *
-                                        (len(intermediate.shape) - 2)) *
-              intermediate[jnp.arange(K), group_cnts],
-              axis=0)
-          return group_cnts, cur_sum
+          return (group_cnts, curr_sum), curr_sum
 
         _, intermediate_reduced = lax.scan(
             functools.partial(groupped_cumsum, intermediate),
-            jnp.zeros(K, dtype=jnp.int32) - 1, group_labels)
+            init=(
+                jnp.zeros(K, dtype=jnp.int32) - 1,
+                jnp.zeros(intermediate.shape[2:], dtype=intermediate.dtype),
+            ),
+            xs=group_labels,
+        )
       elif reduction_kind == "sum":
         intermediate_reduced = jnp.sum(intermediate, axis=0)
       else:
