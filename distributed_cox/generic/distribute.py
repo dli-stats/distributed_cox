@@ -31,6 +31,7 @@ def cumsum(vals, *, name: str):
 
 def sum(vals, *, name: str):  # pylint: disable=redefined-builtin
   """Custom sum for modeling."""
+  vals = sow(vals, tag="pre_sum", name=name, mode="clobber")
   return sow(jnp.sum(vals, axis=0, dtype=None),
              tag="sum",
              name=name,
@@ -49,8 +50,7 @@ def reap_fun(fun, *, tag, name):
 def distribute(fun, reduction_kind="sum"):
   """Partitions a function into distributed version."""
 
-  pt1_fun = reap(
-      fun, tag="pre_cumsum" if reduction_kind == "cumsum" else reduction_kind)
+  pt1_fun = reap(fun, tag="pre_" + reduction_kind)
 
   def pt2_fun(intermediates, group_labels, *args, **kwargs):
     intermediates = dict(intermediates)
@@ -59,23 +59,11 @@ def distribute(fun, reduction_kind="sum"):
       K, *_ = intermediate.shape
 
       if reduction_kind == "cumsum":
-        # # The groupped_cumsum performs the commented operations below,
-        # # in an optimized fasion:
-        #
-        # idxs = jnp.cumsum(group_labels[..., jnp.newaxis] == jnp.arange(K),
-        #                   axis=0)
-        # intermediate_reduced = jnp.sum(
-        #     (idxs > 0).reshape((group_labels.shape[0], K) + (1,) *
-        #                        (len(intermediate.shape) - 2)) *
-        #     intermediate[jnp.arange(K), idxs - 1],
-        #     axis=1,
-        # )
 
         def groupped_cumsum(intermediate, carry, group_label):
           group_cnts, curr_sum = carry
           group_cnt_before = group_cnts[group_label]
-          group_cnt_after = group_cnt_before + 1
-          val = intermediate[group_label, group_cnt_after]
+          val = intermediate[group_label, group_cnt_before]
           curr_sum = curr_sum + val
           group_cnts = jax.ops.index_add(group_cnts, group_label, 1)
           return (group_cnts, curr_sum), curr_sum
@@ -83,13 +71,13 @@ def distribute(fun, reduction_kind="sum"):
         _, intermediate_reduced = lax.scan(
             functools.partial(groupped_cumsum, intermediate),
             init=(
-                jnp.zeros(K, dtype=jnp.int32) - 1,
+                jnp.zeros(K, dtype=jnp.int32),
                 jnp.zeros(intermediate.shape[2:], dtype=intermediate.dtype),
             ),
             xs=group_labels,
         )
       elif reduction_kind == "sum":
-        intermediate_reduced = jnp.sum(intermediate, axis=0)
+        intermediate_reduced = jnp.sum(intermediate, axis=(0, 1))
       else:
         raise TypeError("Invalid reduction kind")
 
