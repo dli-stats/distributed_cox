@@ -106,16 +106,39 @@ _distribute = functools.partial(taylor_distribute, argnums=2)
 
 @functools.lru_cache(maxsize=None)
 def get_cox_fun(method: str, kind: str, batch: bool = False, order: int = 1):
-  """Convenience routine to get a desired cox model analysis function."""
+  """Convenience routine to get a desired cox model analysis function.
+
+  Args:
+    method: the analysis method.
+    kind: one of `{loglik|score|hessian|robust_cox_correction_score}`.
+    batch: if batch is False, return the summed result. Otherwise, return
+      the pre-summed statistics.
+    order: the taylor expansion order if analysis method is distributed.
+
+  Returns:
+    A callable of type signature -> result.
+
+    If unstratified_pooled, signature is fun(X, delta, beta)
+    If stratified_pooled, signature is fun(X_groups, delta_groups, beta_groups)
+    If distributed, signature is
+      fun(X, delta, beta, group_labels, X_groups, delta_groups, beta_groups)
+
+    `result` is an array of shape `kind_shape`, if batch is False; or
+      `(N, *kind_shape)` if batch is True.
+
+    `kind_shape` is `1` (scalar), `(X_DIM,)`, `(X_DIM, X_DIM)`, depending
+      on `kind`.
+  """
   # pylint: disable=too-many-branches
   if method in ('unstratified_pooled', 'stratified_pooled'):
     order = -1
+
   if method in ('unstratified_distributed',
                 'stratified_distributed') and kind == "loglik":
-    raise TypeError("Does not have loglik option")
+    raise TypeError(f"{method} does not have {kind} option")
+
   if kind == "robust_cox_correction_score" and not batch:
-    raise TypeError("robust_cox_correction_score"
-                    " does not have un-batched option")
+    raise TypeError(f"{kind} does not have un-batched option")
 
   is_robust = kind == "robust_cox_correction_score"
   unstratified_pooled_fn = globals()["unstratified_pooled_{}".format(
