@@ -42,7 +42,7 @@ def call_cmd(*args):
 
 
 def _run_flow(fill_data_fn: Callable,
-              eq: str,
+              method: str,
               check_result: bool = False,
               seed: int = 0) -> pathlib.Path:
   del seed
@@ -102,7 +102,7 @@ def _run_flow(fill_data_fn: Callable,
     if not end:
       copy_msgs(client)
 
-  if eq == "unstratified_distributed":
+  if method == "unstratified_distributed":
     call_cmd_and_send("local", "unstratified_distributed_local_send_T")
     call_cmd_and_send("master", "unstratified_distributed_master_send_T")
     call_cmd_and_send("local", "unstratified_distributed_local")
@@ -111,7 +111,7 @@ def _run_flow(fill_data_fn: Callable,
     call_cmd_and_send("master",
                       "unstratified_distributed_master_all_variances",
                       end=True)
-  if eq == "stratified_distributed":
+  if method == "stratified_distributed":
     call_cmd_and_send("local", "stratified_distributed_local")
     call_cmd_and_send("master", "stratified_distributed_master")
     call_cmd_and_send("local", "stratified_distributed_local_variance")
@@ -127,7 +127,7 @@ def _run_flow(fill_data_fn: Callable,
 
 
 @cmd.command
-def run_dummy_flow(eq: str,
+def run_dummy_flow(method: str,
                    N: int,
                    K: int,
                    X_DIM: int,
@@ -146,11 +146,11 @@ def run_dummy_flow(eq: str,
     )
     return N, K, X_DIM
 
-  return _run_flow(fill_data, eq, check_result, seed)
+  return _run_flow(fill_data, method, check_result, seed)
 
 
 @cmd.command
-def run_flow(eq: str,
+def run_flow(method: str,
              data_dir: pathlib.Path,
              check_result: bool = False,
              seed: int = 0) -> pathlib.Path:
@@ -164,7 +164,7 @@ def run_flow(eq: str,
       shutil.copy(data_dir.joinpath(name), flow_data_dir.joinpath(name))
     return N, K, X_DIM
 
-  return _run_flow(fill_data, eq, check_result, seed)
+  return _run_flow(fill_data, method, check_result, seed)
 
 
 if __name__ == "__main__":

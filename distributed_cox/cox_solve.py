@@ -19,7 +19,7 @@ CoxSolveResult = collections.namedtuple("CoxSolveResult", "pt1 pt2 covs")
 _NUM_SINGLE_ARGS = 3
 
 
-def get_cox_solve_fn(eq: str,
+def get_cox_solve_fn(method: str,
                      K: Optional[int] = None,
                      distributed: Optional[Mapping[str, Any]] = None,
                      solver: Optional[Mapping[str, Any]] = None,
@@ -27,7 +27,7 @@ def get_cox_solve_fn(eq: str,
   """Constructs a single function that solve Cox model in one shot.
 
   Args:
-    eq: the equation.
+    method: the analysis method.
     K: number of groups in the data.
     distributed: a Mapping configuration for the distributed setting.
     solver: a Mapping configuration for the solver.
@@ -44,7 +44,7 @@ def get_cox_solve_fn(eq: str,
   get_cox_fun = functools.partial(cox.get_cox_fun,
                                   order=distributed.get('taylor_order', -1))
 
-  if eq == "meta_analysis":
+  if method == "meta_analysis":
     solve_fn = functools.partial(modeling.solve_meta_analysis,
                                  get_cox_fun("unstratified_pooled",
                                              "loglik",
@@ -52,17 +52,17 @@ def get_cox_solve_fn(eq: str,
                                  use_likelihood=True,
                                  **meta_analysis)
   else:
-    if eq in ("unstratified_pooled", "stratified_pooled"):
-      log_likelihood_fn = get_cox_fun(eq, "loglik", batch=False)
+    if method in ("unstratified_pooled", "stratified_pooled"):
+      log_likelihood_fn = get_cox_fun(method, "loglik", batch=False)
       use_likelihood = True
       solve_fn = functools.partial(modeling.solve_single,
                                    log_likelihood_fn,
                                    use_likelihood=use_likelihood)
-    elif eq in ("unstratified_distributed", "stratified_distributed"):
-      loglik_or_score_fn = get_cox_fun(eq, "score", batch=False)
+    elif method in ("unstratified_distributed", "stratified_distributed"):
+      loglik_or_score_fn = get_cox_fun(method, "score", batch=False)
       use_likelihood = False
       if distributed.get("hessian_use_taylor", True):
-        hessian_fn = get_cox_fun(eq, "hessian", batch=False)
+        hessian_fn = get_cox_fun(method, "hessian", batch=False)
       else:
         hessian_fn = jacfwd(loglik_or_score_fn, _NUM_SINGLE_ARGS - 1)
       solve_fn = functools.partial(
@@ -78,13 +78,13 @@ def get_cox_solve_fn(eq: str,
                                    loglik_or_score_fn,
                                    distributed_use_likelihood=use_likelihood)
     else:
-      raise ValueError("invalid equation")
+      raise ValueError("invalid method")
 
   return solve_fn(**solver)
 
 
 def get_cov_fn(  # pylint: disable=too-many-return-statements
-    eq: str,
+    method: str,
     group_correction: bool,
     sandwich_robust: bool,
     sandwich_robust_sum_group_first: bool,
@@ -97,7 +97,7 @@ def get_cov_fn(  # pylint: disable=too-many-return-statements
   meta_analysis = meta_analysis or {}
 
   # Reject some non-sensical situations
-  if eq == "meta_analysis":
+  if method == "meta_analysis":
     if (group_correction or sandwich_robust or cox_correction or
         sandwich_robust_sum_group_first):
       return None
@@ -107,10 +107,11 @@ def get_cov_fn(  # pylint: disable=too-many-return-statements
     return None
   if not sandwich_robust and sandwich_robust_sum_group_first:
     return None
-  if group_correction and eq in ("unstratified_pooled", "stratified_pooled"):
+  if group_correction and method in ("unstratified_pooled",
+                                     "stratified_pooled"):
     return None
-  if sandwich_robust_sum_group_first and eq in ("unstratified_pooled",
-                                                "unstratified_distributed"):
+  if sandwich_robust_sum_group_first and method in ("unstratified_pooled",
+                                                    "unstratified_distributed"):
     return None
   if sandwich_robust_sum_group_first:  # disabled because it's too bad
     return None
@@ -118,24 +119,24 @@ def get_cov_fn(  # pylint: disable=too-many-return-statements
   get_cox_fun = functools.partial(cox.get_cox_fun,
                                   order=distributed.get('taylor_order', -1))
 
-  if eq in ("unstratified_pooled", "stratified_pooled"):
-    batch_loglik_or_score_fn = get_cox_fun(eq, "loglik", batch=True)
+  if method in ("unstratified_pooled", "stratified_pooled"):
+    batch_loglik_or_score_fn = get_cox_fun(method, "loglik", batch=True)
     use_likelihood = True
-  elif eq in ("unstratified_distributed", "stratified_distributed"):
+  elif method in ("unstratified_distributed", "stratified_distributed"):
     use_likelihood = False
-    batch_loglik_or_score_fn = get_cox_fun(eq, "score", batch=True)
+    batch_loglik_or_score_fn = get_cox_fun(method, "score", batch=True)
 
   batch_robust_cox_correction_score = get_cox_fun(
-      eq, "robust_cox_correction_score", True)
+      method, "robust_cox_correction_score", True)
   if group_correction:
-    batch_score = get_cox_fun(eq, "score", batch=True)
+    batch_score = get_cox_fun(method, "score", batch=True)
     cov_fn = modeling.cov_group_correction(
         (get_cox_fun("unstratified_pooled", "robust_cox_correction_score",
                      True) if cox_correction else get_cox_fun(
                          "unstratified_pooled", "loglik", True)),
         (batch_robust_cox_correction_score if cox_correction else batch_score),
         distributed_cross_hessian_fn=jacrev(
-            get_cox_fun(eq, "score", batch=False), -1),
+            get_cox_fun(method, "score", batch=False), -1),
         batch_single_use_likelihood=not cox_correction,
         batch_distributed_use_likelihood=False,
         num_single_args=_NUM_SINGLE_ARGS,
@@ -156,7 +157,7 @@ def get_cov_fn(  # pylint: disable=too-many-return-statements
   return cov_fn
 
 
-def get_cov_fns(eq: str,
+def get_cov_fns(method: str,
                 distributed: Optional[Mapping[str, Any]] = None,
                 meta_analysis: Optional[Mapping[str, Any]] = None
                ) -> Dict[str, Callable]:
@@ -169,7 +170,7 @@ def get_cov_fns(eq: str,
     (group_correction, sandwich_robust, cox_correction,
      sandwich_robust_sum_group_first) = cov_setting
     cov_fn = get_cov_fn(
-        eq,
+        method,
         group_correction=group_correction,
         sandwich_robust=sandwich_robust,
         cox_correction=cox_correction,
@@ -179,7 +180,7 @@ def get_cov_fns(eq: str,
     )
     if cov_fn is None:
       continue
-    if eq == "meta_analysis":
+    if method == "meta_analysis":
       cov_name = "cov:meta_analysis"
     else:
       cov_name = ("cov:{}group_correction|{}sandwich"
@@ -189,7 +190,7 @@ def get_cov_fns(eq: str,
   return cov_fns
 
 
-def get_cox_solve_and_cov_fn(eq: str,
+def get_cox_solve_and_cov_fn(method: str,
                              group_sizes: Sequence[int] = None,
                              distributed: Optional[Mapping[str, Any]] = None,
                              solver: Optional[Mapping[str, Any]] = None,
@@ -197,7 +198,7 @@ def get_cox_solve_and_cov_fn(eq: str,
   """Constructs a single function that solve Cox model and covs in one shot.
 
   Args:
-    eq: the equation number e.g. unstratified_pooled.
+    method: the analysis method.
     group_sizes: a sequence of group sizes. If single site of size N, pass in
       a single element sequence e.g. (N,).
     distributed: see `get_cox_solve_fn`.
@@ -214,13 +215,13 @@ def get_cox_solve_and_cov_fn(eq: str,
 
   K = len(group_sizes)
 
-  solve_fn = get_cox_solve_fn(eq,
+  solve_fn = get_cox_solve_fn(method,
                               K,
                               distributed=distributed,
                               solver=solver,
                               meta_analysis=meta_analysis)
 
-  cov_fns = get_cov_fns(eq,
+  cov_fns = get_cov_fns(method,
                         distributed=distributed,
                         meta_analysis=meta_analysis)
 
@@ -228,26 +229,26 @@ def get_cox_solve_and_cov_fn(eq: str,
 
   def solve_and_cov(X, delta, beta, group_labels) -> CoxSolveResult:
     initial_beta_hat = beta
-    if eq != "unstratified_pooled":
+    if method != "unstratified_pooled":
       X_groups, delta_groups = vdata.group_data_by_labels(
           group_labels, X, delta, K=K, group_size=max_group_size)
       initial_beta_k_hat = jnp.broadcast_to(beta, (K,) + beta.shape)
 
-    if eq == "unstratified_pooled":
+    if method == "unstratified_pooled":
       pt1_sol = None
       pt2_sol = sol = solve_fn(X, delta, initial_beta_hat)
       model_args = (X, delta, sol.guess)
-    elif eq == "stratified_pooled":
+    elif method == "stratified_pooled":
       pt1_sol = None
       pt2_sol = sol = solve_fn(X_groups, delta_groups, initial_beta_hat)
       model_args = (X_groups, delta_groups, sol.guess)
-    elif eq in ("unstratified_distributed", "stratified_distributed"):
+    elif method in ("unstratified_distributed", "stratified_distributed"):
       pt1_sol, pt2_sol = sol = solve_fn(X, delta, initial_beta_hat,
                                         group_labels, X_groups, delta_groups,
                                         initial_beta_k_hat)
       model_args = (X, delta, pt2_sol.guess, group_labels, X_groups,
                     delta_groups, pt1_sol.guess)
-    elif eq == "meta_analysis":
+    elif method == "meta_analysis":
       sol = solve_fn(X_groups, delta_groups, initial_beta_k_hat)
       pt1_sol, pt2_sol = sol.pt1, sol.pt2
       model_args = tuple()

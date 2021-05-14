@@ -59,9 +59,10 @@ def find_experiment(runs_dir, **kwargs):
       yield (run_dir, config_json, run_json)
 
 
-expkey_names = ("eq data.K data.N data.T_star_factors data.X_DIM data.npz_path "
-                "data.group_X data.group_labels_generator_kind "
-                "distributed.taylor_order meta_analysis.univariate").split()
+expkey_names = (
+    "method data.K data.N data.T_star_factors data.X_DIM data.npz_path "
+    "data.group_X data.group_labels_generator_kind "
+    "distributed.taylor_order meta_analysis.univariate").split()
 
 
 def get_expkey(experiment):
@@ -88,23 +89,21 @@ def merge_experiments_same_setting(runs_dir, **kwargs):
   return same_experiments
 
 
-def compute_confidence_interval_overlap(beta_eq,
-                                        var_eq,
-                                        beta_eq_true,
-                                        var_eq_true,
+def compute_confidence_interval_overlap(beta,
+                                        var,
+                                        beta_true,
+                                        var_true,
                                         lb=0.025,
                                         ub=1 - 0.025):
-  std_eq, std_eq_true = jnp.sqrt(var_eq), jnp.sqrt(var_eq_true)
+  std, std_true = jnp.sqrt(var), jnp.sqrt(var_true)
   f_orig_cdf = functools.partial(jax.scipy.stats.norm.cdf,
-                                 loc=beta_eq_true,
-                                 scale=std_eq_true)
-  f_rel_cdf = functools.partial(jax.scipy.stats.norm.cdf,
-                                loc=beta_eq,
-                                scale=std_eq)
-  L_rel = beta_eq + scipy.stats.norm.ppf(lb) * std_eq
-  U_rel = beta_eq + scipy.stats.norm.ppf(ub) * std_eq
-  L_orig = beta_eq_true + scipy.stats.norm.ppf(lb) * std_eq_true
-  U_orig = beta_eq_true + scipy.stats.norm.ppf(ub) * std_eq_true
+                                 loc=beta_true,
+                                 scale=std_true)
+  f_rel_cdf = functools.partial(jax.scipy.stats.norm.cdf, loc=beta, scale=std)
+  L_rel = beta + scipy.stats.norm.ppf(lb) * std
+  U_rel = beta + scipy.stats.norm.ppf(ub) * std
+  L_orig = beta_true + scipy.stats.norm.ppf(lb) * std_true
+  U_orig = beta_true + scipy.stats.norm.ppf(ub) * std_true
 
   I = ((f_orig_cdf(U_rel) - f_orig_cdf(L_rel)) +
        (f_rel_cdf(U_orig) - f_rel_cdf(L_orig))) / 2
@@ -112,14 +111,14 @@ def compute_confidence_interval_overlap(beta_eq,
   return I
 
 
-def compute_confidence_interval_overlap_clip(beta_eq,
-                                             var_eq,
+def compute_confidence_interval_overlap_clip(beta,
+                                             var,
                                              beta_true,
                                              lb=0.025,
                                              ub=1 - 0.025):
-  std_eq = jnp.sqrt(var_eq)
-  L_rel = beta_eq + scipy.stats.norm.ppf(lb) * std_eq
-  U_rel = beta_eq + scipy.stats.norm.ppf(ub) * std_eq
+  std = jnp.sqrt(var)
+  L_rel = beta + scipy.stats.norm.ppf(lb) * std
+  U_rel = beta + scipy.stats.norm.ppf(ub) * std
   clip = jnp.logical_and(L_rel < beta_true, beta_true < U_rel)
   return clip
 
@@ -128,20 +127,20 @@ def _get_true_model_in_group(group):
   _, config_json, _ = group[0]
   assert config_json["data"]["T_star_factors"] is not None
   if config_json["data"]["T_star_factors"] == "None":
-    eq_true = "unstratified_pooled"
+    method_true = "unstratified_pooled"
   else:
-    eq_true = "stratified_pooled"
-  return next(setting for setting in group if setting[1]["eq"] == eq_true)
+    method_true = "stratified_pooled"
+  return next(setting for setting in group if setting[1]["eq"] == method_true)
 
 
 def _eq_get_var(config_json, result):
-  eq = config_json["eq"]
-  if eq == "unstratified_pooled":
+  method = config_json["method"]
+  if method == "unstratified_pooled":
     if config_json["data"]["T_star_factors"] == "None":
       kind = "ese"
     else:
       kind = "rse"
-  elif eq == "unstratified_distributed":
+  elif method == "unstratified_distributed":
     kind = "rse"
   else:
     kind = "ese"
@@ -169,7 +168,7 @@ def _eq_get_var(config_json, result):
           None
   }
 
-  cov_kind = mapping[eq, kind]
+  cov_kind = mapping[method, kind]
   return onp.diagonal(result.covs[cov_kind], axis1=1, axis2=2)
 
 

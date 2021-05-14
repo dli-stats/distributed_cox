@@ -1,4 +1,4 @@
-"""Distributed implementation of Equation 4."""
+"""Stratified Distributed Analysis."""
 
 from typing import Optional, List
 

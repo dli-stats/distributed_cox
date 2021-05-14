@@ -105,13 +105,13 @@ _distribute = functools.partial(taylor_distribute, argnums=2)
 
 
 @functools.lru_cache(maxsize=None)
-def get_cox_fun(eq: str, kind: str, batch: bool = False, order: int = 1):
-  """Convenience routine to get a desired cox model equation."""
+def get_cox_fun(method: str, kind: str, batch: bool = False, order: int = 1):
+  """Convenience routine to get a desired cox model analysis function."""
   # pylint: disable=too-many-branches
-  if eq in ('unstratified_pooled', 'stratified_pooled'):
+  if method in ('unstratified_pooled', 'stratified_pooled'):
     order = -1
-  if eq in ('unstratified_distributed',
-            'stratified_distributed') and kind == "loglik":
+  if method in ('unstratified_distributed',
+                'stratified_distributed') and kind == "loglik":
     raise TypeError("Does not have loglik option")
   if kind == "robust_cox_correction_score" and not batch:
     raise TypeError("robust_cox_correction_score"
@@ -121,11 +121,11 @@ def get_cox_fun(eq: str, kind: str, batch: bool = False, order: int = 1):
   unstratified_pooled_fn = globals()["unstratified_pooled_{}".format(
       "batch_robust_cox_correction_score" if is_robust else kind)]
 
-  if eq == "unstratified_pooled":
+  if method == "unstratified_pooled":
     fn = unstratified_pooled_fn
     if batch and not is_robust:
       fn = collect(fn, "batch_{}".format(kind))
-  elif eq == "unstratified_distributed":
+  elif method == "unstratified_distributed":
     fn = _distribute(unstratified_pooled_fn,
                      reduction_kind="cumsum",
                      orders={'ebx': order})
@@ -133,11 +133,11 @@ def get_cox_fun(eq: str, kind: str, batch: bool = False, order: int = 1):
       fn = _group_by(fn)
     elif batch:
       fn = _group_by(collect(fn, "batch_{}".format(kind)))
-  elif eq == "stratified_pooled":
+  elif method == "stratified_pooled":
     fn = vmap(unstratified_pooled_fn, in_axes=(0, 0, None))
     if not batch:
       fn = getattr(modeling, "sum_{}".format(kind))(fn)
-  elif eq == "stratified_distributed":
+  elif method == "stratified_distributed":
     if batch and not is_robust:
       fn = collect(unstratified_pooled_fn, "batch_{}".format(kind))
     else:
@@ -146,7 +146,7 @@ def get_cox_fun(eq: str, kind: str, batch: bool = False, order: int = 1):
                      reduction_kind=None if batch else "sum",
                      orders={'ebx': order})
   else:
-    raise TypeError("Invalid eq")
+    raise TypeError("Invalid method")
 
   return fn
 

@@ -16,7 +16,7 @@ group_X_setting4 = """custom(
      [3., 5., 1./3]
 )"""
 
-eqs = [
+methods = [
     "unstratified_pooled", "unstratified_distributed", "stratified_pooled",
     "stratified_distributed", "meta_analysis", "meta_analysis_univariate"
 ]
@@ -37,18 +37,18 @@ batch_size = 16
 settings = []
 for (
     (N, group_X_setting, taylor_order),
-    eq,
+    method,
     T_star_factors,
     group_labels_generator_kind,
-) in itertools.product(N_and_group_X_settings_and_taylor_order, eqs,
+) in itertools.product(N_and_group_X_settings_and_taylor_order, methods,
                        T_star_factorss, group_labels_generator_kinds):
-  if eq == "meta_analysis_univariate":
-    eq = "meta_analysis"
+  if method == "meta_analysis_univariate":
+    method = "meta_analysis"
     meta_analysis_univariate = True
   else:
     meta_analysis_univariate = False
   setting = dict(
-      eq=eq,
+      method=method,
       batch_size=batch_size,
       data=dict(
           N=N,

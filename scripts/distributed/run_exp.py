@@ -5,13 +5,13 @@ results_dir = "realdata_results/"
 
 npz_paths = [f"simulated_data/npzs/dat_{i}/all.npz" for i in (1, 2)]
 
-eqs = [f"eq{i+1}" for i in range(4)
-      ] + ["meta_analysis", "meta_analysis_univariate"]
+methods = [f"eq{i+1}" for i in range(4)
+          ] + ["meta_analysis", "meta_analysis_univariate"]
 
-for npz_path, eq in itertools.product(npz_paths, eqs):
+for npz_path, method in itertools.product(npz_paths, methods):
   univariate = False
-  if eq == "meta_analysis_univariate":
-    eq = "meta_analysis"
+  if method == "meta_analysis_univariate":
+    method = "meta_analysis"
     univariate = True
 
   subprocess.check_call([
@@ -22,7 +22,7 @@ for npz_path, eq in itertools.product(npz_paths, eqs):
       results_dir,
       "-p",
       "with",
-      f"eq={eq}",
+      f"eq={method}",
       "num_experiments=1",
       "batch_size=1",
       "solver.max_num_steps=1000",
