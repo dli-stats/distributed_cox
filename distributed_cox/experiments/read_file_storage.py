@@ -130,10 +130,11 @@ def _get_true_model_in_group(group):
     method_true = "unstratified_pooled"
   else:
     method_true = "stratified_pooled"
-  return next(setting for setting in group if setting[1]["eq"] == method_true)
+  return next(
+      setting for setting in group if setting[1]["method"] == method_true)
 
 
-def _eq_get_var(config_json, result):
+def _method_get_var(config_json, result):
   method = config_json["method"]
   if method == "unstratified_pooled":
     if config_json["data"]["T_star_factors"] == "None":
@@ -243,14 +244,14 @@ def main(args):
 
       cio_stats = compute_confidence_interval_overlap_jit(
           result.guess,
-          _eq_get_var(config_json, result),
+          _method_get_var(config_json, result),
           result_true_model.guess,
-          _eq_get_var(true_model_config_json, result_true_model),
+          _method_get_var(true_model_config_json, result_true_model),
       )
       cio_stats = onp.mean(cio_stats[keep_idxs], axis=0)
 
       cr_stats = compute_confidence_interval_overlap_clip_jit(
-          result.guess, _eq_get_var(config_json, result),
+          result.guess, _method_get_var(config_json, result),
           same_X_dim_beta_true[config_json["data"]["X_DIM"]])
       cr_stats = cr_stats[keep_idxs]
       cr_stats1 = onp.mean(cr_stats, axis=0)

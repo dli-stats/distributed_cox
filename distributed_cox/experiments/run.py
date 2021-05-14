@@ -174,12 +174,12 @@ def freezeargs(func):
 @ex.capture
 @freezeargs
 @functools.lru_cache(maxsize=None)
-def cov_experiment_init(eq, distributed, solver, meta_analysis,
+def cov_experiment_init(method, distributed, solver, meta_analysis,
                         **experiment_params):
   del experiment_params
 
   group_sizes, gen = init_data_gen_fn()  # pylint: disable=no-value-for-parameter
-  solve_and_cov_fn = cox_solve.get_cox_solve_and_cov_fn(eq, group_sizes,
+  solve_and_cov_fn = cox_solve.get_cox_solve_and_cov_fn(method, group_sizes,
                                                         distributed, solver,
                                                         meta_analysis)
 

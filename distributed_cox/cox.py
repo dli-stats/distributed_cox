@@ -185,22 +185,3 @@ stratified_distributed_batch_robust_cox_correction_score = get_cox_fun(
     "stratified_distributed", "robust_cox_correction_score", True, 1)
 stratified_distributed_hessian_taylor = get_cox_fun("stratified_distributed",
                                                     "hessian", False, 1)
-
-# if __name__ == "__main__":
-#   import distributed_cox.data as vdata
-#   import distributed_cox.equations.unstratified_distributed as stratified_distributed
-#   gen = vdata.data_generator(500, 3, (166, 167, 167))
-#   X, delta, beta, group_labels = gen(vdata.data_generation_key)
-#   X_groups, delta_groups = vdata.group_data_by_labels(group_labels,
-#                                                       X,
-#                                                       delta,
-#                                                       K=3,
-#                                                       group_size=167)
-#   beta_k_hat = np.array([beta] * 3)
-#   h = unstratified_distributed_hessian_taylor(X, delta, beta, group_labels, X_groups, delta_groups,
-#                          beta_k_hat)
-#   print(h)
-#   print(
-#       stratified_distributed.hessian_taylor2(X, delta, beta, group_labels, X_groups,
-#        delta_groups,
-#                           beta_k_hat))

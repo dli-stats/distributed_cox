@@ -161,7 +161,7 @@ def get_cov_fns(method: str,
                 distributed: Optional[Mapping[str, Any]] = None,
                 meta_analysis: Optional[Mapping[str, Any]] = None
                ) -> Dict[str, Callable]:
-  """Constructs function to compute all settings of covariances for `eq`."""
+  """Constructs function to compute all covariances for an analysis."""
   distributed = distributed or {}
   meta_analysis = meta_analysis or {}
 
