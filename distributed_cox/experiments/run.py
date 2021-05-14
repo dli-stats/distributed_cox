@@ -269,7 +269,7 @@ def config():
   experiment_rand_key, data_generation_key = jrandom.split(key, 2)
   del key
 
-  eq = "eq1"
+  eq = "unstratified_pooled"
 
   # groupped_configs
   distributed = dict(

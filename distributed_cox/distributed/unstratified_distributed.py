@@ -11,19 +11,21 @@ import jax.lax as lax
 
 import distributed_cox.generic.modeling as modeling
 
-from distributed_cox.cox import eq1_loglik, eq1_batch_score
+from distributed_cox.cox import (unstratified_pooled_loglik,
+                                 unstratified_pooled_batch_score)
 
 from distributed_cox.distributed.common import (VarianceSetting, ClientState,
                                                 Message)
 
 
-def eq2_local_send_T(local_state: ClientState) -> Message:
+def unstratified_distributed_local_send_T(local_state: ClientState) -> Message:
   T_group = local_state["T_group"]
   delta_group = local_state["delta_group"]
   return {"T_delta_per_group": T_group[delta_group]}
 
 
-def eq2_master_send_T(master_state: ClientState) -> Message:
+def unstratified_distributed_master_send_T(master_state: ClientState
+                                          ) -> Message:
   # Pop T_delta_oper_group since it will not be numpy serializable
   T_deltas = list(master_state.pop("T_delta_per_group"))
   num_groups = len(T_deltas)
@@ -53,7 +55,7 @@ def solve_distributed_pt1(local_state: ClientState,
                           initial_guess: Optional[List[float]] = None,
                           loglik_eps: float = 1e-6,
                           max_num_steps: int = 10):
-  """Solves eq1 for a single group."""
+  """Solves unstratified_pooled for a single group."""
 
   X_group, delta_group = local_state.get_vars(
       "X_group",
@@ -62,11 +64,12 @@ def solve_distributed_pt1(local_state: ClientState,
   if initial_guess is None:
     initial_guess = jnp.zeros((X_group.shape[1],))
 
-  solve_eq1_fn = modeling.solve_single(eq1_loglik,
-                                       use_likelihood=True,
-                                       loglik_eps=loglik_eps,
-                                       max_num_steps=max_num_steps)
-  return solve_eq1_fn(X_group, delta_group, initial_guess)
+  solve_unstratified_pooled_fn = modeling.solve_single(
+      unstratified_pooled_loglik,
+      use_likelihood=True,
+      loglik_eps=loglik_eps,
+      max_num_steps=max_num_steps)
+  return solve_unstratified_pooled_fn(X_group, delta_group, initial_guess)
 
 
 def compute_nxebkxs(X_group, beta_k_hat, required_orders: int):
@@ -88,10 +91,10 @@ def compute_nxebkxs(X_group, beta_k_hat, required_orders: int):
   return nxebkxs
 
 
-def eq2_local(local_state: ClientState,
-              initial_guess: Optional[List[float]] = None,
-              loglik_eps: float = 1e-6,
-              max_num_steps: int = 30) -> Message:
+def unstratified_distributed_local(local_state: ClientState,
+                                   initial_guess: Optional[List[float]] = None,
+                                   loglik_eps: float = 1e-6,
+                                   max_num_steps: int = 30) -> Message:
   """Compute local values."""
 
   T_group, X_group, delta_group, T_delta = local_state.get_vars(
@@ -104,13 +107,13 @@ def eq2_local(local_state: ClientState,
   assert T_group.shape[0] == X_group.shape[0] == delta_group.shape[0]
   assert local_state.config.taylor_order >= 1
 
-  eq1_sol = solve_distributed_pt1(local_state, initial_guess, loglik_eps,
-                                  max_num_steps)
-  if not eq1_sol.converged:
+  unstratified_pooled_sol = solve_distributed_pt1(local_state, initial_guess,
+                                                  loglik_eps, max_num_steps)
+  if not unstratified_pooled_sol.converged:
     print(f"Did not converge in {max_num_steps}!")
 
-  beta_k_hat = eq1_sol.guess
-  eq1_H = eq1_sol.hessian
+  beta_k_hat = unstratified_pooled_sol.guess
+  unstratified_pooled_H = unstratified_pooled_sol.hessian
 
   # e.g. order=1 ==> need X * X * exp(beta * X)
   required_orders = local_state.config.taylor_order + 1
@@ -134,16 +137,21 @@ def eq2_local(local_state: ClientState,
 
   local_state["beta_k_hat"] = beta_k_hat
 
-  return dict(eq1_H=eq1_H,
+  return dict(unstratified_pooled_H=unstratified_pooled_H,
               X_delta_sum=X_delta_sum,
               beta_k_hat=beta_k_hat,
               **nxebkx_cs_ds)
 
 
-mark, collect = modeling.model_temporaries("distributed_eq2")
+mark, collect = modeling.model_temporaries(
+    "distributed_unstratified_distributed")
 
 
-def _eq2_model(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta, taylor_order=1):
+def _unstratified_distributed_model(X_delta_sum,
+                                    nxebkx_cs_ds,
+                                    beta_k_hat,
+                                    beta,
+                                    taylor_order=1):
   K, D, X_dim = nxebkx_cs_ds[1].shape
 
   bmb = beta - beta_k_hat
@@ -168,14 +176,15 @@ def _eq2_model(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta, taylor_order=1):
                                                 axis=0)
 
 
-def _eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta,
-                            taylor_order):
+def _unstratified_distributed_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds,
+                                                 beta_k_hat, beta,
+                                                 taylor_order):
   K, D, X_dim = nxebkx_cs_ds[1].shape
 
   t1xebkx_cs_ds = nxebkx_cs_ds[taylor_order + 1]  # order + 1 Xs times ebx
   t2xebkx_cs_ds = nxebkx_cs_ds[taylor_order + 2]  # order + 2 Xs times ebx
 
-  numer, denom, dbeta_pow_t = collect(_eq2_model,
+  numer, denom, dbeta_pow_t = collect(_unstratified_distributed_model,
                                       ["numer", "denom", "dbeta_pow_order"])(
                                           X_delta_sum,
                                           nxebkx_cs_ds,
@@ -195,10 +204,10 @@ def _eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta,
                  axis=1)
 
 
-def solve_eq2_model(master_state: ClientState,
-                    score_norm_eps: float = 1e-3,
-                    max_num_steps: int = 30):
-  """Solves eq2_model."""
+def solve_unstratified_distributed_model(master_state: ClientState,
+                                         score_norm_eps: float = 1e-3,
+                                         max_num_steps: int = 30):
+  """Solves unstratified_distributed_model."""
   X_delta_sum, nxebkx_cs_ds, beta_k_hat = master_state.get_vars(
       "X_delta_sum",
       "nxebkx_cs_ds*",
@@ -206,7 +215,7 @@ def solve_eq2_model(master_state: ClientState,
   )
   beta_guess = jnp.mean(beta_k_hat, axis=0)
 
-  fn_to_solve = functools.partial(_eq2_model,
+  fn_to_solve = functools.partial(_unstratified_distributed_model,
                                   X_delta_sum,
                                   nxebkx_cs_ds,
                                   beta_k_hat,
@@ -217,9 +226,9 @@ def solve_eq2_model(master_state: ClientState,
                                max_num_steps=max_num_steps)(beta_guess)
 
 
-def eq2_master(master_state: ClientState,
-               score_norm_eps: float = 1e-3,
-               max_num_steps: int = 30) -> Message:
+def unstratified_distributed_master(master_state: ClientState,
+                                    score_norm_eps: float = 1e-3,
+                                    max_num_steps: int = 30) -> Message:
   """Compute master values from local results."""
 
   X_delta_sum, nxebkx_cs_ds, beta_k_hat = master_state.get_vars(
@@ -228,9 +237,9 @@ def eq2_master(master_state: ClientState,
       "beta_k_hat",
   )
 
-  sol = solve_eq2_model(master_state,
-                        score_norm_eps=score_norm_eps,
-                        max_num_steps=max_num_steps)
+  sol = solve_unstratified_distributed_model(master_state,
+                                             score_norm_eps=score_norm_eps,
+                                             max_num_steps=max_num_steps)
   beta_hat = sol.guess
 
   cov_H = modeling.cov_H()(sol)
@@ -240,11 +249,11 @@ def eq2_master(master_state: ClientState,
   msg = {}
 
   if not master_state.config.require_robust:
-    eq2_master_all_variances(master_state)
+    unstratified_distributed_master_all_variances(master_state)
     return msg
 
   if master_state.config.require_robust:
-    numer, denom = collect(_eq2_model, ["numer", "denom"])(
+    numer, denom = collect(_unstratified_distributed_model, ["numer", "denom"])(
         X_delta_sum,
         nxebkx_cs_ds,
         beta_k_hat,
@@ -278,13 +287,14 @@ def batch_score_cox_correction(local_state: ClientState, batch_score,
   nxebkxs = compute_nxebkxs(X_group,
                             beta_k_hat,
                             required_orders=local_state.config.taylor_order + 1)
-  denom_all_group, numer_all_group = collect(_eq2_model, ["denom", "numer"])(
-      jnp.zeros_like(beta_k_hat).reshape((1, -1)),  # argument not used
-      [x.reshape((1,) + x.shape) for x in nxebkxs],
-      beta_k_hat.reshape((1, -1)),
-      beta_hat.reshape((1, -1)),
-      taylor_order=local_state.config.taylor_order,
-  )
+  denom_all_group, numer_all_group = collect(
+      _unstratified_distributed_model, ["denom", "numer"])(
+          jnp.zeros_like(beta_k_hat).reshape((1, -1)),  # argument not used
+          [x.reshape((1,) + x.shape) for x in nxebkxs],
+          beta_k_hat.reshape((1, -1)),
+          beta_hat.reshape((1, -1)),
+          taylor_order=local_state.config.taylor_order,
+      )
   denom_all_group = denom_all_group.reshape((-1, 1))
   idxs = jnp.searchsorted(-T_delta, -T_group, side='right')
   denom_all_delta_1 = 1. / denom_all_delta
@@ -315,7 +325,8 @@ def compute_B(local_state,
   if group_correction and robust:
     X_group, delta_group, beta_k_hat = local_state.get_vars(
         "X_group", "delta_group", "beta_k_hat")
-    pt1_batch_score = eq1_batch_score(X_group, delta_group, beta_k_hat)
+    pt1_batch_score = unstratified_pooled_batch_score(X_group, delta_group,
+                                                      beta_k_hat)
     ret['B_diag_wo_last'] = jnp.einsum("ni,nj->ij", pt1_batch_score,
                                        pt1_batch_score)
     if not cox_correction:
@@ -329,7 +340,8 @@ def compute_B(local_state,
   return ret
 
 
-def eq2_local_variance(local_state: ClientState) -> Message:
+def unstratified_distributed_local_variance(local_state: ClientState
+                                           ) -> Message:
 
   msg = {}
 
@@ -372,12 +384,13 @@ def _get_B(state, *B_names, cox_correction=False):
       n + "_cox_correction") for n in B_names]))
 
 
-def _eq2_master_variance(master_state: ClientState,
-                         variance_setting: VarianceSetting) -> Message:
+def _unstratified_distributed_master_variance(master_state: ClientState,
+                                              variance_setting: VarianceSetting
+                                             ) -> Message:
 
-  (eq1_H, X_delta_sum, nxebkx_cs_ds, beta_k_hat,
+  (unstratified_pooled_H, X_delta_sum, nxebkx_cs_ds, beta_k_hat,
    beta_hat) = master_state.get_vars(
-       "eq1_H",
+       "unstratified_pooled_H",
        "X_delta_sum",
        "nxebkx_cs_ds*",
        "beta_k_hat",
@@ -387,10 +400,10 @@ def _eq2_master_variance(master_state: ClientState,
   I_diag_inv_last = master_state[str(VarianceSetting(False, False, False))]
 
   if variance_setting.group_correction:
-    I_diag_wo_last = -eq1_H
-    I_row_wo_last = -_eq2_grad_beta_k_master(X_delta_sum, nxebkx_cs_ds,
-                                             beta_k_hat, beta_hat,
-                                             master_state.config.taylor_order)
+    I_diag_wo_last = -unstratified_pooled_H
+    I_row_wo_last = -_unstratified_distributed_grad_beta_k_master(
+        X_delta_sum, nxebkx_cs_ds, beta_k_hat, beta_hat,
+        master_state.config.taylor_order)
     I_diag_inv_wo_last = jnp.linalg.inv(I_diag_wo_last)
     if variance_setting.robust:
       B_diag_wo_last, B_diag_last, B_row_wo_last = _get_B(
@@ -427,6 +440,6 @@ def _eq2_master_variance(master_state: ClientState,
   master_state[str(variance_setting)] = cov
 
 
-def eq2_master_all_variances(master_state: ClientState):
+def unstratified_distributed_master_all_variances(master_state: ClientState):
   for setting in master_state.config.variance_settings:
-    _eq2_master_variance(master_state, setting)
+    _unstratified_distributed_master_variance(master_state, setting)

@@ -44,7 +44,7 @@ def _group_by(fun):
 mark, collect = modeling.model_temporaries("cox")
 
 
-def eq1_loglik(X, delta, beta):
+def unstratified_pooled_loglik(X, delta, beta):
   bx = jnp.dot(X, beta)
   ebx_cs = jnp.cumsum(jnp.exp(bx), 0)
   log_term = jnp.log(ebx_cs)
@@ -52,7 +52,7 @@ def eq1_loglik(X, delta, beta):
   return jnp.sum(batch_loglik, axis=0)
 
 
-def eq1_score(X, delta, beta):
+def unstratified_pooled_score(X, delta, beta):
   bx = jnp.dot(X, beta)
   ebx = mark(jnp.exp(bx).reshape((-1, 1)), "ebx")
   ebx = taylor_approx(ebx, name="ebx")
@@ -64,9 +64,10 @@ def eq1_score(X, delta, beta):
   return sum(batch_score, name="sum_score")
 
 
-def eq1_hessian(X, delta, beta):
-  """Eq1's hessian."""
-  score_numer, score_denom = collect(eq1_score, ["xebx", "ebx"])(X, delta, beta)
+def unstratified_pooled_hessian(X, delta, beta):
+  """unstratified_pooled's hessian."""
+  score_numer, score_denom = collect(unstratified_pooled_score,
+                                     ["xebx", "ebx"])(X, delta, beta)
 
   score_numer_cs = cumsum(score_numer, name="xebx_cs")
   score_denom_cs = cumsum(score_denom, name="ebx_cs").reshape((-1, 1, 1))
@@ -83,10 +84,10 @@ def eq1_hessian(X, delta, beta):
   return sum(batch_hessian, name="sum_hessian")
 
 
-def eq1_batch_robust_cox_correction_score(X, delta, beta):
+def unstratified_pooled_batch_robust_cox_correction_score(X, delta, beta):
   ebx, xebx, ebx_cs, xebx_cs, batch_score = collect(
-      eq1_score, ["ebx", "xebx", "ebx_cs", "xebx_cs", "batch_score"])(X, delta,
-                                                                      beta)
+      unstratified_pooled_score,
+      ["ebx", "xebx", "ebx_cs", "xebx_cs", "batch_score"])(X, delta, beta)
 
   ebx_cs_1 = (1. / ebx_cs) * delta.reshape((-1, 1))
   term_1 = xebx * _right_cumsum(ebx_cs_1, axis=0)
@@ -99,7 +100,7 @@ def eq1_batch_robust_cox_correction_score(X, delta, beta):
 # END
 ####################
 
-# convenience used by eq2 and eq4
+# convenience used by unstratified_distributed and stratified_distributed
 _distribute = functools.partial(taylor_distribute, argnums=2)
 
 
@@ -107,37 +108,40 @@ _distribute = functools.partial(taylor_distribute, argnums=2)
 def get_cox_fun(eq: str, kind: str, batch: bool = False, order: int = 1):
   """Convenience routine to get a desired cox model equation."""
   # pylint: disable=too-many-branches
-  if eq in ('eq1', 'eq3'):
+  if eq in ('unstratified_pooled', 'stratified_pooled'):
     order = -1
-  if eq in ('eq2', 'eq4') and kind == "loglik":
+  if eq in ('unstratified_distributed',
+            'stratified_distributed') and kind == "loglik":
     raise TypeError("Does not have loglik option")
   if kind == "robust_cox_correction_score" and not batch:
     raise TypeError("robust_cox_correction_score"
                     " does not have un-batched option")
 
   is_robust = kind == "robust_cox_correction_score"
-  eq1_fn = globals()["eq1_{}".format(
+  unstratified_pooled_fn = globals()["unstratified_pooled_{}".format(
       "batch_robust_cox_correction_score" if is_robust else kind)]
 
-  if eq == "eq1":
-    fn = eq1_fn
+  if eq == "unstratified_pooled":
+    fn = unstratified_pooled_fn
     if batch and not is_robust:
       fn = collect(fn, "batch_{}".format(kind))
-  elif eq == "eq2":
-    fn = _distribute(eq1_fn, reduction_kind="cumsum", orders={'ebx': order})
+  elif eq == "unstratified_distributed":
+    fn = _distribute(unstratified_pooled_fn,
+                     reduction_kind="cumsum",
+                     orders={'ebx': order})
     if is_robust:
       fn = _group_by(fn)
     elif batch:
       fn = _group_by(collect(fn, "batch_{}".format(kind)))
-  elif eq == "eq3":
-    fn = vmap(eq1_fn, in_axes=(0, 0, None))
+  elif eq == "stratified_pooled":
+    fn = vmap(unstratified_pooled_fn, in_axes=(0, 0, None))
     if not batch:
       fn = getattr(modeling, "sum_{}".format(kind))(fn)
-  elif eq == "eq4":
+  elif eq == "stratified_distributed":
     if batch and not is_robust:
-      fn = collect(eq1_fn, "batch_{}".format(kind))
+      fn = collect(unstratified_pooled_fn, "batch_{}".format(kind))
     else:
-      fn = eq1_fn
+      fn = unstratified_pooled_fn
     fn = _distribute(fn,
                      reduction_kind=None if batch else "sum",
                      orders={'ebx': order})
@@ -149,33 +153,42 @@ def get_cox_fun(eq: str, kind: str, batch: bool = False, order: int = 1):
 
 ## Some pre-built cox functions
 
-# Eq1 (together with root modeling)
-eq1_batch_loglik = collect(eq1_loglik, "batch_loglik")
-eq1_batch_score = collect(eq1_score, "batch_score")
+# Unstratified Pooled (together with root modeling)
+unstratified_pooled_batch_loglik = collect(unstratified_pooled_loglik,
+                                           "batch_loglik")
+unstratified_pooled_batch_score = collect(unstratified_pooled_score,
+                                          "batch_score")
 
-# Eq 2
-eq2_score = get_cox_fun("eq2", "score", False, 1)
-eq2_batch_score = get_cox_fun("eq2", "score", True, 1)
-eq2_batch_robust_cox_correction_score = get_cox_fun(
-    "eq2", "robust_cox_correction_score", True, 1)
-eq2_hessian_taylor = get_cox_fun("eq2", "hessian", False, 1)
+# Unstratified Distributed
+unstratified_distributed_score = get_cox_fun("unstratified_distributed",
+                                             "score", False, 1)
+unstratified_distributed_batch_score = get_cox_fun("unstratified_distributed",
+                                                   "score", True, 1)
+unstratified_distributed_batch_robust_cox_correction_score = get_cox_fun(
+    "unstratified_distributed", "robust_cox_correction_score", True, 1)
+unstratified_distributed_hessian_taylor = get_cox_fun(
+    "unstratified_distributed", "hessian", False, 1)
 
-# Eq 3
-eq3_batch_loglik = get_cox_fun("eq3", "loglik", True)
-eq3_loglik = get_cox_fun("eq3", "loglik", False)
-eq3_batch_robust_cox_correction_score = get_cox_fun(
-    "eq3", "robust_cox_correction_score", True)
+# Stratified Pooled
+stratified_pooled_batch_loglik = get_cox_fun("stratified_pooled", "loglik",
+                                             True)
+stratified_pooled_loglik = get_cox_fun("stratified_pooled", "loglik", False)
+stratified_pooled_batch_robust_cox_correction_score = get_cox_fun(
+    "stratified_pooled", "robust_cox_correction_score", True)
 
-# Eq 4
-eq4_score = get_cox_fun("eq4", "score", False, 1)
-eq4_batch_score = get_cox_fun("eq4", "score", True, 1)
-eq4_batch_robust_cox_correction_score = get_cox_fun(
-    "eq4", "robust_cox_correction_score", True, 1)
-eq4_hessian_taylor = get_cox_fun("eq4", "hessian", False, 1)
+# Stratified Distributed
+stratified_distributed_score = get_cox_fun("stratified_distributed", "score",
+                                           False, 1)
+stratified_distributed_batch_score = get_cox_fun("stratified_distributed",
+                                                 "score", True, 1)
+stratified_distributed_batch_robust_cox_correction_score = get_cox_fun(
+    "stratified_distributed", "robust_cox_correction_score", True, 1)
+stratified_distributed_hessian_taylor = get_cox_fun("stratified_distributed",
+                                                    "hessian", False, 1)
 
 # if __name__ == "__main__":
 #   import distributed_cox.data as vdata
-#   import distributed_cox.equations.eq2 as eq4
+#   import distributed_cox.equations.unstratified_distributed as stratified_distributed
 #   gen = vdata.data_generator(500, 3, (166, 167, 167))
 #   X, delta, beta, group_labels = gen(vdata.data_generation_key)
 #   X_groups, delta_groups = vdata.group_data_by_labels(group_labels,
@@ -184,10 +197,10 @@ eq4_hessian_taylor = get_cox_fun("eq4", "hessian", False, 1)
 #                                                       K=3,
 #                                                       group_size=167)
 #   beta_k_hat = np.array([beta] * 3)
-#   h = eq2_hessian_taylor(X, delta, beta, group_labels, X_groups, delta_groups,
+#   h = unstratified_distributed_hessian_taylor(X, delta, beta, group_labels, X_groups, delta_groups,
 #                          beta_k_hat)
 #   print(h)
 #   print(
-#       eq4.hessian_taylor2(X, delta, beta, group_labels, X_groups,
+#       stratified_distributed.hessian_taylor2(X, delta, beta, group_labels, X_groups,
 #        delta_groups,
 #                           beta_k_hat))

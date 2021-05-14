@@ -67,7 +67,10 @@ _settings = plan1_settings + plan2_settings + plan3_settings
 settings = []
 batch_size = 32
 T_star_factorss = ["None"]
-eqs = ["eq1", "eq2", "eq3", "eq4", "meta_analysis", "meta_analysis_univariate"]
+eqs = [
+    "unstratified_pooled", "unstratified_distributed", "stratified_pooled",
+    "stratified_distributed", "meta_analysis", "meta_analysis_univariate"
+]
 for (eq, (N, K, nk, p),
      T_star_factors) in itertools.product(eqs, _settings, T_star_factorss):
   if eq == "meta_analysis_univariate":

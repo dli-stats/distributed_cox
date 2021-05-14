@@ -128,40 +128,40 @@ def _get_true_model_in_group(group):
   _, config_json, _ = group[0]
   assert config_json["data"]["T_star_factors"] is not None
   if config_json["data"]["T_star_factors"] == "None":
-    eq_true = "eq1"
+    eq_true = "unstratified_pooled"
   else:
-    eq_true = "eq3"
+    eq_true = "stratified_pooled"
   return next(setting for setting in group if setting[1]["eq"] == eq_true)
 
 
 def _eq_get_var(config_json, result):
   eq = config_json["eq"]
-  if eq == "eq1":
+  if eq == "unstratified_pooled":
     if config_json["data"]["T_star_factors"] == "None":
       kind = "ese"
     else:
       kind = "rse"
-  elif eq == "eq2":
+  elif eq == "unstratified_distributed":
     kind = "rse"
   else:
     kind = "ese"
 
   mapping = {
-      ("eq1", "ese"):
+      ("unstratified_pooled", "ese"):
           "cov:no_group_correction|no_sandwich|no_cox_correction|no_sum_first",
-      ("eq1", "rse"):
+      ("unstratified_pooled", "rse"):
           "cov:no_group_correction|sandwich|cox_correction|no_sum_first",
-      ("eq2", "ese"):
+      ("unstratified_distributed", "ese"):
           "cov:group_correction|no_sandwich|no_cox_correction|no_sum_first",
-      ("eq2", "rse"):
+      ("unstratified_distributed", "rse"):
           "cov:group_correction|sandwich|cox_correction|no_sum_first",
-      ("eq3", "ese"):
+      ("stratified_pooled", "ese"):
           "cov:no_group_correction|no_sandwich|no_cox_correction|no_sum_first",
-      ("eq3", "rse"):
+      ("stratified_pooled", "rse"):
           None,
-      ("eq4", "ese"):
+      ("stratified_distributed", "ese"):
           "cov:group_correction|no_sandwich|no_cox_correction|no_sum_first",
-      ("eq4", "rse"):
+      ("stratified_distributed", "rse"):
           None,
       ("meta_analysis", "ese"):
           "cov:meta_analysis",

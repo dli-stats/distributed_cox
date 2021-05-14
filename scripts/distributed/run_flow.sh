@@ -10,7 +10,7 @@ local_send_T() {
         local_data="${analysis_dir}/${local_data}"
         python -m $CMD local-send-T $local_data \
             --save-dir=$analysis_dir;
-    done    
+    done
 }
 
 master_send_T() {
@@ -22,7 +22,7 @@ master_send_T() {
 local_send_vals() {
     echo "Local send vals..."
     local T_delta
-    if [ $eq == "eq2" ]; then
+    if [ $eq == "unstratified_distributed" ]; then
         T_delta="${analysis_dir}/T_delta.npz"
     else
         T_delta=""
@@ -32,17 +32,17 @@ local_send_vals() {
         python -m $CMD local-send-vals $T_delta $local_data \
            --save-dir=$analysis_dir \
            --solver-thres=1e-3 --solver-max-steps=300;
-    done  
+    done
 }
 
 master_analytics() {
     echo "Master analytics..."
     local analytics_arg
-    case $eq in 
-        eq1|eq3)
+    case $eq in
+        unstratified_pooled|stratified_pooled)
             analytics_arg="$analysis_dir/all.npz"
             ;;
-        eq2|eq4)
+        unstratified_distributed|stratified_distributed)
             analytics_arg=$analysis_dir
             ;;
     esac
@@ -52,20 +52,20 @@ master_analytics() {
 }
 
 run_flow() {
-    case $eq in 
-        eq1)
+    case $eq in
+        unstratified_pooled)
             master_analytics
             ;;
-        eq2)
+        unstratified_distributed)
             local_send_T
             master_send_T
             local_send_vals
             master_analytics
             ;;
-        eq3)
+        stratified_pooled)
             master_analytics
             ;;
-        eq4)
+        stratified_distributed)
             local_send_vals
             master_analytics
             ;;

@@ -71,9 +71,23 @@ def make_X_generator(N,
                      correlated_weights: Optional[Sequence[float]] = None):
   """Helper utility that lifts a generator that produces Xi.
 
+  We generage each X according to:
+    ```
+      for group_label in range(K):
+        for i in range(X_DIM):
+          g_dist = g_dists[group_label % len(g_dists)]
+          X[group_label, i] ~ g_dist[i % len(g_dist)]
+
+      for group_label in range(K):
+        correlated_from, correlated_to = correlated_dims[
+                                          group_label % len(correlated_dims)]
+        correlated_weight = correlated_weights[
+                                          group_label % len(correlated_weights)]
+        X[group_label, correlated_to] += X[group_label, correlated_from]
+    ```
   Args:
     N, X_dim, key, group_label: data parameters
-    g_dists: a nested list of distributions
+    g_dists: a nested list of distributions.
     correlated_dims: sequence of tuple of pairs of correlated indices
     correlated_weights: weights for the correlations.
   """

@@ -15,13 +15,13 @@ run() {
 
 EQ=$1
 
-if [ "$EQ" == "eq2" ] || [ "$EQ" == "eq4" ] ; then
+if [ "$EQ" == "unstratified_distributed" ] || [ "$EQ" == "stratified_distributed" ] ; then
   BATCH_ARG="base.batch_size=32"
 else
   BATCH_ARG="base.batch_size=128"
 fi
 
-if [ "$EQ" == "eq1" ]; then
+if [ "$EQ" == "unstratified_pooled" ]; then
   run $EQ
 else
   for K in 3 4 5; do

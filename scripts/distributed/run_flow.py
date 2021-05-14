@@ -102,18 +102,22 @@ def _run_flow(fill_data_fn: Callable,
     if not end:
       copy_msgs(client)
 
-  if eq == "eq2":
-    call_cmd_and_send("local", "eq2_local_send_T")
-    call_cmd_and_send("master", "eq2_master_send_T")
-    call_cmd_and_send("local", "eq2_local")
-    call_cmd_and_send("master", "eq2_master")
-    call_cmd_and_send("local", "eq2_local_variance")
-    call_cmd_and_send("master", "eq2_master_all_variances", end=True)
-  if eq == "eq4":
-    call_cmd_and_send("local", "eq4_local")
-    call_cmd_and_send("master", "eq4_master")
-    call_cmd_and_send("local", "eq4_local_variance")
-    call_cmd_and_send("master", "eq4_master_all_variances", end=True)
+  if eq == "unstratified_distributed":
+    call_cmd_and_send("local", "unstratified_distributed_local_send_T")
+    call_cmd_and_send("master", "unstratified_distributed_master_send_T")
+    call_cmd_and_send("local", "unstratified_distributed_local")
+    call_cmd_and_send("master", "unstratified_distributed_master")
+    call_cmd_and_send("local", "unstratified_distributed_local_variance")
+    call_cmd_and_send("master",
+                      "unstratified_distributed_master_all_variances",
+                      end=True)
+  if eq == "stratified_distributed":
+    call_cmd_and_send("local", "stratified_distributed_local")
+    call_cmd_and_send("master", "stratified_distributed_master")
+    call_cmd_and_send("local", "stratified_distributed_local_variance")
+    call_cmd_and_send("master",
+                      "stratified_distributed_master_all_variances",
+                      end=True)
 
   if check_result:
     client = onp.load(work_dir.joinpath("master", "client_state.npz"))  # pylint: disable=unused-variable
