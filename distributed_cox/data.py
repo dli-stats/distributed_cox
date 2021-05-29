@@ -69,27 +69,32 @@ def make_X_generator(N,
                      g_dists=None,
                      correlated_dims: Optional[Sequence[Tuple]] = None,
                      correlated_weights: Optional[Sequence[float]] = None):
-  """Helper utility that lifts a generator that produces Xi.
+  """Helper utility to generatoe each group.
 
-  We generage each X according to:
-    ```
-      for group_label in range(K):
-        for i in range(X_DIM):
-          g_dist = g_dists[group_label % len(g_dists)]
-          X[group_label, i] ~ g_dist[i % len(g_dist)]
+  We generage each ``X[group_label]`` according to::
 
-      for group_label in range(K):
-        correlated_from, correlated_to = correlated_dims[
-                                          group_label % len(correlated_dims)]
-        correlated_weight = correlated_weights[
-                                          group_label % len(correlated_weights)]
-        X[group_label, correlated_to] += X[group_label, correlated_from]
-    ```
+    for i in range(X_DIM):
+      g_dist = g_dists[group_label % len(g_dists)]
+      X[group_label, i] ~ g_dist[i % len(g_dist)]
+
+    correlated_from, correlated_to = correlated_dims[
+                                      group_label % len(correlated_dims)]
+    correlated_weight = correlated_weights[
+                                      group_label % len(correlated_weights)]
+    X[group_label, correlated_to] += X[group_label, correlated_from]
+
   Args:
-    N, X_dim, key, group_label: data parameters
+    N: size of the group. Note that in a multi-group setting, this should
+      usually be the max size of all groups.
+    X_dim: number of covariate dimensions of ``X``.
+    key: use-once random key.
+    group_label: the group label for generating this group.
     g_dists: a nested list of distributions.
     correlated_dims: sequence of tuple of pairs of correlated indices
     correlated_weights: weights for the correlations.
+
+  Returns:
+    array of shape ``(N, X_dim)``.
   """
   gen_X_fn = functools.partial(grouping_Xi_generator_any_K,
                                N,
@@ -140,6 +145,13 @@ correlated_X_generator = functools.partial(
 
 
 def T_star_factors_gamma_gen(shape, scale):
+  """Generates T_start_factors according the inverse of a gamma distribution.
+
+  #TODO: this function needs some refactoring.
+
+  Args:
+    shape, scale: the parameters of the gamma distribution.
+  """
 
   def wrapped(key, K):
     return 1. / (jrandom.gamma(key, a=shape, shape=(K,)) * scale)
@@ -156,9 +168,24 @@ def data_generator(N,
                    exp_scale=3.5,
                    return_T=False,
                    return_T_star=False):
-  """HOF for data generation.
+  """Higher order function for data generation.
 
-  The function is cached so that we avoid potential repeating jits'.
+  Args:
+    N: total data points.
+    X_dim: number of covariate dimensions of ``X``.
+    group_sizes: the group sizes for each group. Must be ordered (lower first).
+    T_star_factors: a multiplicative factor that is applied to each item.
+      Defaults to 1 for all items (no scaling).
+    X_generator: a callable that generates each group of ``X``. See
+      :py:func:`make_X_generator` for more details.
+    exp_scale: the exponential scale.
+    return_T: whether to return `T`.
+    return_T: whether to return `T_star`.
+
+  Returns:
+    a function that takes in a random key, and returns the generated data using
+    that key. The generated data is a tuple
+    ``(X, delta, beta, group_labels, [T, [T_star]])``.
   """
   assert (sorted(group_sizes) == list(group_sizes)
          ), "Group sizes must be increasing"
@@ -317,9 +344,10 @@ def full_data_generator(N: int,
                         exp_scale: float = 3.5):
   """Capable Cox data generation with string arguments.
 
-  This function combines group_sizes_generator and data_generator.
-  It also accepts T_star_factors etc. as strings, and performs required parsing
-  with the simpleeval package.
+  This function combines :py:func:`group_sizes_generator` and
+  :py:func:`data_generator`.
+  It also accepts ``T_star_factors`` etc. as strings, and performs necessary
+  parsing with the ``simpleeval`` package.
   This function is ideally used directly by a command line interface.
   """
 
@@ -389,11 +417,11 @@ def full_data_generator(N: int,
 
 
 def group_labels_to_indices(K, group_labels):
-  """Computes group indices from group_labels.
+  """Computes group indices from ``group_labels``.
 
   Note: this function is done on CPU since JAX's current support on indexing.
   Therefore this WILL incurr extra host-device transfer
-  if group_labels is on GPU.
+  if ``group_labels`` is on GPU.
   """
   group_labels = onp.array(group_labels)
   batch_mode = True
@@ -425,18 +453,17 @@ def _pad_X_delta(X, delta, indices, padded_group_size):
 
 def group_data_by_labels(group_labels, *data, K=1, group_size=-1):
   """Given data group indices, compute groupped data by padding.
-  #TODO update docs
+
   Args:
-    - batch_size: length of a batch of X
-    - K: number of groups
-    - X: array of shape (batch_size, N, P).
-    - delta: array of shape (batch_size, N)
-    - group_labels: array of shape (batch_size, N)
+    group_labels: int array of shape ``(N,)``.
+    data: a sequence of arrays, with a common prefix `(N, ...)` to be groupped.
+    K: the number of groups.
+    group_size: the maximum ``group_size``. If negative, the function will
+      compute the quantity from ``group_labels``.
 
   Returns:
-    tuple of X_groups, delta_groups
-    - X_groups: array of shape (batch_size, K, group_size, P)
-    - delta_groups: array of shape (batch_size, K, group_size)
+    a sequence of arrays, with the same structure as ``data``, where each array
+    has a shape prefix of ``(K, group_size, ...)``.
   """
   if group_size < 0:
     group_size = jnp.max(jnp.vectorize(functools.partial(jnp.bincount,
@@ -455,6 +482,11 @@ key, data_generation_key = jrandom.split(key)
 
 @functools.partial(jnp.vectorize, signature="(N,p),(p)->(N,p),(p),(p)")
 def normalize(X, beta):
+  """Cox model normalize.
+
+  Normalizes ``X`` by subtracting mean; then scales ``X`` and ``beta``
+  simultaneously by ``X``'s 1-norm.
+  """
   X = X - jnp.mean(X, axis=0)
   scale = X.shape[0] / jnp.linalg.norm(X, ord=1, axis=0)
   X *= scale

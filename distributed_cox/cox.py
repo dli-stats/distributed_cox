@@ -1,4 +1,14 @@
-"""Cox model(s) with generic distributed modeling."""
+"""Cox models with generic distributed modeling.
+
+This package modeling functions (e.g. log likelhiood, score, and
+hessian functions) for solving the Cox model.
+It also provides these functions in different flavors: either stratiefied
+or not, or pooled or not.
+The package is based on :py:mod:`distributed_cox.generic`, so it's optimized for
+batch experimentation, but does not implement a distributed protocal.
+To use a version of distributed Cox model with a distributed protocal,
+please see :py:mod:`distributed_cox.distributed`.
+"""
 
 import functools
 
@@ -25,6 +35,7 @@ def _right_cumsum(X, axis=0):
 def _group_by(fun):
   """Simple wrapper for grouping."""
 
+  @functools.wraps(fun)
   def wrapped(X, delta, beta, group_labels, X_groups, delta_groups, beta_k_hat):
     K, group_size, _ = X_groups.shape
     batch_score = fun(X, delta, beta, group_labels, X_groups, delta_groups,
@@ -45,6 +56,7 @@ mark, collect = modeling.model_temporaries("cox")
 
 
 def unstratified_pooled_loglik(X, delta, beta):
+  """unstratified_pooled's log likelihood."""
   bx = jnp.dot(X, beta)
   ebx_cs = jnp.cumsum(jnp.exp(bx), 0)
   log_term = jnp.log(ebx_cs)
@@ -53,6 +65,7 @@ def unstratified_pooled_loglik(X, delta, beta):
 
 
 def unstratified_pooled_score(X, delta, beta):
+  """unstratified_pooled's score."""
   bx = jnp.dot(X, beta)
   ebx = mark(jnp.exp(bx).reshape((-1, 1)), "ebx")
   ebx = taylor_approx(ebx, name="ebx")
@@ -85,6 +98,10 @@ def unstratified_pooled_hessian(X, delta, beta):
 
 
 def unstratified_pooled_batch_robust_cox_correction_score(X, delta, beta):
+  """unstratified_pooled's batch robust cox correction score.
+
+  Calculates the batch robust score estimate. See [WLW. 1989].
+  """
   ebx, xebx, ebx_cs, xebx_cs, batch_score = collect(
       unstratified_pooled_score,
       ["ebx", "xebx", "ebx_cs", "xebx_cs", "batch_score"])(X, delta, beta)
@@ -109,25 +126,25 @@ def get_cox_fun(method: str, kind: str, batch: bool = False, order: int = 1):
   """Convenience routine to get a desired cox model analysis function.
 
   Args:
-    method: the analysis method.
-    kind: one of `{loglik|score|hessian|robust_cox_correction_score}`.
+    method: the analysis method, one of
+      ``{(un)?stratified_(pooled|distributed)}``
+    kind: one of ``{loglik|score|hessian|robust_cox_correction_score}``.
     batch: if batch is False, return the summed result. Otherwise, return
       the pre-summed statistics.
     order: the taylor expansion order if analysis method is distributed.
 
   Returns:
-    A callable of type signature -> result.
-
-    If unstratified_pooled, signature is fun(X, delta, beta)
-    If stratified_pooled, signature is fun(X_groups, delta_groups, beta_groups)
-    If distributed, signature is
-      fun(X, delta, beta, group_labels, X_groups, delta_groups, beta_groups)
-
-    `result` is an array of shape `kind_shape`, if batch is False; or
-      `(N, *kind_shape)` if batch is True.
-
-    `kind_shape` is `1` (scalar), `(X_DIM,)`, `(X_DIM, X_DIM)`, depending
-      on `kind`.
+    A callable of type ``signature -> result``.
+    ``signature`` depends on ``method``:
+    If ``unstratified_pooled``, ``signature`` is ``f(X, delta, beta)``.
+    If ``stratified_pooled``, ``signature`` is
+    ``f(X_groups, delta_groups, beta_groups)``.
+    If method is one of ``distributed``, ``signature`` is
+    ``f(X, delta, beta, group_labels, X_groups, delta_groups, beta_groups)``.
+    ``result`` is an array of shape ``kind_shape``, if ``batch`` is ``False``;
+    or ``(N, *kind_shape)`` if batch is ``True``.
+    ``kind_shape`` is 1 (scalar), ``(X_DIM,)``, ``(X_DIM, X_DIM)``, depending
+    on ``kind``.
   """
   # pylint: disable=too-many-branches
   if method in ('unstratified_pooled', 'stratified_pooled'):
@@ -174,37 +191,69 @@ def get_cox_fun(method: str, kind: str, batch: bool = False, order: int = 1):
   return fn
 
 
+#################################
 ## Some pre-built cox functions
+#################################
 
 # Unstratified Pooled (together with root modeling)
+#-------------------------------------------------------------------------------
+
+#: unstratified_pooled's batch log likelihood.
 unstratified_pooled_batch_loglik = collect(unstratified_pooled_loglik,
                                            "batch_loglik")
+
+#: unstratified_pooled's batch score.
 unstratified_pooled_batch_score = collect(unstratified_pooled_score,
                                           "batch_score")
 
 # Unstratified Distributed
+#-------------------------------------------------------------------------------
+
+#: unstratified_distributed's score.
 unstratified_distributed_score = get_cox_fun("unstratified_distributed",
                                              "score", False, 1)
+
+#: unstratified_distributed's batch score.
 unstratified_distributed_batch_score = get_cox_fun("unstratified_distributed",
                                                    "score", True, 1)
+
+#: unstratified_distributed's batch robust cox correction score.
 unstratified_distributed_batch_robust_cox_correction_score = get_cox_fun(
     "unstratified_distributed", "robust_cox_correction_score", True, 1)
+
+#: unstratified_distributed's hessian, with taylor expansion order of one.
 unstratified_distributed_hessian_taylor = get_cox_fun(
     "unstratified_distributed", "hessian", False, 1)
 
 # Stratified Pooled
+#-------------------------------------------------------------------------------
+
+#: stratiefied_pooled's batch log likelihood.
 stratified_pooled_batch_loglik = get_cox_fun("stratified_pooled", "loglik",
                                              True)
+
+#: stratiefied_pooled's log likelihood.
 stratified_pooled_loglik = get_cox_fun("stratified_pooled", "loglik", False)
+
+#: stratiefied_pooled's batch robust cox correction score.
 stratified_pooled_batch_robust_cox_correction_score = get_cox_fun(
     "stratified_pooled", "robust_cox_correction_score", True)
 
 # Stratified Distributed
+#-------------------------------------------------------------------------------
+
+#: stratified_distributed's score.
 stratified_distributed_score = get_cox_fun("stratified_distributed", "score",
                                            False, 1)
+
+#: stratified_distributed's batch score.
 stratified_distributed_batch_score = get_cox_fun("stratified_distributed",
                                                  "score", True, 1)
+
+#: stratified_distributed's batch robust cox correction score.
 stratified_distributed_batch_robust_cox_correction_score = get_cox_fun(
     "stratified_distributed", "robust_cox_correction_score", True, 1)
+
+#: stratified_distributed's hessian, with taylor expansion order of one.
 stratified_distributed_hessian_taylor = get_cox_fun("stratified_distributed",
                                                     "hessian", False, 1)

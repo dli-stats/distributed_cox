@@ -1,6 +1,8 @@
-{{ fullname | escape | underline}}
+{{ objname | escape | underline}}
 
 .. automodule:: {{ fullname }}
+
+   {% set attributes = remove_callables(fullname, attributes) %}
 
    {% block attributes %}
    {% if attributes %}
@@ -20,6 +22,7 @@
 
    .. autosummary::
       :toctree:
+      :template: custom-function-template.rst
       :nosignatures:
    {% for item in functions %}
       {{ item }}

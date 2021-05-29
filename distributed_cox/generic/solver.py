@@ -16,14 +16,14 @@ NewtonSolverResult = collections.namedtuple(
     "NewtonSolverResult", "guess loglik score hessian step converged")
 
 
-def do_halving(args):
+def _do_halving(args):
   state, _ = args
   halving_ = state.halving + 1
   new_guess_ = ((state.new_guess + halving_ * state.guess) / (halving_ + 1.0))
   return state._replace(new_guess=new_guess_, halving=halving_)
 
 
-def do_normal_update(use_likelihood, args):
+def _do_normal_update(use_likelihood, args):
   if use_likelihood:
     state, (new_loglik, new_score, _, cho_factor, _, _) = args
     state = state._replace(loglik=new_loglik)
@@ -35,7 +35,7 @@ def do_normal_update(use_likelihood, args):
   return state._replace(guess=state.new_guess, new_guess=new_guess_, halving=0)
 
 
-def do_converged(use_likelihood, args):
+def _do_converged(use_likelihood, args):
   if use_likelihood:
     state, (new_loglik, new_score, new_hessian, _, _, _) = args
     state = state._replace(loglik=new_loglik)
@@ -47,7 +47,8 @@ def do_converged(use_likelihood, args):
                         converged=True)
 
 
-def do_work(use_likelihood, args):
+def _do_work(use_likelihood, args):
+  """Perform an update step if necessary."""
   if use_likelihood:
     is_finite = args[1][-2]
     loglik_increased = args[1][-1]
@@ -56,8 +57,8 @@ def do_work(use_likelihood, args):
     is_finite = args[1][-1]
     should_do_normal_update = is_finite
   state = jax.lax.cond(should_do_normal_update,
-                       functools.partial(do_normal_update, use_likelihood),
-                       do_halving,
+                       functools.partial(_do_normal_update, use_likelihood),
+                       _do_halving,
                        operand=args)
   return state._replace(step=state.step + 1)
 
@@ -121,8 +122,8 @@ def solve_newton(likelihood_or_score_fn,
       args = (state, (new_score, new_hessian, cho_factor, is_finite))
 
     return jax.lax.cond(jnp.logical_and(converged, state.step > 0),
-                        functools.partial(do_converged, use_likelihood),
-                        functools.partial(do_work, use_likelihood),
+                        functools.partial(_do_converged, use_likelihood),
+                        functools.partial(_do_work, use_likelihood),
                         operand=args)
 
   def loop_cond(state):
@@ -146,9 +147,8 @@ def solve_newton(likelihood_or_score_fn,
     if use_likelihood:
       loglik, score, hessian = value_jac_and_hessian_fn(state.guess)
       return state._replace(loglik=loglik, score=score, hessian=hessian)
-    else:
-      score, hessian = jac_and_hessian_fn(state.guess)
-      return state._replace(score=score, hessian=hessian)
+    score, hessian = jac_and_hessian_fn(state.guess)
+    return state._replace(score=score, hessian=hessian)
 
   state = jax.lax.cond(state.converged,
                        lambda state: state,

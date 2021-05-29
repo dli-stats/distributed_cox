@@ -24,6 +24,7 @@ MetaAnalysisResult = collections.namedtuple("MetaAnalysisResult",
 def sum_fn(fun, ndims=0):
   """Helper for summing fun. """
 
+  @functools.wraps(fun)
   def wrapped(*args):
     batch_loglik = fun(*args)
     return jnp.sum(
@@ -50,9 +51,8 @@ def model_temporaries(tag):
     """Collect marked intermediates.
 
     Args:
-      - names: Either a sequence of or a single string name(s).
-      If a single name, return the function that returns the sole marked
-      intermediate.
+      names: Either a sequence of or a single string name(s). If a single name,
+      return the function that returns the sole marked intermediate.
       Otherwise, return all the intermediates (in the order of the names).
     """
     if isinstance(names, str):
@@ -61,6 +61,7 @@ def model_temporaries(tag):
     else:
       ret_single = False
 
+    @functools.wraps(fun)
     def wrapped(*args, **kwargs):
       temps = reap(fun, tag=tag, allowlist=names)(*args, **kwargs)
       if ret_single:

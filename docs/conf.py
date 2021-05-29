@@ -10,7 +10,9 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+from typing import List
 import os
+import importlib
 import sys
 sys.path.insert(0, os.path.abspath('.'))
 
@@ -27,11 +29,11 @@ author = 'dli-stats'
 # ones.
 sys.path.append(os.path.abspath('sphinxext'))
 extensions = [
+    'sphinx.ext.napoleon',
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
-    'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
     'matplotlib.sphinxext.plot_directive',
     'sphinx_autodoc_typehints',
@@ -39,6 +41,14 @@ extensions = [
 ]
 
 autosummary_generate = True
+
+
+def remove_callables(module_name: str, attributes: List[str]):
+  module = importlib.import_module(module_name)
+  return [a for a in attributes if not callable(getattr(module, a))]
+
+
+autosummary_context = {"remove_callables": remove_callables}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

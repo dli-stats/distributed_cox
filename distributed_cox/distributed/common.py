@@ -7,6 +7,7 @@ import pathlib
 import inspect
 import os
 import re
+import functools
 
 import numpy as np
 import jax.tree_util as tu
@@ -122,20 +123,23 @@ class ClientState:
 
 
 def raise_to_command(fun):
-  """Raise a `fun' to a command.
+  """Raise a ``fun`` to a command.
 
-  This is a higher order function that takes in a function:
-     `[ClientState, *args, **kwargs] -> Message`.
+  This is a higher order function that takes in a function
+  ``[ClientState, *args, **kwargs] -> Message``.
   Effectively, this does the heavy lifting of
+
     1. load the client state (either master or local)
     2. read any received messages and incorprate the messages into client state
     3. do the processing of `fun`
     4. clear the previous outbox and store the out message(s)
     5. store back the client state
-  If fun has more than the sole argument ClientState, the rest of the arguments
-  are propogated to the wrapped fun.
+
+  If ``fun`` has more than the sole argument ``ClientState``, the rest of the
+  arguments are propogated to the wrapped fun.
   """
 
+  @functools.wraps(fun)
   def wrapped(client_dir: pathlib.Path, *args, **kwargs):
     # Restore client state
     client_state_file = client_dir.joinpath("client_state.npz")

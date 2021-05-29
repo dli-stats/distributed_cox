@@ -112,6 +112,7 @@ def taylor_distribute(fun,
   if isinstance(argnums, int):
     argnums = (argnums,)
 
+  @functools.wraps(fun)
   def wrapped(*args, **kwargs):
     approx_fn = functools.partial(fun, **kwargs)
     for name, order in orders.items():

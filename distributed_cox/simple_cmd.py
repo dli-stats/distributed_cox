@@ -6,7 +6,7 @@ import inspect
 import argparse
 
 
-def default_handle(typ):
+def _default_handle(typ):
 
   def handle_type(_):
     return dict(type=typ)
@@ -14,7 +14,7 @@ def default_handle(typ):
   return typ, handle_type
 
 
-def handle_bool(param: inspect.Parameter):
+def _handle_bool(param: inspect.Parameter):
   if param.default != inspect.Parameter.empty:
     if param.default is True:
       action = "store_false"
@@ -30,9 +30,9 @@ class SimpleCMD:
   """Simple CommandLine Creation through type annotations."""
 
   DEFAULT_ARG_HANDLERS = [
-      default_handle(int),
-      default_handle(float),
-      default_handle(str), (bool, handle_bool),
+      _default_handle(int),
+      _default_handle(float),
+      _default_handle(str), (bool, _handle_bool),
       (lambda param: True, lambda param: dict(type=param.annotation))
   ]
 
@@ -90,6 +90,7 @@ class SimpleCMD:
     raise ValueError("No handler for {}".format(param))
 
   def run(self):
+    """Runs the command line application."""
     args = self.parser.parse_args()
     return args.func(args)
 

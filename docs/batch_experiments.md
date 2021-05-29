@@ -1,4 +1,4 @@
-## Batch Experiments
+# Batch Experiments
 
 We use [sacred](https://github.com/IDSIA/sacred) to track all the batch experiments.
 The batch experiment interface defines a set of available configurations.
