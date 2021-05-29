@@ -60,6 +60,8 @@ class Config:
 
 @dataclasses.dataclass
 class ClientState:
+  """The state of a client."""
+
   config: Config
   state: Dict[str, np.ndarray] = dataclasses.field(default=lambda: {'covs': {}})
 

@@ -42,6 +42,7 @@ class SimpleCMD:
     self._arg_handlers = list(self.DEFAULT_ARG_HANDLERS)
 
   def arg_handler(self, matcher):
+    """Defines an argument handler as a decorator."""
 
     def wrapped(fun):
       self._arg_handlers.append((matcher, fun))

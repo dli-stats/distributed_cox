@@ -1,4 +1,5 @@
 """Taylor Approximation through JAX's transformations."""
+
 from typing import Union, Sequence
 
 import functools
@@ -11,6 +12,7 @@ from jax.interpreters import ad
 import jax.linear_util as lu
 
 import oryx
+
 sow = oryx.core.sow
 reap = oryx.core.reap
 plant = oryx.core.plant
@@ -24,13 +26,14 @@ def taylor_approx(val, *, name):
   return sow(val, tag="taylor_approx", name=name, mode="clobber")
 
 
-def factorial(i):
+def _factorial(i):
   return functools.reduce(operator.mul, range(1, i + 1), 1)
 
 
 def taylor_expand_fun(fun, argnums, order: int = 1):
   """Perform taylor expansion on fun."""
 
+  @functools.wraps(fun)
   def wrapped_fun(*args, **kwargs):
     f = lu.wrap_init(fun, kwargs)
     f_partial, dyn_args = api.argnums_partial(f, argnums, args[:-len(argnums)])
@@ -55,7 +58,7 @@ def taylor_expand_fun(fun, argnums, order: int = 1):
       f0, f_terms = jet.jet_fun(jet.jet_subtrace(f_flat),
                                 order).call_wrapped(dyn_args0_flat, series)
       out_val = api.safe_map(
-          lambda f0, f_terms: f0 + sum(f_terms[i] / factorial(i + 1)
+          lambda f0, f_terms: f0 + sum(f_terms[i] / _factorial(i + 1)
                                        for i in range(order)), f0, f_terms)
     return api.tree_unflatten(out_tree(), out_val)
 
@@ -71,6 +74,7 @@ def taylor_approx_expand(fun,
   if isinstance(argnums, int):
     argnums = (argnums,)
 
+  @functools.wraps(fun)
   def full_expanded_fun(*args, **kwargs):
     fun_expanded = taylor_expand_fun(reap(fun,
                                           tag="taylor_approx",

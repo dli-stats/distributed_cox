@@ -1,3 +1,5 @@
+"""General utilities."""
+
 import functools
 
 import jax.numpy as jnp
@@ -31,11 +33,11 @@ def group_by_labels(group_labels, X, K: int = 1, group_size: int = -1):
   """Group data by labels.
 
   Args:
-    X: array of dimension (...batch_dims... , N, ...X_dims...)
-    group_labels: array of dimension (...batch_dims..., N)
+    X: array of dimension ``(...batch_dims... , N, ...X_dims...)``.
+    group_labels: array of dimension ``(...batch_dims..., N)``.
 
   Returns:
-    X_grouped: dimension (...batch_dims..., K, group_size, ...X_dims...)
+    array of dimension ``(...batch_dims..., K, group_size, ...X_dims...)``.
   """
   batch_dim = len(group_labels.shape) - 1
 

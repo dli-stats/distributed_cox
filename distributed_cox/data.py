@@ -1,4 +1,4 @@
-"""Data generation."""
+"""Data generation of simulated data for the Cox model."""
 
 from typing import Sequence, Tuple, Optional
 
