@@ -9,9 +9,9 @@ For the former functionality, please refer to the documentation of
 
 We will explain here the semantics of second functionality below:
 
-WLOG, Given a function, we are interested in an approximated version of
+Given a function, we are interested in an approximated version of
 the function, by taylor expanding some of the intermediate terms the function.
-Without loss of generality, assume that the given function is
+Without loss of generality, we assume that the given function is
 
 .. math::
   f(x, y) = g(h(x), x, y)
@@ -60,9 +60,11 @@ from typing import Callable, Union, Sequence, Tuple
 
 import functools
 import operator
+import warnings
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util
 import jax.api as api
 import jax.experimental.jet as jet
 from jax.interpreters import ad
@@ -72,32 +74,112 @@ import oryx
 
 sow = oryx.core.sow
 reap = oryx.core.reap
+nest = oryx.core.nest
 plant = oryx.core.plant
+tie_all = oryx.core.tie_all
 
 # Let the jet rules know about ``sow``.
 jet.jet_rules[oryx.core.interpreters.harvest.sow_p] = lambda *args, **_: args
 
 
-def _sow_with_jvp(x, *, tag, name, **kwargs):
+def _sow_with_jvp(x, *, tag, name, mode='strict', key=None):
   """Sow and preserve the sown value's jvp."""
 
   @jax.custom_jvp
   def custom_sow(x):
-    return sow(x, tag=tag, name=name, **kwargs)
+    return sow(x, tag=tag, name=name, mode=mode, key=key)
 
   @custom_sow.defjvp
   def custom_jvp(primals, tangents):
     x, = primals
     g, = tangents
-    g = sow(g, tag=tag, name=f'{name}_jvp', **kwargs, key=x)
+    g = nest(_sow_with_jvp, scope="jvp")(g,
+                                         tag=tag,
+                                         name=name,
+                                         mode=mode,
+                                         key=x)
     return custom_sow(x), g
 
   return custom_sow(x)
 
 
+TAYLOR_APPROX_TAG = "taylor_approx"
+
+
 def taylor_approx(val, *, name):
   """Marks a term to be taylor approximated."""
-  return _sow_with_jvp(val, tag="taylor_approx", name=name, mode="strict")
+  return _sow_with_jvp(val, tag=TAYLOR_APPROX_TAG, name=name, mode="strict")
+
+
+def _recursive_sow_values(sow_f, values):
+  """Recurively sow all values, while respecting scoping."""
+  ret = {}
+  for k, v in values.items():
+    if isinstance(v, dict):
+      ret[k] = nest(functools.partial(_recursive_sow_values, sow_f), scope=k)(v)
+    else:
+      ret[k] = sow_f(k, v)
+  return ret
+
+
+def grad(f,
+         argnums: Union[int, Sequence[int]] = 0,
+         has_aux: bool = False,
+         holomorphic: bool = False,
+         allow_int: bool = False):
+  """Computes gradient of ``f`` and preserves the taylor approximation tags.
+
+  This function is meant to be a drop-in replacement for :py:func:`jax.grad`.
+  With :py:func:`jax.grad`, the intermediates marked by :py:func:`taylor_approx`
+  are "lost". This function preserves those intermediates, by essentially
+  splitting ``f`` into composition of two functions (before and after the
+  intermediates), and applies autodiff with chain rule.
+
+  Please see :py:func:`jax.grad` for documentation on the arguments.
+  """
+  assert not has_aux, "aux not supported yet"
+
+  if isinstance(argnums, int):
+    argnums = (argnums,)
+
+  def wrapped(*args, **kwargs):
+    in_to_intermediates = reap(f, tag=TAYLOR_APPROX_TAG)
+
+    if not in_to_intermediates:
+      # There's no marked values, back off and resort to normal jax.grad
+      warnings.warn(
+          "It appears that you have invoked taylor-approx customized grad"
+          " function but there is no taylor_approx marks in the function.")
+      del in_to_intermediates
+      return jax.grad(f,
+                      argnums=argnums,
+                      holomorphic=holomorphic,
+                      allow_int=allow_int)(*args, **kwargs)
+
+    intermediates_to_out = plant(f, tag=TAYLOR_APPROX_TAG)
+
+    in_to_intermediates_d = jax.jacfwd(in_to_intermediates,
+                                       argnums=argnums,
+                                       holomorphic=holomorphic)
+    intermediates_to_out_d = jax.grad(intermediates_to_out,
+                                      argnums=(0, *[a + 1 for a in argnums]),
+                                      holomorphic=holomorphic,
+                                      allow_int=allow_int)
+    sow_f = lambda name, value: taylor_approx(value, name=name)
+    intermediates = in_to_intermediates(*args, **kwargs)
+    # f'(g(x))
+    term1 = intermediates_to_out_d(_recursive_sow_values(sow_f, intermediates),
+                                   *args, **kwargs)
+    # g'(x)
+    term2 = _recursive_sow_values(
+        sow_f, {"grad": in_to_intermediates_d(*args, **kwargs)})
+    # f'(g(x)) * g'(x)
+    return jax.tree_util.tree_reduce(operator.add, [
+        jax.tree_multimap(lambda x, ys: tuple(x @ y for y in ys), term1[0],
+                          term2["grad"]), term1[1:]
+    ])
+
+  return wrapped
 
 
 def _factorial(i):
@@ -141,16 +223,16 @@ def taylor_approx_expand(fun: Callable,
 
   @functools.wraps(fun)
   def full_expanded_fun(*args, **kwargs):
-    allowlist = [name, f"{name}_jvp"]
+    allowlist = [name, "jvp", "grad"]
     fun_expanded = taylor_expand_fun(reap(fun,
-                                          tag="taylor_approx",
+                                          tag=TAYLOR_APPROX_TAG,
                                           allowlist=allowlist),
                                      argnums,
                                      order=order)
     orig_args = args[:-len(argnums)]
 
     intermediates = fun_expanded(*args, **kwargs)
-    return plant(fun, tag="taylor_approx",
+    return plant(fun, tag=TAYLOR_APPROX_TAG,
                  allowlist=allowlist)(intermediates, *orig_args, **kwargs)
 
   return full_expanded_fun
