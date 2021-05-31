@@ -5,6 +5,7 @@ from typing import Union, Sequence
 import functools
 import operator
 
+import jax
 import jax.numpy as jnp
 import jax.api as api
 import jax.experimental.jet as jet
@@ -21,9 +22,25 @@ jet.jet_rules[
     oryx.core.interpreters.harvest.sow_p] = lambda *args, **kwargs: args
 
 
+def _sow_with_jvp(x, *, tag, name, **kwargs):
+
+  @jax.custom_jvp
+  def custom_sow(x):
+    return sow(x, tag=tag, name=name, **kwargs)
+
+  @custom_sow.defjvp
+  def custom_jvp(primals, tangents):
+    x, = primals
+    g, = tangents
+    g = sow(g, tag=tag, name=f'{name}_jvp', **kwargs, key=x)
+    return custom_sow(x), g
+
+  return custom_sow(x)
+
+
 def taylor_approx(val, *, name):
   """Marks a term to be taylor approximated."""
-  return sow(val, tag="taylor_approx", name=name, mode="clobber")
+  return _sow_with_jvp(val, tag="taylor_approx", name=name, mode="strict")
 
 
 def _factorial(i):
@@ -76,15 +93,16 @@ def taylor_approx_expand(fun,
 
   @functools.wraps(fun)
   def full_expanded_fun(*args, **kwargs):
+    allowlist = [name, f"{name}_jvp"]
     fun_expanded = taylor_expand_fun(reap(fun,
                                           tag="taylor_approx",
-                                          allowlist=[name]),
+                                          allowlist=allowlist),
                                      argnums,
                                      order=order)
     orig_args = args[:-len(argnums)]
 
     intermediates = fun_expanded(*args, **kwargs)
     return plant(fun, tag="taylor_approx",
-                 allowlist=[name])(intermediates, *orig_args, **kwargs)
+                 allowlist=allowlist)(intermediates, *orig_args, **kwargs)
 
   return full_expanded_fun
