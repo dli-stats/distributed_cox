@@ -14,6 +14,7 @@ from typing import List
 import os
 import importlib
 import sys
+
 sys.path.insert(0, os.path.abspath('.'))
 
 # -- Project information -----------------------------------------------------
@@ -88,3 +89,6 @@ execution_fail_on_error = True
 
 # Notebook cell execution timeout; defaults to 30.
 execution_timeout = 100
+
+# Link to external package documentations
+intersphinx_mapping = {'jax': ('https://jax.readthedocs.io/en/latest/', None)}
