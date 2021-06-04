@@ -81,34 +81,12 @@ tie_all = oryx.core.tie_all
 # Let the jet rules know about ``sow``.
 jet.jet_rules[oryx.core.interpreters.harvest.sow_p] = lambda *args, **_: args
 
-
-def _sow_with_jvp(x, *, tag, name, mode='strict', key=None):
-  """Sow and preserve the sown value's jvp."""
-
-  @jax.custom_jvp
-  def custom_sow(x):
-    return sow(x, tag=tag, name=name, mode=mode, key=key)
-
-  @custom_sow.defjvp
-  def custom_jvp(primals, tangents):
-    x, = primals
-    g, = tangents
-    g = nest(_sow_with_jvp, scope="jvp")(g,
-                                         tag=tag,
-                                         name=name,
-                                         mode=mode,
-                                         key=x)
-    return custom_sow(x), g
-
-  return custom_sow(x)
-
-
 TAYLOR_APPROX_TAG = "taylor_approx"
 
 
 def taylor_approx(val, *, name):
   """Marks a term to be taylor approximated."""
-  return _sow_with_jvp(val, tag=TAYLOR_APPROX_TAG, name=name, mode="strict")
+  return sow(val, tag=TAYLOR_APPROX_TAG, name=name, mode="strict")
 
 
 def _recursive_sow_values(sow_f, values):
@@ -223,7 +201,7 @@ def taylor_approx_expand(fun: Callable,
 
   @functools.wraps(fun)
   def full_expanded_fun(*args, **kwargs):
-    allowlist = [name, "jvp", "grad"]
+    allowlist = [name, "jvp", "grad"]  # TODO: Currently later two is not used.
     fun_expanded = taylor_expand_fun(reap(fun,
                                           tag=TAYLOR_APPROX_TAG,
                                           allowlist=allowlist),

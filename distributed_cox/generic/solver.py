@@ -70,7 +70,24 @@ def solve_newton(likelihood_or_score_fn,
                  loglik_eps=1e-6,
                  score_norm_eps=1e-3,
                  max_num_steps=10) -> NewtonSolverResult:
-  """HOF for newton's method solver."""
+  """newton's method solver.
+
+  Args:
+    likelihood_or_score_fn: a likelihood of score function. If the former,
+      maximize this function; if the later, computes its root.
+    initial_guess: the initial guess.
+    use_likelihood: whether ``likelihood_or_score_fn`` is a likelihood function.
+    hessian_fn: optional hessian function, will be derived using automatic
+      differentiation if not provided.
+    loglik_eps: the epsilon until which a maximization is considered converged.
+      ignored if ``use_likelihood = False``.
+    score_norm_eps: the epsilon until which a root finding is considered
+      converged. ignored if ``use_likelihood = True``.
+    max_num_steps: maximum number of solver iterations.
+
+  Returns:
+    The solved result.
+  """
 
   if use_likelihood:
     if hessian_fn is None:

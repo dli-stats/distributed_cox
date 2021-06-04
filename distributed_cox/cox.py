@@ -14,6 +14,7 @@ import functools
 
 from jax import vmap
 import jax.numpy as jnp
+import jax.lax as lax
 
 import oryx
 
@@ -29,7 +30,7 @@ plant = oryx.core.plant
 
 
 def _right_cumsum(X, axis=0):
-  return jnp.cumsum(X[::-1], axis=axis)[::-1]
+  return lax.cumsum(X, axis=axis, reverse=True)
 
 
 def _group_by(fun):

@@ -22,7 +22,7 @@ MetaAnalysisResult = collections.namedtuple("MetaAnalysisResult",
 
 
 def sum_fn(fun, ndims=0):
-  """Helper for summing fun. """
+  """Higher order helper for summing the result of fun."""
 
   @functools.wraps(fun)
   def wrapped(*args):
@@ -36,13 +36,26 @@ def sum_fn(fun, ndims=0):
   return wrapped
 
 
+#: sums an array of log likehiloods scalars
 sum_loglik = functools.partial(sum_fn, ndims=0)
+#: sums an array of score vectors
 sum_score = functools.partial(sum_fn, ndims=1)
+#: sums an array of hessian matrices
 sum_hessian = functools.partial(sum_fn, ndims=2)
 
 
-def model_temporaries(tag):
-  """Utility for marking/collecting model's intermediates."""
+def model_temporaries(tag: str):
+  """Utility for marking/collecting model's intermediates.
+
+  Given a tag, it returns a pair of function ``mark`` and ``collect``. These are
+  simple wrappers around :py:func:`oryx.core.sow` and :py:func:`oryx.core.reap`.
+
+  Args:
+    tag: a unique tag identifying a model.
+
+  Returns:
+    the functions ``mark`` and ``collect``.
+  """
 
   def mark(e, name):
     return sow(e, tag=tag, name=name, mode="clobber")
@@ -76,7 +89,22 @@ def model_temporaries(tag):
 def solve_single(single_log_likelihood_or_score_fn,
                  use_likelihood=True,
                  **kwargs):
-  """Solves for single site."""
+  """Solves for single site.
+
+  Solves the parameters that result in either 1) the maximum log likelihood of
+  the model, or 2) the 0-point of the score function.
+
+  Args:
+    single_log_likelihood_or_score_fn: a log likelihood function or a score
+      function of the model.
+    use_likelihood: whether ``single_log_likelihood_or_score_fn`` is a log
+      likelihood function.
+    kwargs: arguments to be passed into the solver.
+
+  Returns:
+    a function that takes in the same parameters as
+    ``single_log_likelihood_or_score_fn``, and returns the solved results.
+  """
 
   def solve_fun(*args) -> NewtonSolverResult:
     singe_static_args = args[:-1]
@@ -108,11 +136,40 @@ def solve_distributed(single_log_likelihood_or_score_fn: Callable,
                       distributed_use_likelihood=True,
                       num_single_args: int = 1,
                       pt2_use_average_guess: bool = False,
-                      pt2_use_pt1_average_guess: bool = False,
+                      pt2_zero_use_pt1_average_guess: bool = False,
                       K=1,
                       pt2_solver: Optional[str] = "newton",
                       **kwargs) -> DistributedModelSolverResult:
-  """Solves for distributed site."""
+  """Solves for distributed site.
+
+  Args:
+    single_log_likelihood_or_score_fn: a log likelihood function or a score
+      function for the single site version of the model.
+    distributed_log_likelihood_or_score_fn: a log likelihood function or a score
+      function for the distributed version of the model.
+    distributed_hessian_fn: an optional hessian function for the distributed
+      version of the model. If not provided, use automatic differentiation to
+      derive this function based on ``distributed_log_likelihood_or_score_fn``.
+    single_use_likelihood: whether ``single_log_likelihood_or_score_fn`` is a
+      log likelihood function.
+    distributed_use_likelihood: whether
+      ``distributed_log_likelihood_or_score_fn`` is a log likelihood function.
+    num_single_args: number of arguments for
+      ``single_log_likelihood_or_score_fn``.
+    pt2_initial_use_average_guess: wether to use the average from solving the
+      single sites, as the initial guess for solving the distributed model.
+    pt2_zero_use_pt1_average_guess: wether to use the average from solving the
+      single sites, as the taylor expansion point for solving the distributed
+      model. Defaults to False, which will use individual sites solutions.
+    K: the number of sites.
+    pt2_solver: the solver to use for solving the distributed version. Defaults
+      to the newton raphson solver.
+    kwargs: arguments to be passed into the solver.
+
+  Returns:
+    a function that takes in the parameters as
+    ``distributed_log_likelihood_or_score_fn``, and returns the solved results.
+  """
 
   assert num_single_args >= 0
 
@@ -129,7 +186,7 @@ def solve_distributed(single_log_likelihood_or_score_fn: Callable,
     def wrap_fun_single_arg(fun):
 
       def wrapped(initial_guess):
-        if pt2_use_pt1_average_guess:
+        if pt2_zero_use_pt1_average_guess:
           ss = jnp.mean(pt1_sol.guess, axis=0)
           pt1_guesses = jnp.broadcast_to(ss, (K,) + ss.shape)
         else:
@@ -180,10 +237,25 @@ def solve_distributed(single_log_likelihood_or_score_fn: Callable,
 
 def solve_meta_analysis(single_log_likelihood_or_score_fn,
                         use_likelihood: bool = True,
-                        use_only_dims: Optional[Sequence] = None,
+                        use_only_dims: Optional[Sequence[int]] = None,
                         univariate: bool = False,
                         **kwargs) -> DistributedModelSolverResult:
-  """Meta analysis."""
+  """Meta analysis.
+
+  Args:
+    single_log_likelihood_or_score_fn: a log likelihood function or a score
+      function for the single site version of the model.
+    use_likelihood: whether ``single_log_likelihood_or_score_fn`` is a
+      log likelihood function.
+    use_only_dims: a sequence of dimensions to perform the analysis on. Defaults
+      to the full dimension.
+    univariate: whether to perform univariate meta analysis.
+    kwargs: arguments to be passed into the solver.
+
+  Returns:
+    a function that takes in the same parameters as
+    ``single_log_likelihood_or_score_fn``, and returns the analysis results.
+  """
 
   def solve_fun(*args):
     sol = vmap(
@@ -221,7 +293,7 @@ def solve_meta_analysis(single_log_likelihood_or_score_fn,
 
 def cov_meta_analysis(use_only_dims: Optional[Sequence] = None,
                       univariate=False):
-  """Covariance of meta analysis."""
+  """Analytically estimates the covariance of meta analysis."""
 
   def wrapped(sol: DistributedModelSolverResult):
     I_diag_wo_last = -sol.pt1.hessian
@@ -243,6 +315,8 @@ def cov_meta_analysis(use_only_dims: Optional[Sequence] = None,
 
 
 def cov_H():
+  """Analytically estimates the covariance of a solver result, by simply
+  using the negative inverse hessian."""
 
   def wrapped(sol: Union[NewtonSolverResult, DistributedModelSolverResult],
               *args):
@@ -258,7 +332,10 @@ def cov_robust(batch_log_likelihood_or_score_fn,
                num_single_args: int = 1,
                use_likelihood=True,
                sum_group_first=False):
-  """Covariance using robust sandwich estimate."""
+  """Analytically estimates covariance using robust sandwich estimate.
+
+    See [Huber 1967].
+  """
   if use_likelihood:
     batch_score_fn = jacfwd(batch_log_likelihood_or_score_fn,
                             argnums=num_single_args - 1)

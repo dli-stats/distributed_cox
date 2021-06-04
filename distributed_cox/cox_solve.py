@@ -157,10 +157,10 @@ def get_cov_fn(  # pylint: disable=too-many-return-statements
   return cov_fn
 
 
-def get_cov_fns(method: str,
-                distributed: Optional[Mapping[str, Any]] = None,
-                meta_analysis: Optional[Mapping[str, Any]] = None
-               ) -> Dict[str, Callable]:
+def get_cov_fns(
+    method: str,
+    distributed: Optional[Mapping[str, Any]] = None,
+    meta_analysis: Optional[Mapping[str, Any]] = None) -> Dict[str, Callable]:
   """Constructs function to compute all covariances for an analysis."""
   distributed = distributed or {}
   meta_analysis = meta_analysis or {}
@@ -184,8 +184,8 @@ def get_cov_fns(method: str,
       cov_name = "cov:meta_analysis"
     else:
       cov_name = ("cov:{}group_correction|{}sandwich"
-                  "|{}cox_correction|{}sum_first"
-                 ).format(*["" if v else "no_" for v in cov_setting])
+                  "|{}cox_correction|{}sum_first").format(
+                      *["" if v else "no_" for v in cov_setting])
     cov_fns[cov_name] = cov_fn
   return cov_fns
 

@@ -107,7 +107,27 @@ def taylor_distribute(fun,
                       reduction_kind: str,
                       orders: Dict[str, int],
                       argnums: Union[int, Tuple[int]] = 0):
-  """Taylor distributes function."""
+  """Taylor distributes function.
+
+  First performs taylor expansion on ``fun``. Then, the function is broken into
+  two parts based on a reduction. The reduction is defined by, for example,
+  invoking :py:func:`cumsum` in ``fun``. The first part of the function is
+  mapped by an additional batch axis using :py:func:`jax.vmap`, which allows
+  simultanenous computation of the first part of the function across distributed
+  sites. Then, the second part of the function reduces the result from those
+  distributed sites, and returns the aggregated output.
+
+  Args:
+    fun: the function to be taylor expand then distributed.
+    reduction_kind: the kind of the reduction. This assumes that the
+      ``reduction_kind`` is used in ``fun``.
+    orders: a mapping from string names of the :py:func:`taylor_expand` invoked
+    in ``fun`` to their taylor expansion orders.
+    argnums: the arguments with which the taylor expansion should be performed.
+
+  Returns:
+    the taylor expanded then distributed version of ``fun``.
+  """
 
   if isinstance(argnums, int):
     argnums = (argnums,)

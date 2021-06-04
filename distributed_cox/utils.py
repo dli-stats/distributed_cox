@@ -1,10 +1,12 @@
 """General utilities."""
 
 import functools
+from jax import dtypes
 
 import jax.numpy as jnp
 import jax.ops
 import jax.lax
+import jax.random as jrandom
 
 
 def _group_by_labels(group_labels, X, K=1, group_size=-1):
@@ -47,3 +49,18 @@ def group_by_labels(group_labels, X, K: int = 1, group_size: int = -1):
   # for _ in range(batch_dim):
   #   fun = vmap(fun, in_axes=0, out_axes=0)
   return fun(group_labels, X)
+
+
+# Distributions extending JAX's jnp.random
+
+
+def bernoulli(key, theta, shape=None, dtype=bool):
+  return jrandom.bernoulli(key, p=theta, shape=shape).astype(dtype)
+
+
+def normal(key, mean, std, shape=None, dtype=dtypes.float_):
+  return jrandom.normal(key, shape=shape, dtype=dtype) * std + mean
+
+
+def gamma(key, a, scale, shape=None, dtype=dtypes.float_):
+  return jrandom.gamma(key, a=a, shape=shape, dtype=dtype) * scale

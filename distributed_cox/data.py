@@ -28,13 +28,15 @@ if jax.config.read("jax_enable_x64"):
   floatt = jnp.float64
 else:
   floatt = jnp.float32
+
 # pylint: disable=redefined-outer-name
+# pylint: disable=invalid-unary-operand-type
 
 
 def bernoulli(theta):
 
   def wrapped(key, shape=None):
-    return jrandom.bernoulli(key, p=theta, shape=shape).astype(floatt)
+    return vutils.bernoulli(key, theta=theta, shape=shape, dtype=floatt)
 
   return wrapped
 
@@ -42,12 +44,13 @@ def bernoulli(theta):
 def normal(mean, std):
 
   def wrapped(key, shape=None):
-    return jrandom.normal(key, shape=shape) * std + mean
+    return vutils.normal(key, mean=mean, std=std, shape=shape, dtype=floatt)
 
   return wrapped
 
 
-def grouping_Xi_generator_any_K(N, dim, key, group_label=0, g_dists=None):
+def _grouping_Xi_generator_any_K(N, dim, key, group_label=0, g_dists=None):
+  """Helper that generates X in a single group."""
 
   def group_fun(dists):
 
@@ -96,7 +99,7 @@ def make_X_generator(N,
   Returns:
     array of shape ``(N, X_dim)``.
   """
-  gen_X_fn = functools.partial(grouping_Xi_generator_any_K,
+  gen_X_fn = functools.partial(_grouping_Xi_generator_any_K,
                                N,
                                group_label=group_label,
                                g_dists=g_dists)
@@ -144,17 +147,21 @@ correlated_X_generator = functools.partial(
     correlated_weights=[1.])
 
 
-def T_star_factors_gamma_gen(shape, scale):
-  """Generates T_start_factors according the inverse of a gamma distribution.
-
-  #TODO: this function needs some refactoring.
+def T_star_factors_inv_gamma_gen(shape, scale):
+  """Generates ``T_start_factors`` according the inverse of gamma distribution.
 
   Args:
     shape, scale: the parameters of the gamma distribution.
+
+  Returns:
+    A function that generates the inverse of the samples from the specified
+    gamma distribution. This function is suitable to be passed into
+    :py:func:`data_generator` directly as the parameter `T_star_factors`.
   """
 
   def wrapped(key, K):
-    return 1. / (jrandom.gamma(key, a=shape, shape=(K,)) * scale)
+    return 1. / vutils.gamma(
+        key, a=shape, scale=scale, shape=(K,), dtype=floatt)
 
   return wrapped
 
@@ -347,7 +354,7 @@ def full_data_generator(N: int,
   This function combines :py:func:`group_sizes_generator` and
   :py:func:`data_generator`.
   It also accepts ``T_star_factors`` etc. as strings, and performs necessary
-  parsing with the ``simpleeval`` package.
+  parsing with the :py:mod:`simpleeval` package.
   This function is ideally used directly by a command line interface.
   """
 
@@ -395,11 +402,11 @@ def full_data_generator(N: int,
     T_star_factors = se.EvalWithCompoundTypes(
         functions={
             'fixed': lambda *args: tuple(args),
-            'gamma': T_star_factors_gamma_gen
+            'gamma': T_star_factors_inv_gamma_gen
         },
         names={
             'fixed': tuple((k + 1) / 2 for k in range(K)),
-            'gamma': T_star_factors_gamma_gen(1., 1.),
+            'gamma': T_star_factors_inv_gamma_gen(1., 1.),
             'None': None
         }).eval(T_star_factors)
 
