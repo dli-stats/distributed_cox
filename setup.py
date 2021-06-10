@@ -16,6 +16,7 @@ setup(
         'oryx==0.1.4',
         'jax==0.2.9',
         'jaxlib==0.1.59',
+        'chex',
         'numpy',
         'pandas',
         'dataclasses_json',

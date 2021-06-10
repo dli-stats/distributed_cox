@@ -1,6 +1,7 @@
 numpy
 jax>=0.2.9
 oryx==0.1.4
+chex
 sacred==0.8.1
 dataclasses_json
 tqdm

@@ -64,3 +64,7 @@ def normal(key, mean, std, shape=None, dtype=dtypes.float_):
 
 def gamma(key, a, scale, shape=None, dtype=dtypes.float_):
   return jrandom.gamma(key, a=a, shape=shape, dtype=dtype) * scale
+
+
+def exponential(key, scale: float, shape=None, dtype=dtypes.float_):
+  return jrandom.exponential(key, shape=shape, dtype=dtype) * scale

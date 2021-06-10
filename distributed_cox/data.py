@@ -1,6 +1,6 @@
 """Data generation of simulated data for the Cox model."""
 
-from typing import Sequence, Tuple, Optional
+from typing import Callable, Sequence, Tuple, Optional, Union, List
 
 import math
 import functools
@@ -13,8 +13,9 @@ import jax.numpy as jnp
 from jax import vmap
 import jax.lax
 import jax.config
-
 from jax import random as jrandom
+
+import chex
 
 import distributed_cox.utils as vutils
 
@@ -49,7 +50,15 @@ def normal(mean, std):
   return wrapped
 
 
-def _grouping_Xi_generator_any_K(N, dim, key, group_label=0, g_dists=None):
+SamplerFnT = Callable[[chex.PRNGKey, chex.Shape], chex.Array]
+GDistT = List[List[SamplerFnT]]
+
+
+def _grouping_Xi_generator_any_K(N: int,
+                                 dim: int,
+                                 key: chex.PRNGKey,
+                                 group_label: int = 0,
+                                 g_dists=None):
   """Helper that generates X in a single group."""
 
   def group_fun(dists):
@@ -65,10 +74,10 @@ def _grouping_Xi_generator_any_K(N, dim, key, group_label=0, g_dists=None):
                         [group_fun(gd) for gd in g_dists], key)
 
 
-def make_X_generator(N,
-                     X_dim,
-                     key,
-                     group_label=0,
+def make_X_generator(N: int,
+                     X_dim: int,
+                     key: chex.PRNGKey,
+                     group_label: int = 0,
                      g_dists=None,
                      correlated_dims: Optional[Sequence[Tuple]] = None,
                      correlated_weights: Optional[Sequence[float]] = None):
@@ -135,6 +144,7 @@ default_g_dists3 = [[normal(0, 1.),
                      normal(0, 0.04),
                      normal(-1, 1.5)]]
 
+#: the default X generator
 default_X_generator = functools.partial(make_X_generator,
                                         g_dists=default_g_dists)
 grouping_X_generator_K3 = functools.partial(make_X_generator,
@@ -166,28 +176,42 @@ def T_star_factors_inv_gamma_gen(shape, scale):
   return wrapped
 
 
+_exponential_35 = functools.partial(vutils.exponential, scale=3.5)
+
+CGeneratorT = SamplerFnT
+TStarFactorsGeneratorT = Callable[[chex.PRNGKey, int], chex.Array]
+XGeneratorT = Callable[[int, int, chex.PRNGKey, int], chex.Array]
+
+
 @functools.lru_cache(maxsize=None)
-def data_generator(N,
-                   X_dim,
-                   group_sizes,
-                   T_star_factors=None,
-                   X_generator=None,
-                   exp_scale=3.5,
-                   return_T=False,
-                   return_T_star=False):
+def data_generator(N: int,
+                   X_dim: int,
+                   group_sizes: Sequence[int],
+                   beta: Optional[Sequence[float]] = None,
+                   C_generator: CGeneratorT = _exponential_35,
+                   T_star_factors: Union[Tuple, TStarFactorsGeneratorT,
+                                         None] = None,
+                   X_generator: XGeneratorT = default_X_generator,
+                   return_T: bool = False,
+                   return_T_star: bool = False):
   """Higher order function for data generation.
 
   Args:
     N: total data points.
     X_dim: number of covariate dimensions of ``X``.
     group_sizes: the group sizes for each group. Must be ordered (lower first).
+    beta: the ``beta`` to use for generation. Defaults to ::
+
+        np.arange(1, X_dim + 1, dtype=floatt) / X_dim
+
+    sample_C_fn: a sampler that takes in a random key and a shape parameter, and
+      returns iid samples of C. Defaults to ``exponential(3.5)``.
     T_star_factors: a multiplicative factor that is applied to each item.
       Defaults to 1 for all items (no scaling).
     X_generator: a callable that generates each group of ``X``. See
       :py:func:`make_X_generator` for more details.
-    exp_scale: the exponential scale.
-    return_T: whether to return `T`.
-    return_T: whether to return `T_star`.
+    return_T: whether to return ``T``.
+    return_T: whether to return ``T_star``.
 
   Returns:
     a function that takes in a random key, and returns the generated data using
@@ -217,8 +241,12 @@ def data_generator(N,
     assert callable(T_star_factors)
     random_T_star = True
 
-  if X_generator is None:
-    X_generator = default_X_generator
+  if beta is None:
+    beta = jnp.arange(1, X_dim + 1, dtype=floatt) / X_dim
+  else:
+    beta = jnp.array(beta, dtype=floatt)
+
+  chex.assert_shape(beta, (X_dim,))
 
   @functools.partial(jnp.vectorize, signature=wrapped_signature)
   def wrapped(key):
@@ -232,8 +260,6 @@ def data_generator(N,
           where `u \sim \text{Unif}(0, 1)`
       5. Reorder X by `T = \min(T^*, C)`
     """
-    # beta = np.array([-1, 0, 1], dtype=np.float32)
-    beta = jnp.arange(1, X_dim + 1, dtype=floatt) / X_dim
 
     key, *subkeys = jrandom.split(key, K + 1)
     subkeys = jnp.stack(subkeys)
@@ -266,14 +292,15 @@ def data_generator(N,
     T_star = -T_star_factors_per_item * jnp.log(u) / jnp.exp(X.dot(beta))
 
     key, subkey = jrandom.split(key)
-    C = jrandom.exponential(subkey, shape=(N,)) * exp_scale
+    C = C_generator(subkey, shape=(N,))
+    chex.assert_equal_shape([C, T_star])
+
     delta = T_star <= C
 
     T = jnp.minimum(T_star, C)
 
     sorted_idx = jnp.argsort(-T)  # sort T descending
 
-    T = jnp.take(T, sorted_idx, axis=0)
     X = jnp.take(X, sorted_idx, axis=0)
     delta = jnp.take(delta, sorted_idx, axis=0)
     group_labels = jnp.take(group_labels, sorted_idx, axis=0)
@@ -281,6 +308,7 @@ def data_generator(N,
     # X = X - np.mean(X, axis=0)
     ret = (X, delta, beta, group_labels)
     if return_T:
+      T = jnp.take(T, sorted_idx, axis=0)
       ret = (T,) + ret
     if return_T_star:
       T_star = jnp.take(T_star, sorted_idx, axis=0)
@@ -413,14 +441,16 @@ def full_data_generator(N: int,
   if exp_scale == 'inf':
     exp_scale = onp.inf
 
-  return group_sizes, data_generator(N,
-                                     X_DIM,
-                                     group_sizes,
-                                     exp_scale=exp_scale,
-                                     T_star_factors=T_star_factors,
-                                     X_generator=X_generator,
-                                     return_T=True,
-                                     return_T_star=True)
+  return group_sizes, data_generator(
+      N,
+      X_DIM,
+      group_sizes,
+      sample_C_fn=functools.partial(vutils.exponential, scale=exp_scale),
+      T_star_factors=T_star_factors,
+      X_generator=X_generator,
+      return_T=True,
+      return_T_star=True,
+  )
 
 
 def group_labels_to_indices(K, group_labels):
