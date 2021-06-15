@@ -176,7 +176,10 @@ def T_star_factors_inv_gamma_gen(shape, scale):
   return wrapped
 
 
-_exponential_35 = functools.partial(vutils.exponential, scale=3.5)
+def default_C_generator(key, X, shape=None):
+  del X
+  return vutils.exponential(key, scale=3.5, shape=shape)
+
 
 CGeneratorT = SamplerFnT
 TStarFactorsGeneratorT = Callable[[chex.PRNGKey, int], chex.Array]
@@ -188,7 +191,7 @@ def data_generator(N: int,
                    X_dim: int,
                    group_sizes: Sequence[int],
                    beta: Optional[Sequence[float]] = None,
-                   C_generator: CGeneratorT = _exponential_35,
+                   C_generator: CGeneratorT = default_C_generator,
                    T_star_factors: Union[Tuple, TStarFactorsGeneratorT,
                                          None] = None,
                    X_generator: XGeneratorT = default_X_generator,
@@ -292,7 +295,7 @@ def data_generator(N: int,
     T_star = -T_star_factors_per_item * jnp.log(u) / jnp.exp(X.dot(beta))
 
     key, subkey = jrandom.split(key)
-    C = C_generator(subkey, shape=(N,))
+    C = C_generator(subkey, X, shape=(N,))
     chex.assert_equal_shape([C, T_star])
 
     delta = T_star <= C
