@@ -204,14 +204,14 @@ def data_generator(N: int,
 
         np.arange(1, X_dim + 1, dtype=floatt) / X_dim
 
-    sample_C_fn: a sampler that takes in a random key and a shape parameter, and
+    C_generator: a sampler that takes in a random key and a shape parameter, and
       returns iid samples of C. Defaults to ``exponential(3.5)``.
     T_star_factors: a multiplicative factor that is applied to each item.
       Defaults to 1 for all items (no scaling).
     X_generator: a callable that generates each group of ``X``. See
       :py:func:`make_X_generator` for more details.
     return_T: whether to return ``T``.
-    return_T: whether to return ``T_star``.
+    return_T_star: whether to return ``T_star``.
 
   Returns:
     a function that takes in a random key, and returns the generated data using
