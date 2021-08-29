@@ -264,23 +264,26 @@ def data_generator(N: int,
       5. Reorder X by `T = \min(T^*, C)`
     """
 
-    key, *subkeys = jrandom.split(key, K + 1)
-    subkeys = jnp.stack(subkeys)
-
     X = jnp.zeros((N, X_dim), dtype=floatt)
     max_group_size = max(group_sizes)
 
-    def gen_X(carry, group_size):
-      X, group_label, cur_idx = carry
+    def gen_X(carry, xs):
+      X, cur_idx = carry
+      group_label, group_size, group_key = xs
       X_group = X_generator(max_group_size,
                             X_dim,
-                            subkeys[group_label],
+                            group_key,
                             group_label=group_label)
       X = jax.lax.dynamic_update_slice(X, X_group,
                                        jnp.array([cur_idx, 0], dtype=jnp.int32))
-      return (X, group_label + 1, cur_idx + group_size), 0
+      return (X, cur_idx + group_size), 0
 
-    (X, _, _), _ = jax.lax.scan(gen_X, (X, 0, 0), jnp.array(group_sizes))
+    key, subkey = jrandom.split(key)
+    (X, _), _ = jax.lax.scan(
+        gen_X,
+        (X, 0),
+        (jnp.arange(K), jnp.array(group_sizes), jrandom.split(subkey, K)),
+    )
 
     group_labels = jnp.repeat(jnp.arange(K), group_sizes)
 
