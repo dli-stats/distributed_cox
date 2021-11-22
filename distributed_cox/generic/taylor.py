@@ -64,11 +64,12 @@ import warnings
 
 import jax
 import jax.numpy as jnp
-import jax.tree_util
-import jax.api as api
-import jax.experimental.jet as jet
+
+from jax import tree_util as tu
+from jax import api_util
+from jax import linear_util as lu
+from jax.experimental import jet
 from jax.interpreters import ad
-import jax.linear_util as lu
 
 import oryx
 
@@ -152,7 +153,7 @@ def grad(f,
     term2 = _recursive_sow_values(
         sow_f, {"grad": in_to_intermediates_d(*args, **kwargs)})
     # f'(g(x)) * g'(x)
-    return jax.tree_util.tree_reduce(operator.add, [
+    return tu.tree_reduce(operator.add, [
         jax.tree_multimap(lambda x, ys: tuple(x @ y for y in ys), term1[0],
                           term2["grad"]), term1[1:]
     ])
@@ -244,30 +245,31 @@ def taylor_expand_fun(fun: Callable,
   @functools.wraps(fun)
   def wrapped_fun(*args, **kwargs):
     f = lu.wrap_init(fun, kwargs)
-    f_partial, dyn_args = api.argnums_partial(f, argnums, args[:-len(argnums)])
+    f_partial, dyn_args = api_util.argnums_partial(f, argnums,
+                                                   args[:-len(argnums)])
     dyn_args0 = args[-len(argnums):]
 
-    dyn_args_flat, in_tree = api.tree_flatten(dyn_args)
-    dyn_args0_flat, in_tree2 = api.tree_flatten(dyn_args0)
+    dyn_args_flat, in_tree = tu.tree_flatten(dyn_args)
+    dyn_args0_flat, in_tree2 = tu.tree_flatten(dyn_args0)
     if in_tree != in_tree2:
       raise TypeError("Invalid input arguments for taylor expand")
     del in_tree2
-    f_flat, out_tree = api.flatten_fun_nokwargs(f_partial, in_tree)
+    f_flat, out_tree = api_util.flatten_fun_nokwargs(f_partial, in_tree)
 
-    dparams = api.safe_map(jnp.subtract, dyn_args_flat, dyn_args0_flat)
+    dparams = api_util.safe_map(jnp.subtract, dyn_args_flat, dyn_args0_flat)
     # pylint: disable=protected-access,no-member,no-value-for-parameter
     if order == 1:
       # f0, vjp_fun = ad.vjp(f_flat, dyn_args0_flat)
       # f1 = vjp_fun(*dparams)
       f0, f1 = ad.jvp(f_flat).call_wrapped(dyn_args0_flat, dparams)
-      out_val = api.safe_map(operator.add, f0, f1)
+      out_val = api_util.safe_map(operator.add, f0, f1)
     else:
       series = [([d] + [jnp.zeros_like(d)] * (order - 1)) for d in dparams]
       f0, f_terms = jet.jet_fun(jet.jet_subtrace(f_flat),
                                 order).call_wrapped(dyn_args0_flat, series)
-      out_val = api.safe_map(
+      out_val = api_util.safe_map(
           lambda f0, f_terms: f0 + sum(f_terms[i] / _factorial(i + 1)
                                        for i in range(order)), f0, f_terms)
-    return api.tree_unflatten(out_tree(), out_val)
+    return api_util.tree_unflatten(out_tree(), out_val)
 
   return wrapped_fun

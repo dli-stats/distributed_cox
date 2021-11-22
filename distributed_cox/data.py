@@ -176,9 +176,9 @@ def T_star_factors_inv_gamma_gen(shape, scale):
   return wrapped
 
 
-def default_C_generator(key, X, shape=None):
+def default_C_generator(key, X, shape=None, scale=3.5):
   del X
-  return vutils.exponential(key, scale=3.5, shape=shape)
+  return vutils.exponential(key, scale=scale, shape=shape)
 
 
 CGeneratorT = SamplerFnT
@@ -282,10 +282,10 @@ def data_generator(N: int,
     (X, _), _ = jax.lax.scan(
         gen_X,
         (X, 0),
-        (jnp.arange(K), jnp.array(group_sizes), jrandom.split(subkey, K)),
+        (jnp.arange(K), onp.array(group_sizes), jrandom.split(subkey, K)),
     )
 
-    group_labels = jnp.repeat(jnp.arange(K), group_sizes)
+    group_labels = jnp.repeat(jnp.arange(K), onp.array(group_sizes))
 
     key, subkey = jrandom.split(key)
     u = jrandom.uniform(subkey, shape=(N,), minval=0, maxval=1)
@@ -294,7 +294,8 @@ def data_generator(N: int,
       T_star_factors_ = T_star_factors(subkey, K)
     else:
       T_star_factors_ = jnp.array(T_star_factors)
-    T_star_factors_per_item = jnp.repeat(T_star_factors_, group_sizes)
+    T_star_factors_per_item = jnp.repeat(T_star_factors_,
+                                         onp.array(group_sizes))
     T_star = -T_star_factors_per_item * jnp.log(u) / jnp.exp(X.dot(beta))
 
     key, subkey = jrandom.split(key)
@@ -451,7 +452,7 @@ def full_data_generator(N: int,
       N,
       X_DIM,
       group_sizes,
-      C_generator=functools.partial(vutils.exponential, scale=exp_scale),
+      C_generator=functools.partial(default_C_generator, scale=exp_scale),
       T_star_factors=T_star_factors,
       X_generator=X_generator,
       return_T=True,

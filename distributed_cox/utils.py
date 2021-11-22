@@ -65,5 +65,5 @@ def gamma(key, a, scale, shape=None, dtype=jnp.float64):
   return jrandom.gamma(key, a=a, shape=shape, dtype=dtype) * scale
 
 
-def exponential(key, scale: float, shape=None, dtype=jnp.float64):
+def exponential(key, scale: float = 3.5, shape=None, dtype=jnp.float64):
   return jrandom.exponential(key, shape=shape, dtype=dtype) * scale
