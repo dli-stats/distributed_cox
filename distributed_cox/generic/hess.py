@@ -6,12 +6,12 @@ import functools
 import jax.linear_util as lu
 from jax import vmap
 from jax.tree_util import (tree_map, tree_structure, tree_transpose)
-from jax.api import (_check_input_dtype_jacrev, _check_output_dtype_jacrev,
-                     _vjp, _unravel_array_into_pytree, _std_basis,
-                     _check_callable, tree_flatten, safe_zip, _dtype,
-                     flatten_fun_nokwargs, flatten_fun_nokwargs2,
-                     tree_unflatten, _check_input_dtype_jacfwd,
-                     _check_output_dtype_jacfwd)
+from jax._src.api import (_check_input_dtype_jacrev, _check_output_dtype_jacrev,
+                          _vjp, _unravel_array_into_pytree, _std_basis,
+                          _check_callable, tree_flatten, safe_zip, _dtype,
+                          flatten_fun_nokwargs, flatten_fun_nokwargs2,
+                          tree_unflatten, _check_input_dtype_jacfwd,
+                          _check_output_dtype_jacfwd)
 
 from jax.api_util import argnums_partial
 from jax.util import partial

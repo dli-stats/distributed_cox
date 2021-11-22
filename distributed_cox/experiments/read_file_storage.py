@@ -125,7 +125,7 @@ def compute_confidence_interval_overlap_clip(beta,
 
 def _get_true_model_in_group(group):
   _, config_json, _ = group[0]
-  assert config_json["data"]["T_star_factors"] is not None
+  # assert config_json["data"]["T_star_factors"] is not None
   if config_json["data"]["T_star_factors"] == "None":
     method_true = "unstratified_pooled"
   else:
@@ -185,18 +185,20 @@ def main(args):
   paper_results = {}
   cov_names = set()
 
-  same_data_setting_groups = collections.defaultdict(list)
-  # Assumes data settings have the same beta_true if X_dim are the same
-  same_X_dim_beta_true = {}
-  for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
-    data_key = json.dumps(config_json["data"], sort_keys=True)
-    same_data_setting_groups[data_key].append((run_dir, config_json, run_json))
-    if config_json["data"]["X_DIM"] not in same_X_dim_beta_true:
-      with open(os.path.join(run_dir, "result"), "rb") as f:
-        result: ExperimentResult = pickle.load(f)
-      _, data_gen = init_data_gen_fn(**config_json["data"])
-      (_, _, _, _, beta_true, _) = data_gen(result.data_generation_key[0])
-      same_X_dim_beta_true[config_json["data"]["X_DIM"]] = beta_true
+  if args.compute_beta_l1_norm or args.compute_confidence_interval_overlap:
+    same_data_setting_groups = collections.defaultdict(list)
+    # Assumes data settings have the same beta_true if X_dim are the same
+    same_X_dim_beta_true = {}
+    for (run_dir, config_json, run_json) in tqdm.tqdm(runs):
+      data_key = json.dumps(config_json["data"], sort_keys=True)
+      same_data_setting_groups[data_key].append(
+          (run_dir, config_json, run_json))
+      if config_json["data"]["X_DIM"] not in same_X_dim_beta_true:
+        with open(os.path.join(run_dir, "result"), "rb") as f:
+          result: ExperimentResult = pickle.load(f)
+        _, data_gen = init_data_gen_fn(**config_json["data"])
+        (_, _, _, _, beta_true, _) = data_gen(result.data_generation_key[0])
+        same_X_dim_beta_true[config_json["data"]["X_DIM"]] = beta_true
 
   same_data_setting_kept_idxs = {}
   if args.intersect_kept:
@@ -230,10 +232,13 @@ def main(args):
                                                          keep_idxs=keep_idxs)
     n_converged = onp.sum(result.sol.converged)
 
-    beta_l1_norm = onp.mean(
-        onp.abs(result.guess[keep_idxs] -
-                same_X_dim_beta_true[config_json["data"]["X_DIM"]]),
-        axis=0)
+    if args.compute_beta_l1_norm:
+      beta_l1_norm = onp.mean(
+          onp.abs(result.guess[keep_idxs] -
+                  same_X_dim_beta_true[config_json["data"]["X_DIM"]]),
+          axis=0)
+    else:
+      beta_l1_norm = None
 
     # Get true model result
     if args.compute_confidence_interval_overlap:
@@ -298,6 +303,9 @@ if __name__ == "__main__":
   parser.add_argument('--out_csv', type=str, default="paper_results.csv")
   parser.add_argument('--std', action="store_true", default=False)
   parser.add_argument('--intersect-kept', action="store_true", default=False)
+  parser.add_argument('--compute_beta_l1_norm',
+                      action="store_true",
+                      default=False)
   parser.add_argument('--compute_confidence_interval_overlap',
                       action="store_true",
                       default=False)

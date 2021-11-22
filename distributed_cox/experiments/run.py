@@ -176,7 +176,6 @@ def freezeargs(func):
 @functools.lru_cache(maxsize=None)
 def cov_experiment_init(method, distributed, solver, meta_analysis,
                         **experiment_params):
-  del experiment_params
 
   group_sizes, gen = init_data_gen_fn()  # pylint: disable=no-value-for-parameter
   solve_and_cov_fn = cox_solve.get_cox_solve_and_cov_fn(method, group_sizes,
@@ -192,9 +191,13 @@ def cov_experiment_init(method, distributed, solver, meta_analysis,
                             pt2=cox_sol.pt2,
                             covs=cox_sol.covs)
 
+  if experiment_params.get("num_experiments", None) == 1:
+    jitter = lambda x: x
+  else:
+    jitter = jit
   return {
-      "solve_and_cov": jit(vmap(solve_and_cov_end2end)),
-      "gen": jit(vmap(gen))
+      "solve_and_cov": jitter(vmap(solve_and_cov_end2end)),
+      "gen": jitter(vmap(gen))
   }
 
 
