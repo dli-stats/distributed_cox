@@ -24,6 +24,9 @@ setup(
         'simpleeval',
         'frozendict',
     ],
+    dependency_links=[
+        "https://storage.googleapis.com/jax-releases/jax_releases.html",
+    ],
     license='MIT license',
     long_description=open('README.md').read(),
 )
