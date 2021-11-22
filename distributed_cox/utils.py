@@ -1,7 +1,6 @@
 """General utilities."""
 
 import functools
-from jax import dtypes
 
 import jax.numpy as jnp
 import jax.ops
@@ -58,13 +57,13 @@ def bernoulli(key, theta, shape=None, dtype=bool):
   return jrandom.bernoulli(key, p=theta, shape=shape).astype(dtype)
 
 
-def normal(key, mean, std, shape=None, dtype=dtypes.float_):
+def normal(key, mean, std, shape=None, dtype=jnp.float64):
   return jrandom.normal(key, shape=shape, dtype=dtype) * std + mean
 
 
-def gamma(key, a, scale, shape=None, dtype=dtypes.float_):
+def gamma(key, a, scale, shape=None, dtype=jnp.float64):
   return jrandom.gamma(key, a=a, shape=shape, dtype=dtype) * scale
 
 
-def exponential(key, scale: float, shape=None, dtype=dtypes.float_):
+def exponential(key, scale: float, shape=None, dtype=jnp.float64):
   return jrandom.exponential(key, shape=shape, dtype=dtype) * scale
