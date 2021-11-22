@@ -14,8 +14,8 @@ setup(
     python_requires='>=3.6',
     install_requires=[
         'oryx==0.2.1',
-        'jax==0.2.25',
-        'jaxlib==0.1.74',
+        'jax==0.2.16',
+        'jaxlib==0.1.68',
         'numpy',
         'pandas',
         'dataclasses_json',
